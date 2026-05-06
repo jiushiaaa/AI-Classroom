@@ -187,7 +187,7 @@ export function CanvasToolbar({
           <span className="opacity-35 mx-px">/</span>
           {scenesCount}
         </span>
-        {isEditing && (
+        {isEditing && !readOnly && (
           <span
             className={cn(
               'ml-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5',
@@ -386,7 +386,7 @@ export function CanvasToolbar({
             </button>
           )}
 
-          <CtrlDivider />
+          {(onToggleAutoPlay || !readOnly) && <CtrlDivider />}
 
           {/* Auto-play */}
           {onToggleAutoPlay && (
@@ -414,26 +414,28 @@ export function CanvasToolbar({
             </TooltipProvider>
           )}
 
-          {/* Whiteboard */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onWhiteboardClose();
-            }}
-            className={cn(
-              ctrlBtn,
-              'w-6 h-6',
-              whiteboardOpen
-                ? 'text-violet-600 dark:text-violet-400'
-                : 'text-gray-500 dark:text-gray-400',
-            )}
-            title={whiteboardOpen ? t('whiteboard.minimize') : t('whiteboard.open')}
-          >
-            <PencilLine className="w-3.5 h-3.5" />
-            {!whiteboardOpen && whiteboardElementCount > 0 && (
-              <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 bg-violet-500 dark:bg-violet-400 rounded-full" />
-            )}
-          </button>
+          {/* Whiteboard — publisher tool; hidden in mobile / iPad preview */}
+          {!readOnly && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onWhiteboardClose();
+              }}
+              className={cn(
+                ctrlBtn,
+                'w-6 h-6',
+                whiteboardOpen
+                  ? 'text-violet-600 dark:text-violet-400'
+                  : 'text-gray-500 dark:text-gray-400',
+              )}
+              title={whiteboardOpen ? t('whiteboard.minimize') : t('whiteboard.open')}
+            >
+              <PencilLine className="w-3.5 h-3.5" />
+              {!whiteboardOpen && whiteboardElementCount > 0 && (
+                <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 bg-violet-500 dark:bg-violet-400 rounded-full" />
+              )}
+            </button>
+          )}
         </div>
       </div>
 

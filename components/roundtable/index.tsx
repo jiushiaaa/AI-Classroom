@@ -91,6 +91,11 @@ interface RoundtableProps {
   /** Ref to the fullscreen container — passed to ProactiveCard so its portal
    *  renders inside the top-layer during presentation mode. */
   readonly fullscreenContainerRef?: React.RefObject<HTMLDivElement | null>;
+  /**
+   * When true, the merged canvas toolbar hides publisher-only controls (edit
+   * mode, whiteboard toggle). Matches mobile / iPad preview in Stage.
+   */
+  readonly readOnly?: boolean;
 }
 
 const VOICE_WAVE_BARS = [
@@ -174,6 +179,7 @@ export function Roundtable({
   onTogglePresentation,
   onPresentationInteractionChange,
   fullscreenContainerRef,
+  readOnly = false,
 }: RoundtableProps) {
   const { t } = useI18n();
   const ttsMuted = useSettingsStore((s) => s.ttsMuted);
@@ -648,6 +654,7 @@ export function Roundtable({
       onToggleAutoPlay={() => setAutoPlayLecture(!autoPlayLecture)}
       playbackSpeed={playbackSpeed}
       onCycleSpeed={handleCycleSpeed}
+      readOnly={readOnly}
     />
   );
 

@@ -108,6 +108,7 @@ export function Stage({
       // session must be exited — otherwise edit chrome (selection rings, drag
       // handles) would leak through into the student-facing preview.
       useEditModeStore.getState().setEditing(false);
+      useCanvasStore.getState().setWhiteboardOpen(false);
     } else if (!isPreviewMode && wasPreview && webCollapsePrefsRef.current) {
       setSidebarCollapsed(webCollapsePrefsRef.current.sidebar);
       setChatAreaCollapsed(webCollapsePrefsRef.current.chat);
@@ -1245,6 +1246,7 @@ export function Stage({
               onTogglePresentation={togglePresentation}
               onPresentationInteractionChange={setIsPresentationInteractionActive}
               fullscreenContainerRef={stageRef}
+              readOnly={isPreviewMode}
             />
           </div>
         )}
