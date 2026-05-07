@@ -1098,6 +1098,9 @@ function PresetRolesPanel({
       <p className="text-[11px] text-muted-foreground/75 leading-relaxed">
         {t('agentBar.presetIntro')}
       </p>
+      <h3 className="text-[12px] font-semibold text-foreground/90">
+        {t('agentBar.presetRolesHeading')}
+      </h3>
       <div className="space-y-1.5">
         {presets.map((agent, idx) => {
           const isSelected = selectedAgentIds.includes(agent.id);

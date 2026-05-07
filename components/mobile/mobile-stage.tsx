@@ -38,6 +38,7 @@ interface MobileStageProps {
    * inline side panel).
    */
   readonly slideAlign?: 'center' | 'left';
+  readonly showPlayHint?: boolean;
   readonly className?: string;
 }
 
@@ -89,6 +90,7 @@ export function MobileStage({
   onRetryGeneration,
   compact = false,
   slideAlign = 'center',
+  showPlayHint: showPlayHintProp = true,
   className,
 }: MobileStageProps) {
   const { t } = useI18n();
@@ -97,6 +99,7 @@ export function MobileStage({
   const hasNext = currentSceneIndex < scenesCount - 1 || !isPendingScene;
 
   const showPlayHint =
+    showPlayHintProp &&
     mode === 'playback' &&
     engineState === 'paused' &&
     currentScene?.type === 'slide' &&
@@ -163,7 +166,6 @@ export function MobileStage({
           we don't want pointer-events disabled on children. So we use
           a div + role="button" + tabIndex; sonarqube prefers a native
           button, but the trade-off is acceptable here. */}
-      {/* eslint-disable-next-line jsx-a11y/prefer-tag-over-role -- see comment above */}
       <div
         role="button"
         tabIndex={0}
@@ -352,7 +354,6 @@ export function MobileStage({
               // NOSONAR
               Array.from({ length: scenesCount }, (_, i) => i).map((slot) => (
                 <span
-                  // eslint-disable-next-line react/no-array-index-key
                   key={slot}
                   className={cn(
                     'h-1 rounded-full transition-all duration-300',

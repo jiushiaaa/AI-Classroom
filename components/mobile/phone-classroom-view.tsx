@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useState, type RefObject } from 'react';
-import { Minimize2, PanelRightOpen, Play } from 'lucide-react';
+import { Minimize2, PanelRightOpen } from 'lucide-react';
 import type { ChatAreaRef } from '@/components/chat/chat-area';
 import type { Scene, StageMode } from '@/lib/types/stage';
 import type { PreviewOrientation } from '@/lib/store/preview-device';
@@ -93,11 +93,8 @@ interface PhoneClassroomViewProps {
  *                                    fullscreen + whiteboard.
  *
  * v1.12.5 — Phone bottom bar drops slide chevrons (stage owns paging).
- * While paused, the purple play affordance moves to a centered floating
- * control with a transparent plate over the slide; idle/playing keep
- * play/pause in the bar.
- * top bar + side panel + bottom TabletControlBar (AI teacher strip) are
- * all hidden until the user taps the minimize control to exit fullscreen.
+ * The bottom TabletControlBar (AI teacher strip) is hidden by default
+ * and only appears once the user taps the slide to pause playback.
  * Playback remains available via on-slide arrows / gestures where the
  * stage exposes them.
  */
@@ -121,7 +118,6 @@ export function PhoneClassroomView({
   onNextSlide,
   onPlayPause,
   onSelectScene,
-  onTogglePresentation,
   onRetryGeneration,
   whiteboardOpen,
   onToggleWhiteboard,
@@ -256,33 +252,8 @@ export function PhoneClassroomView({
               // it on the right (or empty stage when the panel is
               // collapsed).
               slideAlign={isLandscape ? 'left' : 'center'}
+              showPlayHint={false}
             />
-
-            {engineState === 'paused' && (
-              <div className="absolute inset-0 z-[25] flex items-center justify-center pointer-events-none">
-                <button
-                  type="button"
-                  onClick={onPlayPause}
-                  aria-label={t('mobile.teacherDock.play')}
-                  title={t('mobile.teacherDock.play')}
-                  className={cn(
-                    'pointer-events-auto inline-flex items-center justify-center',
-                    'rounded-full bg-transparent p-0 border-0 shadow-none outline-none',
-                    'focus-visible:ring-2 focus-visible:ring-purple-400/80 focus-visible:ring-offset-2',
-                  )}
-                >
-                  <span
-                    className={cn(
-                      'inline-flex items-center justify-center w-12 h-12 rounded-full',
-                      'bg-gradient-to-br from-purple-500 via-violet-500 to-fuchsia-500 text-white',
-                      'shadow-lg shadow-purple-500/25 active:scale-95 transition-transform',
-                    )}
-                  >
-                    <Play className="w-5 h-5 ml-0.5" />
-                  </span>
-                </button>
-              </div>
-            )}
 
             {/* Floating "open panel" affordance — surfaces only when
                 the panel is collapsed so the publisher can re-open it
@@ -354,7 +325,7 @@ export function PhoneClassroomView({
             )}
           </div>
 
-          {!isImmersive && (
+          {engineState === 'paused' && (
             <TabletControlBar
               speakingAgent={speakingAgent}
               teacherAgent={teacherAgent}
@@ -375,8 +346,7 @@ export function PhoneClassroomView({
               onToggleWhiteboard={onToggleWhiteboard}
               compact
               hideSlidePager
-              hideCenterPlayback={engineState === 'paused'}
-              isImmersive={false}
+              isImmersive={isImmersive}
             />
           )}
         </div>

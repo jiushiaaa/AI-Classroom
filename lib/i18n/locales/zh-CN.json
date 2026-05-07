@@ -400,6 +400,7 @@
     "modePreset": "预设模式",
     "modeAuto": "自动生成",
     "presetIntro": "勾选要进入课堂的预设角色；预设角色的人设由系统提供，仅可查看与勾选。",
+    "presetRolesHeading": "参与课堂角色",
     "presetEnableAria": "启用此预设角色",
     "presetCount": "已勾选 {{count}} / {{total}} 个预设角色",
     "viewPersona": "查看人设",

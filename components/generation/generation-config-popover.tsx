@@ -13,6 +13,7 @@ import {
   Brain,
   Minus,
   Plus,
+  SlidersHorizontal,
   X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -562,6 +563,8 @@ export function GenerationConfigPopover({ locked = false }: Readonly<{ locked?: 
   const summary = useMemo(() => computeSummary(config), [config]);
   const totalUnit = t('toolbar.generationConfig.totalPagesUnit');
   const totalAuto = config.totalPages.mode === 'auto';
+  const hasCustomGenerationConfig =
+    config.totalPages.mode === 'custom' || summary.customCount > 0;
 
   let tooltipText = t('toolbar.generationConfig.subtitle');
   if (locked) tooltipText = t('toolbar.generationConfig.lockedHint');
@@ -592,14 +595,11 @@ export function GenerationConfigPopover({ locked = false }: Readonly<{ locked?: 
             >
               <Sparkles className="size-3.5 relative z-10" />
               <span className="relative z-10">{t('toolbar.generationConfig.label')}</span>
-              {totalAuto ? (
-                <span className="ml-0.5 inline-flex items-center justify-center min-w-[22px] h-4 px-1 rounded-full text-[9px] font-bold tracking-wide bg-emerald-600 text-white">
-                  {t('toolbar.generationConfig.autoBadge')}
-                </span>
-              ) : (
-                <span className="ml-0.5 inline-flex items-center justify-center min-w-[22px] h-4 px-1 rounded-full text-[10px] font-semibold bg-violet-600 text-white">
-                  {config.totalPages.value}
-                </span>
+              {hasCustomGenerationConfig && (
+                <SlidersHorizontal
+                  className="size-3.5 shrink-0 ml-0.5 text-violet-700 dark:text-violet-300 relative z-10"
+                  aria-hidden
+                />
               )}
             </motion.button>
           </PopoverTrigger>

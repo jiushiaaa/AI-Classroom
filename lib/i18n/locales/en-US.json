@@ -378,6 +378,7 @@
     "modePreset": "Preset mode",
     "modeAuto": "Auto-generate",
     "presetIntro": "Check which preset roles join the classroom; personas are provided by the system (view-only except enable).",
+    "presetRolesHeading": "Participating classroom roles",
     "presetEnableAria": "Enable this preset role",
     "presetCount": "{{count}} / {{total}} preset roles selected",
     "viewPersona": "View persona",

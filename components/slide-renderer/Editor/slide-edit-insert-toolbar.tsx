@@ -93,7 +93,7 @@ function HistoryBtn({ icon, label, disabled, onClick }: HistoryBtnProps) {
 }
 
 /**
- * Insert + undo/redo toolbar above the slide canvas in edit mode.
+ * Insert tools then undo/redo above the slide canvas in edit mode.
  */
 export function SlideEditInsertToolbar() {
   const { t } = useI18n();
@@ -165,22 +165,6 @@ export function SlideEditInsertToolbar() {
           )}
         >
           <div className="flex items-stretch justify-center gap-0.5 sm:gap-1">
-            <HistoryBtn
-              icon={<Undo2 strokeWidth={1.75} />}
-              label={t('editMode.insertToolbar.undo')}
-              disabled={!canUndo}
-              onClick={handleUndo}
-            />
-            <HistoryBtn
-              icon={<Redo2 strokeWidth={1.75} />}
-              label={t('editMode.insertToolbar.redo')}
-              disabled={!canRedo}
-              onClick={handleRedo}
-            />
-            <Separator
-              orientation="vertical"
-              className="mx-0.5 h-auto min-h-[40px] self-center bg-gray-300/80 dark:bg-gray-600/80"
-            />
             <InsertBtn icon={<Type />} label={t('editMode.insertToolbar.text')} onClick={insertText} />
             <InsertBtn
               icon={<ImageIcon />}
@@ -196,6 +180,22 @@ export function SlideEditInsertToolbar() {
               icon={<Table2 />}
               label={t('editMode.insertToolbar.table')}
               onClick={insertTable}
+            />
+            <Separator
+              orientation="vertical"
+              className="mx-0.5 h-auto min-h-[40px] self-center bg-gray-300/80 dark:bg-gray-600/80"
+            />
+            <HistoryBtn
+              icon={<Undo2 strokeWidth={1.75} />}
+              label={t('editMode.insertToolbar.undo')}
+              disabled={!canUndo}
+              onClick={handleUndo}
+            />
+            <HistoryBtn
+              icon={<Redo2 strokeWidth={1.75} />}
+              label={t('editMode.insertToolbar.redo')}
+              disabled={!canRedo}
+              onClick={handleRedo}
             />
           </div>
         </div>
