@@ -4,13 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import Link from 'next/link';
-import {
-  ArrowUp,
-  ChevronDown,
-  ChevronRight,
-  Loader2,
-  Upload,
-} from 'lucide-react';
+import { ArrowUp, ChevronRight, Loader2, Upload } from 'lucide-react';
 import { useI18n } from '@/lib/hooks/use-i18n';
 import { createLogger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
@@ -35,7 +29,7 @@ import { toast } from 'sonner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useDraftCache } from '@/lib/hooks/use-draft-cache';
 import { SpeechButton } from '@/components/audio/speech-button';
-import { DISCOVER_COURSES, type CourseCategory } from '@/lib/mock/discover-courses';
+import { DISCOVER_COURSES } from '@/lib/mock/discover-courses';
 import { sortMyCourses } from '@/lib/publisher/my-course-classification';
 import {
   PUBLISHER_MAX_BOOK_BYTES,
@@ -299,8 +293,7 @@ function HomePage() {
   };
 
   /**
-   * Demo helper — loads 3 pre-parsed sample attachments so reviewers can see
-   * the full chip + categories + knowledge-chunk preview without having to
+   * Demo helper — loads 3 pre-parsed sample attachments without having to
    * drag a real file in. Skips items that would exceed the 5-file cap.
    */
   const loadDemoAttachments = () => {
@@ -343,27 +336,6 @@ function HomePage() {
     return req.length > 0 || hasFiles || hasBookSelection;
   }, [attachments.length, form.requirement, bookSelection]);
 
-  /** Aggregated detected disciplines across all ready attachments (deduped). */
-  const aggregatedCategories = useMemo<CourseCategory[]>(() => {
-    const set = new Set<CourseCategory>();
-    for (const a of attachments) {
-      if (a.phase !== 'ready') continue;
-      for (const c of a.detectedCategories) set.add(c);
-    }
-    return Array.from(set).slice(0, 6);
-  }, [attachments]);
-
-  /** Flattened knowledge chunk previews from all ready attachments. */
-  const aggregatedChunks = useMemo(() => {
-    return attachments.flatMap((a) =>
-      a.mockChunks.map((ch) => ({
-        ...ch,
-        composedId: `${a.id}::${ch.id}`,
-        sourceFile: a.file.name,
-      })),
-    );
-  }, [attachments]);
-
   /** Single badge for the unified upload-hub button: chapters + attachments. */
   const hubBadgeCount = useMemo(() => {
     const ch = bookSelection?.chapters.length ?? 0;
@@ -373,7 +345,6 @@ function HomePage() {
   const anyAttachmentParsing = attachments.some(
     (a) => a.phase !== 'idle' && a.phase !== 'ready',
   );
-  const anyAttachmentReady = attachments.some((a) => a.phase === 'ready');
 
   /** Lock generation config while at least one attachment is still parsing. */
   const generationConfigLocked = anyAttachmentParsing;
@@ -626,63 +597,6 @@ function HomePage() {
               )}
             </AnimatePresence>
           </div>
-
-          {/* Knowledge base preview — compact, aggregated across all ready attachments */}
-          {anyAttachmentReady &&
-            (aggregatedCategories.length > 0 || aggregatedChunks.length > 0) && (
-              <motion.div
-                initial={{ opacity: 0, y: -2 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mt-2 rounded-xl border border-emerald-200/60 dark:border-emerald-800/40 bg-emerald-50/40 dark:bg-emerald-950/20 px-3 py-2.5 space-y-2"
-              >
-                {aggregatedCategories.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70 shrink-0">
-                      {t('home.publisher.detectedLabel')}
-                    </span>
-                    {aggregatedCategories.map((cat) => (
-                      <span
-                        key={cat}
-                        className="px-2 py-0.5 rounded-full text-[11px] bg-violet-100 dark:bg-violet-900/40 text-violet-800 dark:text-violet-200"
-                      >
-                        {t(`home.categories.${cat}`)}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                {aggregatedChunks.length > 0 && (
-                  <details className="group/details">
-                    <summary className="cursor-pointer list-none flex items-center gap-1.5 text-[11px] text-emerald-800 dark:text-emerald-300">
-                      <ChevronDown className="size-3 transition-transform group-open/details:rotate-180" />
-                      {t('home.publisher.chunksTitle')}
-                      <span className="text-[10px] text-muted-foreground/70">
-                        · {aggregatedChunks.length}
-                      </span>
-                    </summary>
-                    <ul className="mt-2 space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
-                      {aggregatedChunks.map((ch) => (
-                        <li
-                          key={ch.composedId}
-                          className="rounded-lg border border-border/40 bg-background/60 px-2.5 py-1.5 text-[11px]"
-                        >
-                          <div className="flex items-baseline gap-1.5">
-                            <span className="font-medium text-foreground/90 truncate">
-                              {ch.title}
-                            </span>
-                            <span className="text-[9.5px] text-muted-foreground/60 truncate">
-                              · {ch.sourceFile}
-                            </span>
-                          </div>
-                          <p className="text-muted-foreground/90 mt-0.5 line-clamp-2">
-                            {ch.excerpt}
-                          </p>
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
-                )}
-              </motion.div>
-            )}
         </motion.div>
 
         {/* ── Error ── */}
