@@ -187,6 +187,10 @@ export interface SettingsState {
   maxTurns: string;
   agentMode: 'auto' | 'custom';
   autoAgentCount: number;
+  /** Optional display name for the built-in AI teacher (default-1); empty = use i18n default */
+  teacherCustomDisplayName: string;
+  /** Appended to the teacher system persona when non-empty */
+  teacherPersonaSupplement: string;
 
   // Layout preferences (persisted via localStorage)
   sidebarCollapsed: boolean;
@@ -211,6 +215,8 @@ export interface SettingsState {
   setMaxTurns: (turns: string) => void;
   setAgentMode: (mode: 'auto' | 'custom') => void;
   setAutoAgentCount: (count: number) => void;
+  setTeacherCustomDisplayName: (name: string) => void;
+  setTeacherPersonaSupplement: (text: string) => void;
 
   // Layout actions
   setSidebarCollapsed: (collapsed: boolean) => void;
@@ -682,6 +688,8 @@ export const useSettingsStore = create<SettingsState>()(
         maxTurns: migratedData?.maxTurns?.toString() || '10',
         agentMode: 'auto' as const,
         autoAgentCount: 3,
+        teacherCustomDisplayName: '',
+        teacherPersonaSupplement: '',
 
         // Playback controls
         ttsMuted: false,
@@ -770,6 +778,8 @@ export const useSettingsStore = create<SettingsState>()(
         setMaxTurns: (turns) => set({ maxTurns: turns }),
         setAgentMode: (mode) => set({ agentMode: mode }),
         setAutoAgentCount: (count) => set({ autoAgentCount: count }),
+        setTeacherCustomDisplayName: (name) => set({ teacherCustomDisplayName: name }),
+        setTeacherPersonaSupplement: (text) => set({ teacherPersonaSupplement: text }),
 
         // Layout actions
         setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
@@ -1559,6 +1569,13 @@ export const useSettingsStore = create<SettingsState>()(
         }
         if ((state as Record<string, unknown>).autoAgentCount === undefined) {
           (state as Record<string, unknown>).autoAgentCount = 3;
+        }
+
+        if ((state as Record<string, unknown>).teacherCustomDisplayName === undefined) {
+          (state as Record<string, unknown>).teacherCustomDisplayName = '';
+        }
+        if ((state as Record<string, unknown>).teacherPersonaSupplement === undefined) {
+          (state as Record<string, unknown>).teacherPersonaSupplement = '';
         }
 
         if ((state as Record<string, unknown>).thinkingConfigs === undefined) {

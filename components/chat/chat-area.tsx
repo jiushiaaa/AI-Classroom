@@ -400,25 +400,11 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
 
             {/* Notes Tab */}
             <TabsContent value="lecture" className="flex-1 overflow-hidden flex flex-col">
-              {!readOnly && currentSceneId && (
-                <div className="shrink-0 px-3 pt-1 pb-2 border-b border-gray-100/80 dark:border-gray-800/80">
-                  <button
-                    type="button"
-                    onClick={() => handleAiGenerateTeacherScript(currentSceneId)}
-                    className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg py-2 px-3 text-xs font-semibold text-white bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 shadow-sm shadow-purple-500/20 active:scale-[0.99] transition-all"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                    {t('chat.lectureNotes.aiOneClick')}
-                  </button>
-                  <p className="mt-1.5 text-[10px] text-center text-gray-400 dark:text-gray-500 leading-snug">
-                    {t('chat.lectureNotes.aiOneClickHint')}
-                  </p>
-                </div>
-              )}
               <LectureNotesView
                 notes={lectureNotes}
                 currentSceneId={currentSceneId}
                 onEditSpeech={readOnly ? undefined : handleEditSpeech}
+                onAiGenerateScene={readOnly ? undefined : handleAiGenerateTeacherScript}
                 onSelectScene={onLectureNoteSceneSelect}
               />
             </TabsContent>

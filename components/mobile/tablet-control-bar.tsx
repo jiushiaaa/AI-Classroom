@@ -57,6 +57,17 @@ interface TabletControlBarProps {
    */
   readonly compact?: boolean;
   /**
+   * When true, omits the slide prev/next chevrons — the stage already
+   * exposes page navigation (phone publisher request).
+   */
+  readonly hideSlidePager?: boolean;
+  /**
+   * When true, omits the center play/pause control — e.g. phone shows a
+   * floating play button over the slide while paused (`hideCenterPlayback`
+   * is typically coupled with `engineState === 'paused'` from the parent).
+   */
+  readonly hideCenterPlayback?: boolean;
+  /**
    * v1.12.1 — Immersive (fullscreen) mode. When true the secondary
    * cluster (倍速 + 自动播放) and the trailing page chip are hidden so
    * the bar shows ONLY the teacher narration line + prev/play/next.
@@ -79,8 +90,10 @@ interface TabletControlBarProps {
  *   [56 avatar]  [name + status]                    [<]  [▷ 56]  [>]   [1x] [↻]   [page]
  *                [single-line transcript ▾]
  *
- * Compact (phone portrait):
- *   [40 avatar]  [name + status (no transcript)]   [<]  [▷ 44]  [>]   [1x] [↻]   [page]
+ * Compact (phone portrait), optional:
+ *   hideSlidePager → no [<] [>]
+ *   hideCenterPlayback (while paused) → center play moves to a floating
+ *   overlay on the stage in PhoneClassroomView.
  */
 function resolveStatus(
   isPlaying: boolean,
@@ -153,6 +166,100 @@ function resolveSizes(compact: boolean): SizeTokens {
   };
 }
 
+function PrimaryPlaybackCluster({
+  compact,
+  showPagerButtons,
+  showCenterPlayback,
+  showPrimaryCluster,
+  hasPrev,
+  hasNext,
+  isPlaying,
+  arrowBtn,
+  arrowIcon,
+  playBtn,
+  playIcon,
+  onPrevSlide,
+  onNextSlide,
+  onPlayPause,
+  t,
+}: {
+  readonly compact: boolean;
+  readonly showPagerButtons: boolean;
+  readonly showCenterPlayback: boolean;
+  readonly showPrimaryCluster: boolean;
+  readonly hasPrev: boolean;
+  readonly hasNext: boolean;
+  readonly isPlaying: boolean;
+  readonly arrowBtn: string;
+  readonly arrowIcon: string;
+  readonly playBtn: string;
+  readonly playIcon: string;
+  readonly onPrevSlide: () => void;
+  readonly onNextSlide: () => void;
+  readonly onPlayPause: () => void;
+  readonly t: (key: string) => string;
+}) {
+  if (!showPrimaryCluster) return null;
+
+  return (
+    <div className={cn('shrink-0 flex items-center', compact ? 'gap-1' : 'gap-1.5')}>
+      {showPagerButtons && (
+        <button
+          type="button"
+          onClick={onPrevSlide}
+          disabled={!hasPrev}
+          aria-label={t('mobile.pager.prev')}
+          title={t('mobile.pager.prev')}
+          className={cn(
+            arrowBtn,
+            'text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800',
+            hasPrev
+              ? 'hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-95'
+              : 'opacity-40 cursor-not-allowed',
+          )}
+        >
+          <ChevronLeft className={arrowIcon} />
+        </button>
+      )}
+
+      {showCenterPlayback && (
+        <button
+          type="button"
+          onClick={onPlayPause}
+          aria-label={isPlaying ? t('mobile.teacherDock.pause') : t('mobile.teacherDock.play')}
+          title={isPlaying ? t('mobile.teacherDock.pause') : t('mobile.teacherDock.play')}
+          className={cn(
+            playBtn,
+            'bg-gradient-to-br from-purple-500 via-violet-500 to-fuchsia-500 text-white',
+            'shadow-md shadow-purple-500/30 hover:shadow-purple-500/50 active:scale-95 transition-all',
+          )}
+        >
+          {isPlaying ? <Pause className={playIcon} /> : <Play className={cn(playIcon, 'ml-0.5')} />}
+        </button>
+      )}
+
+      {showPagerButtons && (
+        <button
+          type="button"
+          onClick={onNextSlide}
+          disabled={!hasNext}
+          aria-label={t('mobile.pager.next')}
+          title={t('mobile.pager.next')}
+          className={cn(
+            arrowBtn,
+            'text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800',
+            hasNext
+              ? 'hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-95'
+              : 'opacity-40 cursor-not-allowed',
+          )}
+        >
+          <ChevronRight className={arrowIcon} />
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function TabletControlBar({
   speakingAgent,
   teacherAgent,
@@ -172,6 +279,8 @@ export function TabletControlBar({
   whiteboardOpen = false,
   onToggleWhiteboard,
   compact = false,
+  hideSlidePager = false,
+  hideCenterPlayback = false,
   isImmersive = false,
   className,
 }: TabletControlBarProps) {
@@ -212,6 +321,10 @@ export function TabletControlBar({
       Boolean(onToggleAutoPlay) ||
       Boolean(onToggleWhiteboard));
   const showPageChip = !isImmersive && scenesCount > 0;
+
+  const showPagerButtons = !hideSlidePager;
+  const showCenterPlayback = !hideCenterPlayback;
+  const showPrimaryCluster = showPagerButtons || showCenterPlayback;
 
   return (
     <div
@@ -274,55 +387,23 @@ export function TabletControlBar({
       </button>
 
       {/* ── Primary playback cluster ── */}
-      <div className={cn('shrink-0 flex items-center', compact ? 'gap-1' : 'gap-1.5')}>
-        <button
-          type="button"
-          onClick={onPrevSlide}
-          disabled={!hasPrev}
-          aria-label={t('mobile.pager.prev')}
-          title={t('mobile.pager.prev')}
-          className={cn(
-            arrowBtn,
-            'text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800',
-            hasPrev
-              ? 'hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-95'
-              : 'opacity-40 cursor-not-allowed',
-          )}
-        >
-          <ChevronLeft className={arrowIcon} />
-        </button>
-
-        <button
-          type="button"
-          onClick={onPlayPause}
-          aria-label={isPlaying ? t('mobile.teacherDock.pause') : t('mobile.teacherDock.play')}
-          title={isPlaying ? t('mobile.teacherDock.pause') : t('mobile.teacherDock.play')}
-          className={cn(
-            playBtn,
-            'bg-gradient-to-br from-purple-500 via-violet-500 to-fuchsia-500 text-white',
-            'shadow-md shadow-purple-500/30 hover:shadow-purple-500/50 active:scale-95 transition-all',
-          )}
-        >
-          {isPlaying ? <Pause className={playIcon} /> : <Play className={cn(playIcon, 'ml-0.5')} />}
-        </button>
-
-        <button
-          type="button"
-          onClick={onNextSlide}
-          disabled={!hasNext}
-          aria-label={t('mobile.pager.next')}
-          title={t('mobile.pager.next')}
-          className={cn(
-            arrowBtn,
-            'text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800',
-            hasNext
-              ? 'hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-95'
-              : 'opacity-40 cursor-not-allowed',
-          )}
-        >
-          <ChevronRight className={arrowIcon} />
-        </button>
-      </div>
+      <PrimaryPlaybackCluster
+        compact={compact}
+        showPagerButtons={showPagerButtons}
+        showCenterPlayback={showCenterPlayback}
+        showPrimaryCluster={showPrimaryCluster}
+        hasPrev={hasPrev}
+        hasNext={hasNext}
+        isPlaying={isPlaying}
+        arrowBtn={arrowBtn}
+        arrowIcon={arrowIcon}
+        playBtn={playBtn}
+        playIcon={playIcon}
+        onPrevSlide={onPrevSlide}
+        onNextSlide={onNextSlide}
+        onPlayPause={onPlayPause}
+        t={t}
+      />
 
       {/* ── Secondary cluster: speed + auto-play ──
           Hidden in immersive mode so the bar collapses to "只显示

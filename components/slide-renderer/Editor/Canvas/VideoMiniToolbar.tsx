@@ -10,12 +10,8 @@ import {
   ChevronDown,
   Clapperboard,
   Layers,
-  Lock,
-  MoreHorizontal,
-  Unlock,
 } from 'lucide-react';
 import { useCanvasStore } from '@/lib/store/canvas';
-import { useEditModeStore } from '@/lib/store/edit-mode';
 import { useSceneSelector } from '@/lib/contexts/scene-context';
 import { useCanvasOperations } from '@/lib/hooks/use-canvas-operations';
 import { useI18n } from '@/lib/hooks/use-i18n';
@@ -66,18 +62,15 @@ function MiniIconBtn({ tooltip, active, className, children, ...rest }: MiniIcon
 }
 
 /**
- * Floating mini toolbar for video: replace from disk, layer order, lock,
- * open style drawer. The sized box is `.editable-element-video` inside
- * ContextMenu, not a direct child of `#editable-element-*`.
+ * Floating mini toolbar for video: replace from disk and layer order.
  */
 export function VideoMiniToolbar() {
   const { t } = useI18n();
   const activeElementIdList = useCanvasStore.use.activeElementIdList();
   const canvasScale = useCanvasStore.use.canvasScale();
   const isScaling = useCanvasStore.use.isScaling();
-  const setStylePanelOpen = useEditModeStore.use.setStylePanelOpen();
 
-  const { orderElement, lockElement } = useCanvasOperations();
+  const { orderElement } = useCanvasOperations();
 
   const elements = useSceneSelector<SlideContent, PPTElement[]>(
     (content) => content?.canvas?.elements ?? [],
@@ -258,19 +251,6 @@ export function VideoMiniToolbar() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-
-      <Separator orientation="vertical" className="h-5 mx-0.5" />
-
-      <MiniIconBtn tooltip={t('editMode.miniToolbar.lock')} onClick={() => lockElement()}>
-        {target.lock ? <Unlock /> : <Lock />}
-      </MiniIconBtn>
-
-      <MiniIconBtn
-        tooltip={t('editMode.miniToolbar.openStylePanel')}
-        onClick={() => setStylePanelOpen(true)}
-      >
-        <MoreHorizontal />
-      </MiniIconBtn>
     </div>
   );
 

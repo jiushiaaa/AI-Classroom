@@ -32,6 +32,16 @@ export function formatText(text: string): string {
 }
 
 /**
+ * Read plain text from a contenteditable table cell (normalize nbsp and newlines).
+ */
+export function readPlainFromEditableCell(el: HTMLElement): string {
+  return el.innerText
+    .replace(/\u00a0/g, ' ')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n');
+}
+
+/**
  * Compute hidden cell positions based on colspan/rowspan merges.
  * Returns a Set of "row_col" keys for cells that should be hidden.
  */

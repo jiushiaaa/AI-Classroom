@@ -11,13 +11,11 @@ import {
   ChevronDown,
   Highlighter,
   Italic,
-  MoreHorizontal,
   Strikethrough,
   Type,
   Underline,
 } from 'lucide-react';
 import { useCanvasStore } from '@/lib/store/canvas';
-import { useEditModeStore } from '@/lib/store/edit-mode';
 import { useI18n } from '@/lib/hooks/use-i18n';
 import { cn } from '@/lib/utils';
 import emitter, { EmitterEvents } from '@/lib/utils/emitter';
@@ -101,8 +99,6 @@ export function TextSelectionMiniToolbar() {
   const editingElementId = useCanvasStore.use.editingElementId();
   const richTextAttrs = useCanvasStore.use.richTextAttrs();
   const clipingImageElementId = useCanvasStore.use.clipingImageElementId();
-  const setStylePanelOpen = useEditModeStore.use.setStylePanelOpen();
-
   const [pos, setPos] = useState<Position>(HIDDEN);
   const barRef = useRef<HTMLDivElement>(null);
   const popoverOpenRef = useRef(false);
@@ -530,15 +526,6 @@ export function TextSelectionMiniToolbar() {
           </button>
         </PopoverContent>
       </Popover>
-
-      <Separator orientation="vertical" className="h-5 mx-0.5" />
-
-      <MiniIconBtn
-        tooltip={t('editMode.miniToolbar.openStylePanel')}
-        onClick={() => setStylePanelOpen(true)}
-      >
-        <MoreHorizontal />
-      </MiniIconBtn>
     </div>
   );
 

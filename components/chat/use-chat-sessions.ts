@@ -17,6 +17,7 @@ import { useCanvasStore } from '@/lib/store/canvas';
 import { useSettingsStore } from '@/lib/store/settings';
 import { useUserProfileStore } from '@/lib/store/user-profile';
 import { useAgentRegistry } from '@/lib/orchestration/registry/store';
+import { mergeTeacherAgentConfigForChatRequest } from '@/lib/orchestration/teacher-request-override';
 import { useI18n } from '@/lib/hooks/use-i18n';
 import { getCurrentModelConfig } from '@/lib/utils/model-config';
 import { USER_AVATAR } from '@/lib/types/roundtable';
@@ -242,7 +243,7 @@ export function useChatSessions(options: UseChatSessionsOptions = {}) {
               role: 'assistant',
               parts: [],
               metadata: {
-                senderName: agentConfig?.name || data.agentName,
+                senderName: data.agentName || agentConfig?.name,
                 senderAvatar: data.avatar || agentConfig?.avatar,
                 originalRole: 'agent',
                 agentId: data.agentId,
@@ -465,8 +466,30 @@ export function useChatSessions(options: UseChatSessionsOptions = {}) {
         .map((id: string) => useAgentRegistry.getState().getAgent(id))
         .filter((agent): agent is NonNullable<typeof agent> => Boolean(agent))
         .map(({ createdAt: _c, updatedAt: _u, isDefault: _d, ...rest }) => rest);
-      if (generatedConfigs.length > 0) {
-        requestTemplate.config.agentConfigs = generatedConfigs;
+
+      const teacherBase = useAgentRegistry.getState().getAgent('default-1');
+      const teacherMerged =
+        teacherBase &&
+        mergeTeacherAgentConfigForChatRequest(
+          teacherBase,
+          settingsState.teacherCustomDisplayName,
+          settingsState.teacherPersonaSupplement,
+        );
+
+      const mergedAgentConfigs = [...generatedConfigs];
+      if (teacherMerged) {
+        const { createdAt: _ct, updatedAt: _ut, isDefault: _idf, ...teacherRest } = teacherMerged;
+        const existingIdx = mergedAgentConfigs.findIndex((c) => c.id === 'default-1');
+        if (existingIdx >= 0) {
+          mergedAgentConfigs.splice(existingIdx, 1);
+        }
+        mergedAgentConfigs.unshift(teacherRest);
+      }
+
+      if (mergedAgentConfigs.length > 0) {
+        requestTemplate.config.agentConfigs = mergedAgentConfigs;
+      } else {
+        delete requestTemplate.config.agentConfigs;
       }
 
       const defaultMaxTurns = requestTemplate.config.agentIds.length <= 1 ? 1 : 10;

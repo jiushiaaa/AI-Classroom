@@ -17,11 +17,13 @@ import {
   Maximize2,
   Minimize2,
   Check,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useStageStore, useEditModeStore } from '@/lib/store';
 import { useI18n } from '@/lib/hooks/use-i18n';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { isManuallyEditableSceneType } from '@/lib/types/stage';
 
 export interface CanvasToolbarProps {
   readonly currentSceneIndex: number;
@@ -134,20 +136,20 @@ export function CanvasToolbar({
     (s) => s.stage?.whiteboard?.[0]?.elements?.length || 0,
   );
 
-  // P3 / P6: edit-mode toggle. Only enabled for editable scene types
-  // (slide & quiz today; interactive / pbl get the AI-modify button instead).
+  // P3 / P6: edit-mode toggle. Only enabled for editable scene types —
+  // currently just the PPTist slide canvas. Quiz / interactive widgets
+  // (模拟实验 · 在线编程 · 思维导图 · 3D · game) / PBL (项目挑战) all rely on
+  // the per-scene AI-modify flow instead because their structures are
+  // impractical to tweak by hand.
   const isEditing = useEditModeStore.use.isEditing();
   const setEditing = useEditModeStore.use.setEditing();
+  const cancelEditingWithRevert = useEditModeStore.use.cancelEditingWithRevert();
+  const [pendingEditCancel, setPendingEditCancel] = useState(false);
   const currentSceneType = useStageStore((s) => {
     const id = s.currentSceneId;
     return id ? s.scenes.find((sc) => sc.id === id)?.type : undefined;
   });
-  const canEnterEdit =
-    !readOnly &&
-    (currentSceneType === 'slide' ||
-      currentSceneType === 'quiz' ||
-      currentSceneType === 'interactive' ||
-      currentSceneType === 'pbl');
+  const canEnterEdit = !readOnly && isManuallyEditableSceneType(currentSceneType);
 
   // Volume slider hover state
   const [volumeHover, setVolumeHover] = useState(false);
@@ -454,34 +456,81 @@ export function CanvasToolbar({
         button shipped in P4 instead). */}
         {canEnterEdit && !hideEditToggle && (
           <TooltipProvider delayDuration={0}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={() => setEditing(!isEditing)}
-                  className={cn(
-                    'inline-flex items-center gap-1 h-6 px-2 rounded-md',
-                    'text-[11px] font-semibold whitespace-nowrap',
-                    'transition-all duration-150 active:scale-95 cursor-pointer',
-                    isEditing
-                      ? 'bg-violet-500/15 dark:bg-violet-400/15 text-violet-700 dark:text-violet-300 ring-1 ring-violet-300/50 dark:ring-violet-500/30'
-                      : 'bg-transparent text-gray-500 dark:text-gray-400 hover:bg-gray-500/[0.08] dark:hover:bg-gray-400/[0.08]',
-                  )}
-                  aria-label={isEditing ? t('editMode.exit') : t('editMode.enter')}
-                  aria-pressed={isEditing}
-                >
-                  {isEditing ? (
-                    <Check className="w-3 h-3" />
-                  ) : (
+            {!isEditing ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => setEditing(true)}
+                    className={cn(
+                      'inline-flex items-center gap-1 h-6 px-2 rounded-md',
+                      'text-[11px] font-semibold whitespace-nowrap',
+                      'transition-all duration-150 active:scale-95 cursor-pointer',
+                      'bg-transparent text-gray-500 dark:text-gray-400 hover:bg-gray-500/[0.08] dark:hover:bg-gray-400/[0.08]',
+                    )}
+                    aria-label={t('editMode.enter')}
+                    aria-pressed={false}
+                  >
                     <Pencil className="w-3 h-3" />
-                  )}
-                  <span>{isEditing ? t('editMode.exit') : t('editMode.enter')}</span>
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="text-xs">
-                {isEditing ? t('editMode.exitTooltip') : t('editMode.enterTooltip')}
-              </TooltipContent>
-            </Tooltip>
+                    <span>{t('editMode.enter')}</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                  {t('editMode.enterTooltip')}
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <div className="inline-flex items-center gap-1">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => setEditing(false)}
+                      disabled={pendingEditCancel}
+                      className={cn(
+                        'inline-flex items-center gap-1 h-6 px-2 rounded-md',
+                        'text-[11px] font-semibold whitespace-nowrap',
+                        'transition-all duration-150 active:scale-95 cursor-pointer',
+                        'bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-60',
+                      )}
+                      aria-label={t('editMode.confirmChanges')}
+                    >
+                      <Check className="w-3 h-3" />
+                      <span>{t('editMode.confirmChanges')}</span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs max-w-[240px]">
+                    {t('editMode.confirmChangesTooltip')}
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPendingEditCancel(true);
+                        void cancelEditingWithRevert().finally(() => setPendingEditCancel(false));
+                      }}
+                      disabled={pendingEditCancel}
+                      className={cn(
+                        'inline-flex items-center gap-1 h-6 px-2 rounded-md',
+                        'text-[11px] font-semibold whitespace-nowrap',
+                        'transition-all duration-150 active:scale-95 cursor-pointer',
+                        'border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900',
+                        'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-60',
+                      )}
+                      aria-label={t('editMode.cancelChanges')}
+                    >
+                      <X className="w-3 h-3" />
+                      <span>{t('editMode.cancelChanges')}</span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs max-w-[240px]">
+                    {t('editMode.cancelChangesTooltip')}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            )}
           </TooltipProvider>
         )}
         {onTogglePresentation && (

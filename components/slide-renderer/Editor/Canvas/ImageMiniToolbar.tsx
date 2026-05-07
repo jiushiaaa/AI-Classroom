@@ -11,12 +11,8 @@ import {
   Crop,
   ImagePlus,
   Layers,
-  Lock,
-  MoreHorizontal,
-  Unlock,
 } from 'lucide-react';
 import { useCanvasStore } from '@/lib/store/canvas';
-import { useEditModeStore } from '@/lib/store/edit-mode';
 import { useSceneSelector } from '@/lib/contexts/scene-context';
 import { useI18n } from '@/lib/hooks/use-i18n';
 import { cn } from '@/lib/utils';
@@ -81,7 +77,7 @@ function parseOpacityFilter(v: string | undefined): number {
 /**
  * Floating mini toolbar for the currently selected image element.
  * Visible only when exactly one image is selected, the image is not being
- * cropped, and not locked. Shares replace/crop/layer/opacity/lock actions
+ * cropped, and not locked. Shares replace/crop/layer/opacity actions
  * with the right-click context menu via useImageElementActions.
  */
 export function ImageMiniToolbar() {
@@ -90,7 +86,6 @@ export function ImageMiniToolbar() {
   const clipingImageElementId = useCanvasStore.use.clipingImageElementId();
   const canvasScale = useCanvasStore.use.canvasScale();
   const isScaling = useCanvasStore.use.isScaling();
-  const setStylePanelOpen = useEditModeStore.use.setStylePanelOpen();
 
   const elements = useSceneSelector<SlideContent, PPTElement[]>(
     (content) => content?.canvas?.elements ?? [],
@@ -216,7 +211,6 @@ export function ImageMiniToolbar() {
     orderBottom,
     setOpacity,
     setOpacityPreview,
-    lock,
   } = useImageElementActions(targetImage ?? placeholderImage);
 
   if (typeof window === 'undefined') return null;
@@ -341,19 +335,6 @@ export function ImageMiniToolbar() {
           </div>
         </PopoverContent>
       </Popover>
-
-      <Separator orientation="vertical" className="h-5 mx-0.5" />
-
-      <MiniIconBtn tooltip={t('editMode.miniToolbar.lock')} onClick={lock}>
-        {targetImage.lock ? <Unlock /> : <Lock />}
-      </MiniIconBtn>
-
-      <MiniIconBtn
-        tooltip={t('editMode.miniToolbar.openStylePanel')}
-        onClick={() => setStylePanelOpen(true)}
-      >
-        <MoreHorizontal />
-      </MiniIconBtn>
     </div>
   );
 

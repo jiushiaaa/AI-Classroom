@@ -12,7 +12,6 @@ import {
   Paperclip,
   Plus,
   Search,
-  Sparkles,
   Upload,
   X,
 } from 'lucide-react';
@@ -78,14 +77,12 @@ interface BookLibraryDialogProps {
   align?: 'start' | 'center' | 'end';
   /** Initial active tab when the popover is (re-)opened. */
   initialTab?: TabId;
-  /** Currently uploaded attachments — drives the «我的附件» tab. */
+  /** Currently uploaded attachments — drives the «参考资料» tab. */
   attachments?: PublisherAttachmentEntry[];
   /** Validate + queue files for parsing. Caller enforces the 5-file cap. */
   onAddFiles?: (files: File[]) => void;
   /** Cancel a single attachment's parse and remove it. */
   onRemoveAttachment?: (id: string) => void;
-  /** Inject 3 pre-parsed demo attachments (button hidden once any uploaded). */
-  onLoadDemoAttachments?: () => void;
 }
 
 export function BookLibraryDialog({
@@ -100,7 +97,6 @@ export function BookLibraryDialog({
   attachments = [],
   onAddFiles,
   onRemoveAttachment,
-  onLoadDemoAttachments,
 }: BookLibraryDialogProps) {
   const [tab, setTab] = useState<TabId>(initialTab);
   const [step, setStep] = useState<Step>('library');
@@ -288,7 +284,6 @@ export function BookLibraryDialog({
                   attachments={attachments}
                   onAddFiles={(files) => onAddFiles?.(files)}
                   onRemove={(id) => onRemoveAttachment?.(id)}
-                  onLoadDemo={onLoadDemoAttachments}
                 />
               </motion.div>
             )}
@@ -380,7 +375,7 @@ function BookLibraryHeader({
 }
 
 // ──────────────────────────────────────────────────────────────────
-// Tab strip — switches between «图书库» and «我的附件»
+// Tab strip — switches between «图书库» and «参考资料»
 // ──────────────────────────────────────────────────────────────────
 
 function UploadHubTabStrip({
@@ -1027,19 +1022,17 @@ function ChapterFooter({
 }
 
 // ──────────────────────────────────────────────────────────────────
-// Attachments tab — drop zone + chip list + try-demo CTA
+// Attachments tab — drop zone + chip list
 // ──────────────────────────────────────────────────────────────────
 
 function AttachmentsStep({
   attachments,
   onAddFiles,
   onRemove,
-  onLoadDemo,
 }: Readonly<{
   attachments: PublisherAttachmentEntry[];
   onAddFiles: (files: File[]) => void;
   onRemove: (id: string) => void;
-  onLoadDemo?: () => void;
 }>) {
   const { t } = useI18n();
   const [dragActive, setDragActive] = useState(false);
@@ -1125,18 +1118,6 @@ function AttachmentsStep({
           </p>
         )}
       </button>
-
-      {/* Demo CTA — only shown when nothing uploaded yet */}
-      {attachments.length === 0 && onLoadDemo && (
-        <button
-          type="button"
-          onClick={onLoadDemo}
-          className="w-full inline-flex items-center justify-center gap-1.5 h-8 rounded-lg border border-violet-200/70 dark:border-violet-800/50 bg-violet-50/70 dark:bg-violet-950/25 text-[12px] text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/35 transition-colors cursor-pointer"
-        >
-          <Sparkles className="size-3.5" />
-          {t('bookLibrary.attachmentsTryDemo')}
-        </button>
-      )}
 
       {/* Uploaded chip list */}
       {attachments.length > 0 && (

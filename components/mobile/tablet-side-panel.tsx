@@ -4,22 +4,29 @@ import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageSquare, Users, ScrollText } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import type { UIMessage } from 'ai';
 import { useI18n } from '@/lib/hooks/use-i18n';
 import { cn } from '@/lib/utils';
 import { useStageStore } from '@/lib/store';
 import type { AgentConfig } from '@/lib/orchestration/registry/types';
 import type { MobileChatBridge } from '@/lib/hooks/use-mobile-chat-bridge';
-import type { ChatSession } from '@/lib/types/chat';
+import type { ChatSession, ChatMessageMetadata } from '@/lib/types/chat';
 import { AgentAvatar } from './agent-avatar';
 import { MobileMessageList } from './mobile-message-list';
 import { MobileChatInput } from './mobile-chat-input';
+import { MobileMembersChips } from './mobile-members-chips';
 
 export type TabletSidePanelTab = 'qa' | 'members' | 'narrationLog';
 
 interface TabletSidePanelProps {
   readonly open: boolean;
-  readonly activeTab: TabletSidePanelTab;
-  readonly onChangeTab: (tab: TabletSidePanelTab) => void;
+  /**
+   * Tab state — only meaningful when `unified` is false. The phone
+   * `unified` layout collapses everything into one scroll column and
+   * ignores these props entirely.
+   */
+  readonly activeTab?: TabletSidePanelTab;
+  readonly onChangeTab?: (tab: TabletSidePanelTab) => void;
 
   readonly bridge: MobileChatBridge;
   readonly agents: ReadonlyArray<AgentConfig>;
@@ -46,6 +53,16 @@ interface TabletSidePanelProps {
   readonly onClose?: () => void;
   /** Override the default 340px panel width (used by phone landscape). */
   readonly width?: number;
+
+  /**
+   * When true, the panel renders a single unified column instead of the
+   * three-tab segmented header. Used by the phone (mobile) layout where
+   * publishers asked us to collapse "问答 / 成员 / 讲解记录" into one
+   * scrollable surface — member chips on top, lecture transcript + Q&A
+   * messages merged chronologically in the middle, chat input on the
+   * bottom. iPad keeps the tab variant since it has the room for it.
+   */
+  readonly unified?: boolean;
 
   readonly className?: string;
 }
@@ -90,7 +107,7 @@ function roleLabel(role: string, t: (key: string) => string): string {
  */
 export function TabletSidePanel({
   open,
-  activeTab,
+  activeTab = 'qa',
   onChangeTab,
   bridge,
   agents,
@@ -102,14 +119,16 @@ export function TabletSidePanel({
   mode = 'inline',
   onClose,
   width,
+  unified = false,
   className,
 }: TabletSidePanelProps) {
   const { t } = useI18n();
 
   const panelWidth = width ?? PANEL_WIDTH_OPEN;
 
-  // ── Tab header (shared across both modes) ──
-  const tabHeader = (
+  // ── Tab header (only rendered in tab mode — unified layout collapses
+  //    the three sections into one scroll column with no top tabs). ──
+  const tabHeader = !unified && (
     <div className="shrink-0 flex items-center gap-1 px-2 pt-2 pb-1 border-b border-gray-100 dark:border-gray-800">
       {TAB_DEFS.map((tab) => {
         const Icon = tab.icon;
@@ -118,7 +137,7 @@ export function TabletSidePanel({
           <button
             key={tab.id}
             type="button"
-            onClick={() => onChangeTab(tab.id)}
+            onClick={() => onChangeTab?.(tab.id)}
             aria-pressed={isActive}
             className={cn(
               'flex-1 inline-flex items-center justify-center gap-1.5 h-9 rounded-lg text-[12.5px] font-semibold transition-colors active:scale-[0.97]',
@@ -135,8 +154,20 @@ export function TabletSidePanel({
     </div>
   );
 
-  // ── Active panel content (shared across both modes) ──
-  const activeContent = (
+  // ── Active panel content ──
+  // Phone (`unified`) gets the merged single-column layout; iPad keeps
+  // the existing tab-switched panes.
+  const activeContent = unified ? (
+    <UnifiedPanelContent
+      bridge={bridge}
+      agents={agents}
+      agentsById={agentsById}
+      speakingAgentId={speakingAgentId}
+      liveText={liveText}
+      thinkingHint={thinkingHint}
+      currentSceneId={currentSceneId}
+    />
+  ) : (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
       {activeTab === 'qa' && (
         <QATabPanel
@@ -229,6 +260,360 @@ export function TabletSidePanel({
       )}
     </AnimatePresence>
   );
+}
+
+/**
+ * UnifiedPanelContent — phone-only single-column collapse.
+ *
+ * Publishers asked for the three-tab side panel (问答 / 成员 / 讲解记录)
+ * to fold into one continuous surface on phone. This component does the
+ * actual collapse by stacking, top-to-bottom:
+ *
+ *   1. A compact horizontal `MobileMembersChips` strip — replaces the
+ *      "成员" tab. Avatars + names scroll horizontally; the speaking
+ *      agent gets a purple ring so the publisher can spot the live
+ *      voice without leaving the panel.
+ *   2. A unified message stream — replaces the "问答" + "讲解记录"
+ *      tabs. Lecture-source segments and Q&A messages are interleaved
+ *      chronologically (by `createdAt`). Lecture rows render as left-
+ *      aligned narration cards with a small "讲解" badge so readers can
+ *      tell which voice is which; Q&A rows reuse the standard chat
+ *      bubble styling. The currently-streaming `liveText` lands as the
+ *      tail bubble exactly like the original tabbed panes.
+ *   3. The `MobileChatInput` footer — unchanged.
+ *
+ * iPad continues to use the original `QATabPanel` / `MembersTabPanel` /
+ * `NarrationLogTabPanel` components via the tab header above; this
+ * component is only mounted when `unified={true}`.
+ */
+function UnifiedPanelContent({
+  bridge,
+  agents,
+  agentsById,
+  speakingAgentId,
+  liveText,
+  thinkingHint,
+  currentSceneId,
+}: {
+  readonly bridge: MobileChatBridge;
+  readonly agents: ReadonlyArray<AgentConfig>;
+  readonly agentsById: Record<string, AgentConfig | undefined>;
+  readonly speakingAgentId: string | null;
+  readonly liveText: string | null;
+  readonly thinkingHint: string | null;
+  readonly currentSceneId: string | null;
+}) {
+  const chats = useStageStore((s) => s.chats);
+
+  const lectureSessions = useMemo<ChatSession[]>(
+    () => chats.filter((c) => c.type === 'lecture'),
+    [chats],
+  );
+
+  // Merge all lecture transcript segments with the active QA session's
+  // messages into a single chronologically-sorted stream. We deliberately
+  // keep the active QA session as the source of QA truth (rather than
+  // every QA session in history) so the panel mirrors the original
+  // QATabPanel scope and avoids surprising the publisher with messages
+  // from unrelated past scenes.
+  const items = useMemo<ReadonlyArray<UnifiedItem>>(() => {
+    const out: UnifiedItem[] = [];
+
+    for (const session of lectureSessions) {
+      for (const m of session.messages) {
+        const text = (m.parts ?? [])
+          .filter((p) => p.type === 'text')
+          .map((p) => (p as { text: string }).text)
+          .join('')
+          .trim();
+        if (!text) continue;
+        out.push({
+          kind: 'lecture',
+          key: `lec:${m.id}`,
+          text,
+          agentId: m.metadata?.agentId,
+          ts: m.metadata?.createdAt ?? 0,
+          sceneActive: session.sceneId === currentSceneId,
+        });
+      }
+    }
+
+    for (const m of bridge.activeMessages) {
+      const text = (m.parts ?? [])
+        .filter((p) => p.type === 'text')
+        .map((p) => (p as { text: string }).text)
+        .join('')
+        .trim();
+      if (!text) continue;
+      out.push({
+        kind: 'qa',
+        key: `qa:${m.id}`,
+        msg: m,
+        ts: m.metadata?.createdAt ?? 0,
+      });
+    }
+
+    out.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    return out;
+  }, [lectureSessions, bridge.activeMessages, currentSceneId]);
+
+  return (
+    <>
+      {/* Members — compact chip strip replaces the standalone tab. */}
+      <div className="shrink-0 border-b border-gray-100 dark:border-gray-800">
+        <MobileMembersChips
+          agents={agents}
+          speakingAgentId={speakingAgentId}
+        />
+      </div>
+
+      {/* Conversation stream — lecture + Q&A merged chronologically. */}
+      <UnifiedMessageStream
+        items={items}
+        agentsById={agentsById}
+        liveText={liveText}
+        liveAgentId={speakingAgentId}
+        thinkingHint={thinkingHint}
+      />
+
+      {/* Chat input footer — same affordance the original QATabPanel
+          surfaced; publishers can keep typing while the lecture runs. */}
+      <MobileChatInput
+        onSend={bridge.sendMessage}
+        isStreaming={bridge.isStreaming}
+        onStop={bridge.endActiveSession}
+      />
+    </>
+  );
+}
+
+type UnifiedItem =
+  | {
+      kind: 'lecture';
+      key: string;
+      text: string;
+      agentId?: string;
+      ts: number;
+      sceneActive: boolean;
+    }
+  | {
+      kind: 'qa';
+      key: string;
+      msg: UIMessage<ChatMessageMetadata>;
+      ts: number;
+    };
+
+function UnifiedMessageStream({
+  items,
+  agentsById,
+  liveText,
+  liveAgentId,
+  thinkingHint,
+}: {
+  readonly items: ReadonlyArray<UnifiedItem>;
+  readonly agentsById: Record<string, AgentConfig | undefined>;
+  readonly liveText: string | null;
+  readonly liveAgentId: string | null;
+  readonly thinkingHint: string | null;
+}) {
+  const { t } = useI18n();
+
+  if (items.length === 0 && !liveText && !thinkingHint) {
+    return (
+      <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-center px-6">
+        <span className="w-11 h-11 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-xl mb-2.5">
+          💬
+        </span>
+        <span className="text-[12px] text-gray-500 dark:text-gray-400">
+          {t('mobile.qa.emptyHint')}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2.5 space-y-2.5">
+      {items.map((item) =>
+        item.kind === 'lecture' ? (
+          <LectureRow
+            key={item.key}
+            text={item.text}
+            agent={item.agentId ? agentsById[item.agentId] : undefined}
+            sceneActive={item.sceneActive}
+            tagLabel={t('mobile.tabs.narration')}
+            ts={item.ts}
+          />
+        ) : (
+          <QARow
+            key={item.key}
+            msg={item.msg}
+            agentsById={agentsById}
+            youLabel={t('mobile.qa.you')}
+          />
+        ),
+      )}
+
+      {liveText && (
+        <LectureRow
+          key="__live__"
+          text={liveText}
+          agent={liveAgentId ? agentsById[liveAgentId] : undefined}
+          sceneActive
+          live
+          tagLabel={t('mobile.tabs.narration')}
+          ts={0}
+        />
+      )}
+      {!liveText && thinkingHint && (
+        <div className="flex items-start gap-2 opacity-80">
+          <AgentAvatar avatar="💭" size={28} />
+          <div className="rounded-2xl px-3 py-1.5 bg-gray-100 dark:bg-gray-800/70 text-gray-700 dark:text-gray-200 text-[12px]">
+            {thinkingHint}…
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LectureRow({
+  text,
+  agent,
+  sceneActive,
+  live = false,
+  tagLabel,
+  ts,
+}: {
+  readonly text: string;
+  readonly agent: AgentConfig | undefined;
+  readonly sceneActive: boolean;
+  readonly live?: boolean;
+  readonly tagLabel: string;
+  readonly ts: number;
+}) {
+  let containerTone: string;
+  if (live) {
+    containerTone =
+      'bg-purple-50 dark:bg-purple-900/15 ring-1 ring-purple-200/60 dark:ring-purple-800/50';
+  } else if (sceneActive) {
+    containerTone = 'bg-purple-50/70 dark:bg-purple-900/10';
+  } else {
+    containerTone = 'bg-gray-50/80 dark:bg-gray-900/40';
+  }
+
+  return (
+    <div
+      className={cn(
+        'flex items-start gap-2.5 px-3 py-2 rounded-xl',
+        containerTone,
+      )}
+    >
+      <AgentAvatar
+        avatar={agent?.avatar ?? '🧑‍🏫'}
+        alt={agent?.name}
+        size={28}
+        highlighted={live}
+      />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 mb-0.5">
+          <span className="text-[11px] font-semibold text-gray-700 dark:text-gray-200 truncate max-w-[7rem]">
+            {agent?.name ?? ''}
+          </span>
+          <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 text-[9.5px] font-semibold">
+            {tagLabel}
+          </span>
+          {sceneActive && !live && (
+            <span className="text-[9.5px] font-semibold text-purple-600 dark:text-purple-300">
+              ●
+            </span>
+          )}
+          {ts > 0 && !live && (
+            <span className="ml-auto text-[9.5px] text-gray-300 dark:text-gray-600 tabular-nums">
+              {formatTime(ts)}
+            </span>
+          )}
+        </div>
+        <p className="text-[12.5px] leading-relaxed text-gray-700 dark:text-gray-200 whitespace-pre-wrap break-words">
+          {text}
+          {live && (
+            <span className="inline-block w-1 h-3 align-middle ml-0.5 bg-purple-400 dark:bg-purple-500 animate-pulse rounded-sm" />
+          )}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function QARow({
+  msg,
+  agentsById,
+  youLabel,
+}: {
+  readonly msg: UIMessage<ChatMessageMetadata>;
+  readonly agentsById: Record<string, AgentConfig | undefined>;
+  readonly youLabel: string;
+}) {
+  const isUser = msg.role === 'user';
+  const meta = msg.metadata;
+  const agent = meta?.agentId ? agentsById[meta.agentId] : undefined;
+  const senderName = isUser
+    ? (meta?.senderName ?? youLabel)
+    : (agent?.name ?? meta?.senderName ?? '');
+  const senderAvatar = isUser
+    ? (meta?.senderAvatar ?? '🙂')
+    : (agent?.avatar ?? '🤖');
+  const text = (msg.parts ?? [])
+    .filter((p) => p.type === 'text')
+    .map((p) => (p as { text: string }).text)
+    .join('');
+  const ts = meta?.createdAt ? formatTime(meta.createdAt) : '';
+
+  return (
+    <div className={cn('flex items-start gap-2', isUser && 'flex-row-reverse')}>
+      <AgentAvatar
+        avatar={senderAvatar}
+        alt={senderName}
+        size={28}
+        className={cn(isUser && 'bg-purple-500/10 ring-purple-300/40')}
+      />
+      <div
+        className={cn(
+          'flex flex-col min-w-0 max-w-[80%]',
+          isUser && 'items-end',
+        )}
+      >
+        <div className="flex items-center gap-1.5 mb-0.5">
+          <span className="text-[10.5px] text-gray-500 dark:text-gray-400 truncate max-w-[8rem]">
+            {senderName}
+          </span>
+          {ts && (
+            <span className="text-[9.5px] text-gray-300 dark:text-gray-600 tabular-nums">
+              {ts}
+            </span>
+          )}
+        </div>
+        <div
+          className={cn(
+            'rounded-2xl px-3 py-1.5 text-[12.5px] leading-relaxed whitespace-pre-wrap break-words',
+            isUser
+              ? 'bg-gradient-to-br from-purple-100 to-fuchsia-100 dark:from-purple-900/40 dark:to-fuchsia-900/40 text-gray-800 dark:text-gray-100 rounded-tr-sm'
+              : 'bg-gray-100 dark:bg-gray-800/70 text-gray-800 dark:text-gray-100 rounded-tl-sm',
+          )}
+        >
+          {text}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function formatTime(ts: number): string {
+  try {
+    const d = new Date(ts);
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  } catch {
+    return '';
+  }
 }
 
 function QATabPanel({

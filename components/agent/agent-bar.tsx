@@ -23,6 +23,7 @@ import {
   ChevronDown,
   Eye,
   EyeOff,
+  Pencil,
   Shuffle,
   Volume2,
   VolumeX,
@@ -35,6 +36,7 @@ import {
   X,
 } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -52,10 +54,7 @@ import {
   type PublisherCustomRoleRow,
   type PublisherIdentityRole,
 } from '@/lib/publisher/publisher-custom-roles';
-import {
-  AUTO_ROLES_EXAMPLE_PROMPTS,
-  generateAutoRolesDemo,
-} from '@/lib/publisher/publisher-roles-demo';
+import { generateAutoRolesDemo } from '@/lib/publisher/publisher-roles-demo';
 import { toast } from 'sonner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { AgentConfig } from '@/lib/orchestration/registry/types';
@@ -380,9 +379,12 @@ function AgentVoicePill({
 function TeacherVoicePill({
   availableProviders,
   disabled,
+  previewDisplayName,
 }: {
   availableProviders: ProviderWithVoices[];
   disabled?: boolean;
+  /** Used for provider preview metadata (e.g. VoxCPM) when the user renamed the teacher */
+  previewDisplayName?: string;
 }) {
   const { t, locale } = useI18n();
   const ttsProviderId = useSettingsStore((s) => s.ttsProviderId);
@@ -460,7 +462,7 @@ function TeacherVoicePill({
             ? {
                 ...(providerConfig?.providerOptions || {}),
                 ...(await getVoxCPMProviderOptions(voiceId, {
-                  agentName: 'Teacher',
+                  agentName: previewDisplayName?.trim() || 'Teacher',
                   role: 'teacher',
                   locale,
                 })),
@@ -497,7 +499,7 @@ function TeacherVoicePill({
         setPreviewingId(null);
       }
     },
-    [locale, previewingId, stopPreview, t, ttsProvidersConfig],
+    [locale, previewDisplayName, previewingId, stopPreview, t, ttsProvidersConfig],
   );
 
   useEffect(() => () => stopPreview(), [stopPreview]);
@@ -654,10 +656,8 @@ function publisherRoleInitial(
 }
 
 /**
- * Demo-only auto generation panel (single scroll column).
- *
- * Empty state: one violet intro card (shuffle + copy) → prompt → example chips
- * → dashed hint. After roles exist: prompt + chips + list (no duplicate intro).
+ * Auto generation panel: intro strip when empty / compact hint when roles exist,
+ * prompt + submit, then generated role list.
  */
 interface AutoGenerateRolesPanelProps {
   value: PublisherCustomRoleRow[];
@@ -676,8 +676,6 @@ function AutoGenerateRolesPanel({
 
   const remainingCapacity = Math.max(0, PUBLISHER_CUSTOM_ROLES_MAX - value.length);
   const atCapacity = remainingCapacity === 0;
-
-  const examples = useMemo(() => AUTO_ROLES_EXAMPLE_PROMPTS.slice(0, 4), []);
 
   const patchRow = (id: string, patch: Partial<PublisherCustomRoleRow>) => {
     onChange(value.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -853,36 +851,8 @@ function AutoGenerateRolesPanel({
         </button>
       </div>
 
-      {/* Example chips */}
-      {!busy && (
-        <div className="flex flex-wrap gap-1.5">
-          {examples.map((ex) => (
-            <button
-              key={ex}
-              type="button"
-              disabled={atCapacity}
-              onClick={() => setPrompt(ex)}
-              className={cn(
-                'text-[11px] px-2.5 py-1 rounded-full border border-violet-200/50 text-violet-800/90 bg-white/80',
-                'dark:border-violet-800/50 dark:text-violet-200 dark:bg-violet-950/20',
-                'hover:bg-violet-50 hover:border-violet-300/80 dark:hover:bg-violet-900/35',
-                'transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
-              )}
-            >
-              {ex}
-            </button>
-          ))}
-        </div>
-      )}
-
       {/* ── Generated role list ── */}
-      {value.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-violet-200/50 dark:border-violet-800/40 bg-violet-50/20 dark:bg-violet-950/15 px-3.5 py-4 text-center">
-          <p className="text-[11.5px] text-muted-foreground/80 leading-relaxed">
-            {busy ? t('agentBar.autoGenerate.thinking') : t('agentBar.autoGenerate.emptyHint')}
-          </p>
-        </div>
-      ) : (
+      {value.length > 0 && (
         <div className="space-y-1.5">
           <div className="flex items-center justify-between px-0.5">
             <span className="text-[11px] text-muted-foreground/75">
@@ -1252,12 +1222,25 @@ export function AgentBar() {
   const setAgentMode = useSettingsStore((s) => s.setAgentMode);
   const ttsProvidersConfig = useSettingsStore((s) => s.ttsProvidersConfig);
   const ttsEnabled = useSettingsStore((s) => s.ttsEnabled);
+  const teacherCustomDisplayName = useSettingsStore((s) => s.teacherCustomDisplayName);
+  const teacherPersonaSupplement = useSettingsStore((s) => s.teacherPersonaSupplement);
+  const setTeacherCustomDisplayName = useSettingsStore((s) => s.setTeacherCustomDisplayName);
+  const setTeacherPersonaSupplement = useSettingsStore((s) => s.setTeacherPersonaSupplement);
 
   const [publisherCustomRoles, setPublisherCustomRoles] = useState<PublisherCustomRoleRow[]>([]);
+  const [teacherNameEdit, setTeacherNameEdit] = useState(false);
+  const [teacherPersonaExpanded, setTeacherPersonaExpanded] = useState(false);
 
   const [open, setOpen] = useState(false);
   const [browserVoices, setBrowserVoices] = useState<SpeechSynthesisVoice[]>([]);
   const { profiles: voxcpmProfiles } = useVoxCPMVoiceProfiles();
+
+  useEffect(() => {
+    if (!open) {
+      setTeacherNameEdit(false);
+      setTeacherPersonaExpanded(false);
+    }
+  }, [open]);
 
   // Load browser native TTS voices
   useEffect(() => {
@@ -1336,6 +1319,14 @@ export function AgentBar() {
     return translated !== key ? translated : agent.name;
   };
 
+  let teacherDisplayLabel = '';
+  if (teacherAgent) {
+    teacherDisplayLabel =
+      teacherCustomDisplayName.trim() === ''
+        ? getAgentName(teacherAgent)
+        : teacherCustomDisplayName.trim();
+  }
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <Tooltip>
@@ -1393,38 +1384,125 @@ export function AgentBar() {
           </p>
         </div>
 
-        {/* ── Teacher — always visible at the top ── */}
+        {/* ── Teacher — avatar + name (pencil) + voice + persona (eye) ── */}
         {teacherAgent && (
           <div className="px-4 pt-3 shrink-0">
-            <div className="flex items-center gap-2 px-2.5 py-2 rounded-xl bg-primary/5 border border-border/40">
-              <div
-                className="size-8 rounded-full overflow-hidden ring-1 ring-border/40 shrink-0"
-                style={{ boxShadow: `0 0 0 2px ${teacherAgent.color}30` }}
-              >
-                <img
-                  src={teacherAgent.avatar}
-                  alt={getAgentName(teacherAgent)}
-                  className="size-full object-cover"
-                />
+            <div
+              className={cn(
+                'rounded-xl border transition-colors',
+                'border-violet-300/70 bg-violet-50/40 dark:border-violet-800/60 dark:bg-violet-950/20',
+              )}
+            >
+              <div className="group/name flex items-center gap-2 px-2.5 py-2">
+                <div
+                  className="size-8 rounded-full overflow-hidden ring-1 ring-border/40 shrink-0"
+                  style={{ boxShadow: `0 0 0 2px ${teacherAgent.color}30` }}
+                >
+                  <img
+                    src={teacherAgent.avatar}
+                    alt=""
+                    className="size-full object-cover"
+                    aria-hidden
+                  />
+                </div>
+                <div className="min-w-0 flex-1 flex items-center gap-1 min-w-0">
+                  {teacherNameEdit ? (
+                    <Input
+                      value={teacherCustomDisplayName}
+                      onChange={(e) => setTeacherCustomDisplayName(e.target.value)}
+                      onBlur={() => setTeacherNameEdit(false)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          (e.target as HTMLInputElement).blur();
+                        }
+                        if (e.key === 'Escape') {
+                          setTeacherNameEdit(false);
+                        }
+                      }}
+                      autoFocus
+                      maxLength={64}
+                      placeholder={getAgentName(teacherAgent)}
+                      aria-label={t('agentBar.teacherNameAria')}
+                      className="h-7 text-[13px] font-medium min-w-0 flex-1 bg-background/90 border-border/60"
+                      onClick={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
+                    />
+                  ) : (
+                    <>
+                      <span className="text-[13px] font-medium truncate">{teacherDisplayLabel}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTeacherNameEdit(true);
+                        }}
+                        className={cn(
+                          'size-6 shrink-0 inline-flex items-center justify-center rounded-md transition-colors',
+                          'text-muted-foreground/70 max-sm:opacity-100',
+                          'opacity-0 group-hover/name:opacity-100 focus-visible:opacity-100',
+                          'hover:bg-muted/60 hover:text-foreground',
+                        )}
+                        aria-label={t('agentBar.teacherEditNameAria')}
+                      >
+                        <Pencil className="size-3.5" />
+                      </button>
+                    </>
+                  )}
+                </div>
+                {showVoice && (
+                  <TeacherVoicePill
+                    availableProviders={availableProviders}
+                    disabled={!ttsEnabled}
+                    previewDisplayName={teacherDisplayLabel}
+                  />
+                )}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTeacherPersonaExpanded((v) => !v);
+                      }}
+                      className="size-6 inline-flex items-center justify-center rounded-md text-muted-foreground/60 hover:bg-muted/60 hover:text-foreground transition-colors shrink-0"
+                      aria-label={
+                        teacherPersonaExpanded
+                          ? t('agentBar.collapsePersona')
+                          : t('agentBar.viewPersona')
+                      }
+                    >
+                      {teacherPersonaExpanded ? (
+                        <EyeOff className="size-3.5" />
+                      ) : (
+                        <Eye className="size-3.5" />
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-[11px]">
+                    {teacherPersonaExpanded
+                      ? t('agentBar.collapsePersona')
+                      : t('agentBar.viewPersona')}
+                  </TooltipContent>
+                </Tooltip>
               </div>
-              <div className="min-w-0 flex-1 flex items-center gap-1.5">
-                <span className="text-[13px] font-medium truncate">
-                  {getAgentName(teacherAgent)}
-                </span>
-                <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
-                  {t('settings.agentRoles.teacher')}
-                </span>
-              </div>
-              {showVoice && (
-                <TeacherVoicePill
-                  availableProviders={availableProviders}
-                  disabled={!ttsEnabled}
-                />
+              {teacherPersonaExpanded && (
+                <div className="px-3 pb-2.5 pt-0.5">
+                  <Textarea
+                    value={teacherPersonaSupplement}
+                    onChange={(e) => setTeacherPersonaSupplement(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    placeholder={t('agentBar.teacherPersonaHint')}
+                    maxLength={4000}
+                    rows={4}
+                    aria-label={t('agentBar.teacherPersonaAria')}
+                    className="text-[11.5px] leading-relaxed resize-none bg-background/60 border-border/40 focus-visible:border-violet-300/70 focus-visible:ring-violet-300/30"
+                  />
+                </div>
               )}
             </div>
           </div>
         )}
-
         {/* ── Mode tabs ── */}
         <div className="px-4 pt-3 shrink-0">
           <div className="flex rounded-xl bg-muted/45 p-1 gap-1">

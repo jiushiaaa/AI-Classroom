@@ -45,10 +45,6 @@ import {
   type BookLibrarySelection,
 } from '@/components/publisher/book-library-dialog';
 import { ClassroomCard } from '@/components/publisher/classroom-card';
-import {
-  buildDemoAttachmentsQueuedForParse,
-  type DemoAttachmentQueued,
-} from '@/lib/publisher/publisher-demo-attachments';
 
 const log = createLogger('Home');
 
@@ -304,32 +300,6 @@ function HomePage() {
   };
 
   /**
-   * Demo helper — queues curated sample files and runs the same mock parse as
-   * real uploads so the home «附件解析中» strip appears; ends with seed chunks.
-   */
-  const loadDemoAttachments = () => {
-    setError(null);
-    let queued: DemoAttachmentQueued[] = [];
-    setAttachments((prev) => {
-      const room = Math.max(0, 5 - prev.length);
-      if (room === 0) {
-        queued = [];
-        return prev;
-      }
-      queued = buildDemoAttachmentsQueuedForParse(room);
-      return [...prev, ...queued.map((q) => q.entry)];
-    });
-    if (queued.length === 0) return;
-    globalThis.setTimeout(() => {
-      queued.forEach((q, i) => {
-        globalThis.setTimeout(() => {
-          startParseForAttachment(q.entry.id, q.entry.file, q.finalChunks);
-        }, i * 220);
-      });
-    }, 0);
-  };
-
-  /**
    * Pure-frontend demo: any input (text / book selection / file) routes directly
    * to the bundled demo classroom. No backend / generation pipeline involved.
    */
@@ -534,7 +504,6 @@ function HomePage() {
                   attachments={attachments}
                   onAddFiles={addFiles}
                   onRemoveAttachment={removeAttachment}
-                  onLoadDemoAttachments={loadDemoAttachments}
                   side="top"
                   align="start"
                 >

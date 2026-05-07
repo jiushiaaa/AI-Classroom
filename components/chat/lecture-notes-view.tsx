@@ -16,6 +16,7 @@ import {
   Play,
   Check,
   Pencil,
+  Sparkles,
 } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
@@ -50,6 +51,11 @@ interface LectureNotesViewProps {
    * as read-only.
    */
   onEditSpeech?: (sceneId: string, actionId: string, newText: string) => void;
+  /**
+   * AI one-click: generate first speech line for that scene (e.g. from slide text).
+   * Shown as an icon on each card; when omitted, the control is hidden.
+   */
+  onAiGenerateScene?: (sceneId: string) => void;
   /** Card click jumps global current scene (scroll alone does not call this). */
   onSelectScene?: (sceneId: string) => void;
 }
@@ -58,11 +64,19 @@ export function LectureNotesView({
   notes,
   currentSceneId,
   onEditSpeech,
+  onAiGenerateScene,
   onSelectScene,
 }: LectureNotesViewProps) {
   const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const editable = !!onEditSpeech;
+  const [editingSceneId, setEditingSceneId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (editingSceneId && !notes.some((n) => n.sceneId === editingSceneId)) {
+      setEditingSceneId(null);
+    }
+  }, [notes, editingSceneId]);
 
   // Auto-scroll to the current scene note
   useEffect(() => {
@@ -115,6 +129,9 @@ export function LectureNotesView({
         const pageNum = index + 1;
         const pageLabel = t('chat.lectureNotes.pageLabel', { n: pageNum });
 
+        const showHeaderActions = Boolean(onAiGenerateScene || onEditSpeech);
+        const speechUnlocked = editable && editingSceneId === note.sceneId;
+
         return (
           <div
             key={note.sceneId}
@@ -147,7 +164,7 @@ export function LectureNotesView({
                 : undefined
             }
             className={cn(
-              'relative mb-3 last:mb-0 rounded-lg px-3 py-2.5 transition-colors duration-200',
+              'group/card relative mb-3 last:mb-0 rounded-lg px-3 py-2.5 transition-colors duration-200',
               isCurrent
                 ? 'bg-purple-50/80 dark:bg-purple-950/25 ring-1 ring-purple-200/60 dark:ring-purple-700/30'
                 : 'bg-gray-50/50 dark:bg-gray-800/30',
@@ -156,7 +173,7 @@ export function LectureNotesView({
             )}
           >
             {/* Page label row */}
-            <div className="flex items-center gap-2 mb-1.5">
+            <div className="flex items-center gap-2 mb-1.5 min-w-0">
               {/* Timeline dot */}
               <div
                 className={cn(
@@ -168,7 +185,7 @@ export function LectureNotesView({
               />
               <span
                 className={cn(
-                  'text-[10px] font-semibold tracking-wide',
+                  'text-[10px] font-semibold tracking-wide min-w-0',
                   isCurrent
                     ? 'text-purple-600 dark:text-purple-400'
                     : 'text-gray-400 dark:text-gray-500',
@@ -176,8 +193,55 @@ export function LectureNotesView({
               >
                 {pageLabel}
               </span>
+              {showHeaderActions && (
+                <div
+                  className={cn(
+                    'flex items-center gap-0.5 shrink-0',
+                    'opacity-0 pointer-events-none transition-opacity',
+                    'group-hover/card:opacity-100 group-hover/card:pointer-events-auto',
+                    'max-sm:opacity-100 max-sm:pointer-events-auto',
+                  )}
+                >
+                  {onAiGenerateScene && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAiGenerateScene(note.sceneId);
+                      }}
+                      className="size-6 inline-flex items-center justify-center rounded-md text-muted-foreground/70 hover:bg-purple-100/80 dark:hover:bg-purple-900/35 hover:text-purple-600 dark:hover:text-purple-300 transition-colors"
+                      title={t('chat.lectureNotes.aiGenerateIconTitle')}
+                      aria-label={t('chat.lectureNotes.aiGenerateIconTitle')}
+                    >
+                      <Sparkles className="size-3.5" />
+                    </button>
+                  )}
+                  {onEditSpeech && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingSceneId((prev) =>
+                          prev === note.sceneId ? null : note.sceneId,
+                        );
+                      }}
+                      className={cn(
+                        'size-6 inline-flex items-center justify-center rounded-md transition-colors',
+                        speechUnlocked
+                          ? 'text-purple-600 dark:text-purple-400 bg-purple-100/80 dark:bg-purple-900/40'
+                          : 'text-muted-foreground/70 hover:bg-gray-200/80 dark:hover:bg-gray-700/60 hover:text-foreground',
+                      )}
+                      title={t('chat.lectureNotes.editPageScriptTitle')}
+                      aria-label={t('chat.lectureNotes.editPageScriptTitle')}
+                      aria-pressed={speechUnlocked}
+                    >
+                      <Pencil className="size-3.5" />
+                    </button>
+                  )}
+                </div>
+              )}
               {isCurrent && (
-                <span className="text-[9px] font-bold px-1.5 py-px rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300">
+                <span className="text-[9px] font-bold px-1.5 py-px rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300 shrink-0">
                   {t('chat.lectureNotes.currentPage')}
                 </span>
               )}
@@ -265,7 +329,7 @@ export function LectureNotesView({
                         text={row.text}
                         userEditedAt={row.userEditedAt}
                         inlineActions={row.inlineActions}
-                        editable={editable}
+                        editable={speechUnlocked}
                         onEditSpeech={onEditSpeech}
                         editHintLabel={t('chat.lectureNotes.editHint')}
                         ttsSyncedLabel={t('chat.lectureNotes.ttsSyncedBadge')}
@@ -309,12 +373,9 @@ export function LectureNotesView({
 }
 
 /**
- * EditableSpeech — renders a speech sentence with inline action icons and an
- * optional inline edit affordance. Uses contentEditable for a lightweight
- * inline-edit experience: click anywhere in the sentence to start editing,
- * Enter or blur to save, Escape to cancel. After a successful edit the
- * sentence shows a persistent "✓ TTS 已同步" badge confirming the publisher's
- * change has been re-synthesised on the next playback.
+ * EditableSpeech — speech line with inline action icons. When `editable` is
+ * true (page edit mode unlocked from the card header), the text is
+ * contentEditable; otherwise it is read-only.
  */
 interface EditableSpeechProps {
   readonly sceneId: string;
@@ -348,6 +409,16 @@ function EditableSpeech({
   } | null>(null);
   const spanRef = useRef<HTMLSpanElement>(null);
   const suppressBlurRef = useRef(false);
+
+  useEffect(() => {
+    if (!editable) {
+      setIsEditing(false);
+      setPolishState(null);
+      if (spanRef.current) {
+        spanRef.current.textContent = text;
+      }
+    }
+  }, [editable, text]);
 
   // Reset DOM content when the source text changes (e.g. another component
   // updated the action). Skip while the user is actively editing to avoid
@@ -512,7 +583,7 @@ function EditableSpeech({
           {text}
         </span>
       ) : (
-        <span>{text}</span>
+        <span className="select-text">{text}</span>
       )}
 
       {/* TTS synced badge — persistent across reloads once edited */}
@@ -524,38 +595,6 @@ function EditableSpeech({
           <Check className="w-2.5 h-2.5 shrink-0" strokeWidth={3} />
           <span>{ttsSyncedLabel}</span>
         </span>
-      )}
-
-      {/* Pencil button — click to enter edit mode (also visible on hover before first edit) */}
-      {editable && !isEditing && !userEditedAt && (
-        <button
-          type="button"
-          aria-label={editHintLabel}
-          title={editHintLabel}
-          onMouseDown={(e) => {
-            // Prevent the button from stealing focus before we can move it to
-            // the editable span on click.
-            e.preventDefault();
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            const el = spanRef.current;
-            if (!el) return;
-            el.focus();
-            // Place caret at the end of the existing text for a natural edit start.
-            const range = document.createRange();
-            range.selectNodeContents(el);
-            range.collapse(false);
-            const sel = globalThis.getSelection();
-            if (sel) {
-              sel.removeAllRanges();
-              sel.addRange(range);
-            }
-          }}
-          className="ml-1 inline-flex items-center justify-center align-middle p-0.5 rounded opacity-0 group-hover/speech:opacity-70 hover:!opacity-100 hover:bg-purple-100/70 dark:hover:bg-purple-900/30 hover:text-purple-600 dark:hover:text-purple-300 text-gray-400 dark:text-gray-500 transition-all cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-purple-400 focus-visible:opacity-100"
-        >
-          <Pencil className="w-3 h-3" />
-        </button>
       )}
 
       <AnimatePresence>

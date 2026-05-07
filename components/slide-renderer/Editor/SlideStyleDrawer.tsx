@@ -1,10 +1,12 @@
 'use client';
 
+import { useEffect, useMemo } from 'react';
 import { X } from 'lucide-react';
 import { useI18n } from '@/lib/hooks/use-i18n';
-import { useEditModeStore } from '@/lib/store';
+import { useEditModeStore, useStageStore, useCanvasStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { StylePanel } from '@/components/chat/style-panel';
+import { ElementTypes } from '@/lib/types/slides';
 
 /**
  * Right-side "样式 / Format" drawer for the slide editor.
@@ -14,9 +16,8 @@ import { StylePanel } from '@/components/chat/style-panel';
  *   `useCanvasOperations()` which requires it).
  * - Mounted as an absolutely-positioned overlay over the canvas right
  *   edge, NOT inside the chat area on the far right of the page.
- * - Opened by the "更多" button in the text / image / table mini toolbars
- *   via `useEditModeStore.setStylePanelOpen(true)`. Image/video panels
- *   expose geometry and media controls inline (no extra「更多」step).
+ * - Opened from the table mini toolbar via `setStylePanelOpen(true)`.
+ *   Text / image / video do not use this drawer (no style panel shell).
  *
  * The drawer uses simple CSS transitions; we deliberately keep this
  * lightweight rather than pulling in shadcn `Sheet`, because we want to
@@ -28,8 +29,31 @@ export function SlideStyleDrawer() {
   const open = useEditModeStore.use.stylePanelOpen();
   const setOpen = useEditModeStore.use.setStylePanelOpen();
   const isEditing = useEditModeStore.use.isEditing();
+  const handleElementId = useCanvasStore.use.handleElementId();
+  const currentSceneId = useStageStore.use.currentSceneId();
+  const scenes = useStageStore.use.scenes();
+
+  const handledElementType = useMemo(() => {
+    if (!handleElementId || !currentSceneId) return null;
+    const scene = scenes.find((s) => s.id === currentSceneId);
+    if (!scene || scene.content.type !== 'slide') return null;
+    const el = scene.content.canvas.elements.find((e) => e.id === handleElementId);
+    return el?.type ?? null;
+  }, [handleElementId, currentSceneId, scenes]);
+
+  const stylePanelDisabledForSelection =
+    handledElementType === ElementTypes.TEXT ||
+    handledElementType === ElementTypes.IMAGE ||
+    handledElementType === ElementTypes.VIDEO;
+
+  useEffect(() => {
+    if (stylePanelDisabledForSelection) {
+      setOpen(false);
+    }
+  }, [stylePanelDisabledForSelection, setOpen]);
 
   if (!isEditing) return null;
+  if (stylePanelDisabledForSelection) return null;
 
   return (
     <div

@@ -1,5 +1,10 @@
 import { nanoid } from 'nanoid';
-import type { PPTImageElement, PPTTableElement, PPTTextElement } from '@/lib/types/slides';
+import type {
+  PPTImageElement,
+  PPTTableElement,
+  PPTTextElement,
+  PPTVideoElement,
+} from '@/lib/types/slides';
 
 const PLACEHOLDER_IMAGE_SVG = encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="240" viewBox="0 0 400 240">
@@ -52,6 +57,28 @@ export function createSlideImageElement(
     fixedRatio: true,
     src: `data:image/svg+xml,${PLACEHOLDER_IMAGE_SVG}`,
     imageType: 'itemFigure',
+  };
+}
+
+export function createSlideVideoElement(
+  viewportWidth: number,
+  viewportHeight: number,
+): PPTVideoElement {
+  const id = `vid-${nanoid(8)}`;
+  const w = Math.min(480, viewportWidth * 0.5);
+  const h = (w * 9) / 16;
+  const left = Math.max(40, (viewportWidth - w) / 2);
+  const top = Math.max(48, viewportHeight * 0.2);
+  return {
+    type: 'video',
+    id,
+    left,
+    top,
+    width: w,
+    height: h,
+    rotate: 0,
+    src: '',
+    autoplay: false,
   };
 }
 

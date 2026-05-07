@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useState, type RefObject } from 'react';
-import { Minimize2, PanelRightOpen } from 'lucide-react';
+import { Minimize2, PanelRightOpen, Play } from 'lucide-react';
 import type { ChatAreaRef } from '@/components/chat/chat-area';
 import type { Scene, StageMode } from '@/lib/types/stage';
 import type { PreviewOrientation } from '@/lib/store/preview-device';
@@ -13,7 +13,7 @@ import { useI18n } from '@/lib/hooks/use-i18n';
 import { TabletTopBar } from './tablet-top-bar';
 import { MobileStage } from './mobile-stage';
 import { TabletControlBar } from './tablet-control-bar';
-import { TabletSidePanel, type TabletSidePanelTab } from './tablet-side-panel';
+import { TabletSidePanel } from './tablet-side-panel';
 import { MobileSceneDrawer } from './mobile-scene-drawer';
 import { cn } from '@/lib/utils';
 
@@ -91,6 +91,15 @@ interface PhoneClassroomViewProps {
  *   3. 加入网页端的全屏 / 倍速 /     → TabletControlBar gains speed +
  *      自动播放 / 白板               autoplay; TopBar More menu gains
  *                                    fullscreen + whiteboard.
+ *
+ * v1.12.5 — Phone bottom bar drops slide chevrons (stage owns paging).
+ * While paused, the purple play affordance moves to a centered floating
+ * control with a transparent plate over the slide; idle/playing keep
+ * play/pause in the bar.
+ * top bar + side panel + bottom TabletControlBar (AI teacher strip) are
+ * all hidden until the user taps the minimize control to exit fullscreen.
+ * Playback remains available via on-slide arrows / gestures where the
+ * stage exposes them.
  */
 export function PhoneClassroomView({
   orientation,
@@ -134,19 +143,22 @@ export function PhoneClassroomView({
   // `DevicePreviewShell` carries `key={device-orientation}` so this
   // component remounts whenever orientation flips, and the useState
   // initializer below picks up the fresh `isLandscape` automatically.
+  //
+  // v1.12.3 — phone collapses 问答 / 成员 / 讲解记录 into one unified
+  // surface (see TabletSidePanel `unified` prop), so the tab state that
+  // used to live here is no longer needed.
   const [sidePanelOpen, setSidePanelOpen] = useState<boolean>(isLandscape);
-  const [activeSideTab, setActiveSideTab] = useState<TabletSidePanelTab>('qa');
   const [sceneDrawerOpen, setSceneDrawerOpen] = useState(false);
 
-  // v1.12.1 — Local immersive (fullscreen-within-the-device-frame)
-  // state. Tapping the top-bar Maximize button collapses the chrome
-  // (top bar + side panel + control-bar secondary cluster) so the user
-  // sees only the slide and a slim teacher-narration strip — exactly
-  // what the publisher requested with "只显示幻灯片以及老师的讲解".
-  // We avoid the browser fullscreen API here because the surrounding
-  // DevicePreviewShell uses `transform: scale()` and native fullscreen
-  // on a scaled child does not produce the intended UX.
-  const [isImmersive, setIsImmersive] = useState(false);
+  // v1.12.1 — Local immersive (fullscreen-within-the-device-frame).
+  // v1.12.4 — Defaults to true so the phone preview opens as slide-only;
+  // immersive mode hides the top bar, side panel, and the entire bottom
+  // TabletControlBar (not merely its secondary cluster — publishers
+  // asked for no AI-teacher strip while fullscreen).
+  // We avoid the browser fullscreen API because DevicePreviewShell uses
+  // `transform: scale()` and native fullscreen on a scaled child does
+  // not produce the intended UX.
+  const [isImmersive, setIsImmersive] = useState(true);
   const enterImmersive = useCallback(() => {
     setIsImmersive(true);
     // Always close the side panel on entry; reopening the panel mid-
@@ -185,9 +197,11 @@ export function PhoneClassroomView({
   const speechText = playbackView.sourceText || null;
   const thinkingHint = thinkingState ? humanReadableThinking(thinkingState.stage) : null;
 
+  // v1.12.3 — with the unified phone panel there's no separate
+  // "讲解记录" tab to switch to, so opening the panel is enough; the
+  // lecture transcript is already woven into the merged stream.
   const expandTranscript = useCallback(() => {
     setSidePanelOpen(true);
-    setActiveSideTab('narrationLog');
   }, []);
 
   return (
@@ -244,6 +258,32 @@ export function PhoneClassroomView({
               slideAlign={isLandscape ? 'left' : 'center'}
             />
 
+            {engineState === 'paused' && (
+              <div className="absolute inset-0 z-[25] flex items-center justify-center pointer-events-none">
+                <button
+                  type="button"
+                  onClick={onPlayPause}
+                  aria-label={t('mobile.teacherDock.play')}
+                  title={t('mobile.teacherDock.play')}
+                  className={cn(
+                    'pointer-events-auto inline-flex items-center justify-center',
+                    'rounded-full bg-transparent p-0 border-0 shadow-none outline-none',
+                    'focus-visible:ring-2 focus-visible:ring-purple-400/80 focus-visible:ring-offset-2',
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'inline-flex items-center justify-center w-12 h-12 rounded-full',
+                      'bg-gradient-to-br from-purple-500 via-violet-500 to-fuchsia-500 text-white',
+                      'shadow-lg shadow-purple-500/25 active:scale-95 transition-transform',
+                    )}
+                  >
+                    <Play className="w-5 h-5 ml-0.5" />
+                  </span>
+                </button>
+              </div>
+            )}
+
             {/* Floating "open panel" affordance — surfaces only when
                 the panel is collapsed so the publisher can re-open it
                 without going up to the top bar. Hidden in immersive
@@ -293,12 +333,12 @@ export function PhoneClassroomView({
 
             {/* Portrait: side panel becomes an overlay sheet that
                 slides in over the slide instead of pushing it. Skipped
-                entirely in immersive mode. */}
+                entirely in immersive mode. `unified` collapses the
+                three former tabs (问答 / 成员 / 讲解记录) into one
+                scrollable column — see TabletSidePanel doc-block. */}
             {!isLandscape && !isImmersive && (
               <TabletSidePanel
                 open={sidePanelOpen}
-                activeTab={activeSideTab}
-                onChangeTab={setActiveSideTab}
                 bridge={bridge}
                 agents={agents}
                 agentsById={agentsById}
@@ -309,43 +349,48 @@ export function PhoneClassroomView({
                 mode="overlay"
                 onClose={() => setSidePanelOpen(false)}
                 width={320}
+                unified
               />
             )}
           </div>
 
-          <TabletControlBar
-            speakingAgent={speakingAgent}
-            teacherAgent={teacherAgent}
-            speechText={speechText}
-            currentSceneIndex={currentSceneIndex}
-            scenesCount={scenesCount}
-            engineState={engineState}
-            isLiveSession={isLiveSession}
-            onPrevSlide={onPrevSlide}
-            onNextSlide={onNextSlide}
-            onPlayPause={onPlayPause}
-            onExpandTranscript={expandTranscript}
-            playbackSpeed={playbackSpeed}
-            onCycleSpeed={onCycleSpeed}
-            autoPlayLecture={autoPlayLecture}
-            onToggleAutoPlay={onToggleAutoPlay}
-            whiteboardOpen={whiteboardOpen}
-            onToggleWhiteboard={onToggleWhiteboard}
-            compact
-            isImmersive={isImmersive}
-          />
+          {!isImmersive && (
+            <TabletControlBar
+              speakingAgent={speakingAgent}
+              teacherAgent={teacherAgent}
+              speechText={speechText}
+              currentSceneIndex={currentSceneIndex}
+              scenesCount={scenesCount}
+              engineState={engineState}
+              isLiveSession={isLiveSession}
+              onPrevSlide={onPrevSlide}
+              onNextSlide={onNextSlide}
+              onPlayPause={onPlayPause}
+              onExpandTranscript={expandTranscript}
+              playbackSpeed={playbackSpeed}
+              onCycleSpeed={onCycleSpeed}
+              autoPlayLecture={autoPlayLecture}
+              onToggleAutoPlay={onToggleAutoPlay}
+              whiteboardOpen={whiteboardOpen}
+              onToggleWhiteboard={onToggleWhiteboard}
+              compact
+              hideSlidePager
+              hideCenterPlayback={engineState === 'paused'}
+              isImmersive={false}
+            />
+          )}
         </div>
 
         {/* Landscape: side panel sits inline at 280px, pushing the
             stage column. The slide column gets `slideAlign='left'` so
-            the PPT visually flushes against the device's left edge. */}
-        {/* Landscape inline side panel — also gated on immersive so
-            the stage column reclaims the full device width. */}
+            the PPT visually flushes against the device's left edge.
+            Also gated on immersive so the stage column reclaims the
+            full device width. `unified` matches the portrait variant —
+            phone is a single-column experience regardless of which way
+            the device is held. */}
         {isLandscape && !isImmersive && (
           <TabletSidePanel
             open={sidePanelOpen}
-            activeTab={activeSideTab}
-            onChangeTab={setActiveSideTab}
             bridge={bridge}
             agents={agents}
             agentsById={agentsById}
@@ -355,6 +400,7 @@ export function PhoneClassroomView({
             currentSceneId={currentSceneId}
             mode="inline"
             width={280}
+            unified
           />
         )}
       </div>

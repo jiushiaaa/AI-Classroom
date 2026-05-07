@@ -9,9 +9,7 @@ import {
   ArrowUpToLine,
   ChevronDown,
   Layers,
-  Lock,
   MoreHorizontal,
-  Unlock,
 } from 'lucide-react';
 import { useCanvasStore } from '@/lib/store/canvas';
 import { useEditModeStore } from '@/lib/store/edit-mode';
@@ -64,10 +62,8 @@ function MiniIconBtn({ tooltip, active, className, children, ...rest }: MiniIcon
 }
 
 /**
- * Floating mini toolbar for table elements. Mirrors the structure of
- * ImageMiniToolbar but only exposes layer ordering, lock and a "更多"
- * button that opens the right-side style drawer; per-cell font / color
- * editing already happens inline inside the table component.
+ * Floating mini toolbar for table elements: layer ordering and opening the
+ * right-side style drawer. Per-cell text editing is inline on the table.
  */
 export function TableMiniToolbar() {
   const { t } = useI18n();
@@ -76,7 +72,7 @@ export function TableMiniToolbar() {
   const isScaling = useCanvasStore.use.isScaling();
   const setStylePanelOpen = useEditModeStore.use.setStylePanelOpen();
 
-  const { orderElement, lockElement } = useCanvasOperations();
+  const { orderElement } = useCanvasOperations();
 
   const elements = useSceneSelector<SlideContent, PPTElement[]>(
     (content) => content?.canvas?.elements ?? [],
@@ -229,10 +225,6 @@ export function TableMiniToolbar() {
       </DropdownMenu>
 
       <Separator orientation="vertical" className="h-5 mx-0.5" />
-
-      <MiniIconBtn tooltip={t('editMode.miniToolbar.lock')} onClick={() => lockElement()}>
-        {target.lock ? <Unlock /> : <Lock />}
-      </MiniIconBtn>
 
       <MiniIconBtn
         tooltip={t('editMode.miniToolbar.openStylePanel')}

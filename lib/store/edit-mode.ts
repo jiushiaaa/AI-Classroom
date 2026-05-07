@@ -21,10 +21,16 @@
 
 import { create } from 'zustand';
 import { createSelectors } from '@/lib/utils/create-selectors';
+import { useSnapshotStore } from './snapshot';
 
 interface EditModeState {
   /** Global "publisher is editing" toggle. */
   isEditing: boolean;
+  /**
+   * IndexedDB snapshot cursor when the current edit session started.
+   * Used to restore stage state on "取消修改" (undo/redo back to baseline).
+   */
+  editSessionBaselineSnapshotCursor: number | null;
   /**
    * Currently focused element id on the PPTist canvas (slide editing). Only
    * meaningful when `isEditing === true`. Used to drive the right-side
@@ -43,28 +49,71 @@ interface EditModeState {
   setEditing: (next: boolean) => void;
   setSelectedElementId: (id: string | null) => void;
   setStylePanelOpen: (next: boolean) => void;
+  /** Exit edit mode and revert slide/stage changes back to the snapshot taken at edit entry. */
+  cancelEditingWithRevert: () => Promise<void>;
   /** Convenience: clear edit state (used on preview switches / unmount). */
   reset: () => void;
 }
 
-const useEditModeStoreBase = create<EditModeState>()((set) => ({
+const useEditModeStoreBase = create<EditModeState>()((set, get) => ({
   isEditing: false,
+  editSessionBaselineSnapshotCursor: null,
   selectedElementId: null,
   stylePanelOpen: false,
 
   setEditing: (next) =>
     set((state) => {
-      // Leaving edit mode invalidates any selection and closes the drawer.
-      if (!next && (state.selectedElementId || state.stylePanelOpen)) {
-        return { isEditing: false, selectedElementId: null, stylePanelOpen: false };
+      if (next === state.isEditing) return state;
+      if (!next) {
+        return {
+          isEditing: false,
+          selectedElementId: null,
+          stylePanelOpen: false,
+          editSessionBaselineSnapshotCursor: null,
+        };
       }
-      return { isEditing: next };
+      const baseline = useSnapshotStore.getState().snapshotCursor;
+      return {
+        isEditing: true,
+        editSessionBaselineSnapshotCursor: baseline,
+      };
     }),
 
   setSelectedElementId: (id) => set({ selectedElementId: id }),
   setStylePanelOpen: (next) => set({ stylePanelOpen: next }),
 
-  reset: () => set({ isEditing: false, selectedElementId: null, stylePanelOpen: false }),
+  cancelEditingWithRevert: async () => {
+    if (!get().isEditing) return;
+    const baseline = get().editSessionBaselineSnapshotCursor;
+    if (baseline !== null) {
+      const { undo, redo } = useSnapshotStore.getState();
+      const maxSteps = 80;
+      for (let i = 0; i < maxSteps; i += 1) {
+        const cursor = useSnapshotStore.getState().snapshotCursor;
+        if (cursor <= baseline) break;
+        await undo();
+      }
+      for (let i = 0; i < maxSteps; i += 1) {
+        const cursor = useSnapshotStore.getState().snapshotCursor;
+        if (cursor >= baseline) break;
+        await redo();
+      }
+    }
+    set({
+      isEditing: false,
+      selectedElementId: null,
+      stylePanelOpen: false,
+      editSessionBaselineSnapshotCursor: null,
+    });
+  },
+
+  reset: () =>
+    set({
+      isEditing: false,
+      selectedElementId: null,
+      stylePanelOpen: false,
+      editSessionBaselineSnapshotCursor: null,
+    }),
 }));
 
 export const useEditModeStore = createSelectors(useEditModeStoreBase);
