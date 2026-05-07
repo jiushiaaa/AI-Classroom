@@ -324,12 +324,20 @@
       "noScript": "No narration actions on this page yet.",
       "aiOneClick": "AI: fill script for this page",
       "aiOneClickHint": "Drafts the first narration line from the slide text; edit freely afterward.",
-      "aiGenerateIconTitle": "AI: generate narration for this page",
+      "aiGenerateIconTitle": "AI: optimize narration for this page",
       "editPageScriptTitle": "Edit this page’s script",
       "aiGenerateToast": "First narration line updated (demo)",
       "aiGenerateNoSpeech": "This page has no narration slot to write into.",
       "aiMockScriptBody": "Welcome — on “{{title}}” we’ll focus on three beats: first, {{excerpt}}; second, pause and jot one sentence in your own words; third, next page we’ll connect these ideas. This is an AI-generated draft from the current slide — please edit for your class.",
-      "aiMockNoExcerpt": "walk through the title and body on screen"
+      "aiMockNoExcerpt": "walk through the title and body on screen",
+      "aiMockInstructionAppend": "\n\n[Applied your note] {{instructions}}",
+      "aiOptimizeDialogTitle": "AI narration optimize",
+      "aiOptimizeDialogIntro": "The field below is optional: describe how you want the AI to adjust this page’s notes or the teacher’s wording (tone, structure, jargon level, etc.).",
+      "aiOptimizeDialogBlankHint": "If you leave it blank, the AI will generate or refine the script from the current slide and any edits already on this page.",
+      "aiOptimizeDialogSlideContext": "Page: {{title}}",
+      "aiOptimizeDialogLabel": "Instructions (optional)",
+      "aiOptimizeDialogPlaceholder": "e.g. friendlier tone; add a hook question up front; simplify technical terms…",
+      "aiOptimizeDialogSubmit": "Generate"
     },
     "badge": {
       "qa": "Q&A",

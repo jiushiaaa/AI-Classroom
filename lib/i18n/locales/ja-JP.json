@@ -120,7 +120,15 @@
       "ttsSyncedToast": "音声を再合成しました",
       "ttsSyncedDescription": "学生側には更新後のナレーションが再生されます",
       "ttsSyncedBadge": "TTS 同期済み",
-      "ttsSyncedBadgeTitle": "原稿を編集しました。次回再生時に新しい音声が使用されます"
+      "ttsSyncedBadgeTitle": "原稿を編集しました。次回再生時に新しい音声が使用されます",
+      "aiMockInstructionAppend": "\n\n【ご指示を反映】{{instructions}}",
+      "aiOptimizeDialogTitle": "AI で原稿を最適化",
+      "aiOptimizeDialogIntro": "下の欄は任意です。ノートや講師の語り方をどう変えたいか（トーン、構成、用語の深さなど）を書けます。",
+      "aiOptimizeDialogBlankHint": "空欄のままにすると、現在のスライド内容とこのページの原稿の変更に基づいて自動で生成・調整します。",
+      "aiOptimizeDialogSlideContext": "ページ：{{title}}",
+      "aiOptimizeDialogLabel": "指示（任意）",
+      "aiOptimizeDialogPlaceholder": "例：もっと親しみやすい口調で／冒頭に問いかけを／専門用語をかみ砕いて…",
+      "aiOptimizeDialogSubmit": "生成する"
     },
     "badge": {
       "qa": "Q&A",

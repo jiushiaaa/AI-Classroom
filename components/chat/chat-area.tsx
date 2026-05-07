@@ -227,7 +227,7 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
 
     /** Mock one-click draft for the AI teacher script from slide text (offline demo). */
     const handleAiGenerateTeacherScript = useCallback(
-      (sceneId: string) => {
+      (sceneId: string, userInstructions?: string) => {
         const scene = scenes.find((s) => s.id === sceneId);
         if (!scene || !scene.actions?.length) {
           toast.error(t('chat.lectureNotes.aiGenerateNoSpeech'));
@@ -242,10 +242,16 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
           scene.type === 'slide' && scene.content.type === 'slide'
             ? extractSlidePlainText(scene.content)
             : '';
-        const generated = t('chat.lectureNotes.aiMockScriptBody', {
+        let generated = t('chat.lectureNotes.aiMockScriptBody', {
           title: scene.title,
           excerpt: excerpt || t('chat.lectureNotes.aiMockNoExcerpt'),
         });
+        const hint = userInstructions?.trim();
+        if (hint) {
+          generated += t('chat.lectureNotes.aiMockInstructionAppend', {
+            instructions: hint,
+          });
+        }
         const nextActions: Action[] = scene.actions.map((a, i) => {
           if (i !== speechIdx || a.type !== 'speech') return a;
           const updated: SpeechAction = {

@@ -120,7 +120,15 @@
       "ttsSyncedToast": "تمت إعادة توليد الصوت",
       "ttsSyncedDescription": "سيسمع الطلاب السرد المحدّث",
       "ttsSyncedBadge": "تمت مزامنة TTS",
-      "ttsSyncedBadgeTitle": "تم تحرير النص — سيستخدم تشغيل الصوت المحدّث في المرة التالية"
+      "ttsSyncedBadgeTitle": "تم تحرير النص — سيستخدم تشغيل الصوت المحدّث في المرة التالية",
+      "aiMockInstructionAppend": "\n\n[تم تضمين ملاحظتك] {{instructions}}",
+      "aiOptimizeDialogTitle": "تحسين النص بالذكاء الاصطناعي",
+      "aiOptimizeDialogIntro": "الحقل أدناه اختياري: اشرح كيف تريد تعديل ملاحظات هذه الصفحة أو صياغة المعلم (النبرة، البنية، مستوى المصطلحات، إلخ).",
+      "aiOptimizeDialogBlankHint": "إذا تركته فارغًا، يُولَّد النص أو يُحسَّن تلقائيًا من شريحة الصفحة الحالية وأي تعديلات على النص.",
+      "aiOptimizeDialogSlideContext": "الصفحة: {{title}}",
+      "aiOptimizeDialogLabel": "تعليمات (اختياري)",
+      "aiOptimizeDialogPlaceholder": "مثال: نبرة أوضح؛ سؤال افتتاحي؛ تبسيط المصطلحات…",
+      "aiOptimizeDialogSubmit": "توليد"
     },
     "badge": {
       "qa": "أسئلة",

@@ -23,6 +23,16 @@ import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/hooks/use-i18n';
 import type { LectureNoteEntry } from '@/lib/types/chat';
 import { AIPolishMenu, type PolishOption } from './ai-polish-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 
 const ACTION_ICON_ONLY: Record<string, { Icon: typeof Flashlight; style: string }> = {
   spotlight: {
@@ -52,10 +62,12 @@ interface LectureNotesViewProps {
    */
   onEditSpeech?: (sceneId: string, actionId: string, newText: string) => void;
   /**
-   * AI one-click: generate first speech line for that scene (e.g. from slide text).
+   * AI optimize: generate or adjust the first speech line for that scene (e.g. from slide text).
+   * Optional `userInstructions` guides how notes / teacher wording should change; when omitted,
+   * the host derives content from the current page alone.
    * Shown as an icon on each card; when omitted, the control is hidden.
    */
-  onAiGenerateScene?: (sceneId: string) => void;
+  onAiGenerateScene?: (sceneId: string, userInstructions?: string) => void;
   /** Card click jumps global current scene (scroll alone does not call this). */
   onSelectScene?: (sceneId: string) => void;
 }
@@ -71,6 +83,11 @@ export function LectureNotesView({
   const containerRef = useRef<HTMLDivElement>(null);
   const editable = !!onEditSpeech;
   const [editingSceneId, setEditingSceneId] = useState<string | null>(null);
+  const [aiOptimizeTarget, setAiOptimizeTarget] = useState<{
+    sceneId: string;
+    sceneTitle: string;
+  } | null>(null);
+  const [aiOptimizeInstructions, setAiOptimizeInstructions] = useState('');
 
   useEffect(() => {
     if (editingSceneId && !notes.some((n) => n.sceneId === editingSceneId)) {
@@ -119,11 +136,24 @@ export function LectureNotesView({
     );
   }
 
+  const closeAiOptimizeDialog = () => {
+    setAiOptimizeTarget(null);
+    setAiOptimizeInstructions('');
+  };
+
+  const handleAiOptimizeConfirm = () => {
+    if (!aiOptimizeTarget) return;
+    const trimmed = aiOptimizeInstructions.trim();
+    onAiGenerateScene?.(aiOptimizeTarget.sceneId, trimmed.length > 0 ? trimmed : undefined);
+    closeAiOptimizeDialog();
+  };
+
   return (
-    <div
-      ref={containerRef}
-      className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-2 scrollbar-hide"
-    >
+    <>
+      <div
+        ref={containerRef}
+        className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-2 scrollbar-hide"
+      >
       {notes.map((note, index) => {
         const isCurrent = note.sceneId === currentSceneId;
         const pageNum = index + 1;
@@ -207,7 +237,11 @@ export function LectureNotesView({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onAiGenerateScene(note.sceneId);
+                        setAiOptimizeInstructions('');
+                        setAiOptimizeTarget({
+                          sceneId: note.sceneId,
+                          sceneTitle: note.sceneTitle,
+                        });
                       }}
                       className="size-6 inline-flex items-center justify-center rounded-md text-muted-foreground/70 hover:bg-purple-100/80 dark:hover:bg-purple-900/35 hover:text-purple-600 dark:hover:text-purple-300 transition-colors"
                       title={t('chat.lectureNotes.aiGenerateIconTitle')}
@@ -368,7 +402,58 @@ export function LectureNotesView({
           </div>
         );
       })}
-    </div>
+      </div>
+
+      <Dialog
+        open={aiOptimizeTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) closeAiOptimizeDialog();
+        }}
+      >
+        <DialogContent className="max-w-md gap-4 sm:max-w-md" showCloseButton>
+          <DialogHeader>
+            <DialogTitle>{t('chat.lectureNotes.aiOptimizeDialogTitle')}</DialogTitle>
+            <DialogDescription asChild>
+              <div className="space-y-2 text-muted-foreground text-sm leading-relaxed">
+                <p>{t('chat.lectureNotes.aiOptimizeDialogIntro')}</p>
+                <p>{t('chat.lectureNotes.aiOptimizeDialogBlankHint')}</p>
+                {aiOptimizeTarget ? (
+                  <p className="text-xs text-muted-foreground/90">
+                    {t('chat.lectureNotes.aiOptimizeDialogSlideContext', {
+                      title: aiOptimizeTarget.sceneTitle,
+                    })}
+                  </p>
+                ) : null}
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label
+              htmlFor="lecture-notes-ai-optimize-instructions"
+              className="text-xs font-medium text-foreground"
+            >
+              {t('chat.lectureNotes.aiOptimizeDialogLabel')}
+            </label>
+            <Textarea
+              id="lecture-notes-ai-optimize-instructions"
+              value={aiOptimizeInstructions}
+              onChange={(e) => setAiOptimizeInstructions(e.target.value)}
+              placeholder={t('chat.lectureNotes.aiOptimizeDialogPlaceholder')}
+              rows={4}
+              className="min-h-[88px] resize-y text-sm"
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={closeAiOptimizeDialog}>
+              {t('common.cancel')}
+            </Button>
+            <Button type="button" onClick={handleAiOptimizeConfirm}>
+              {t('chat.lectureNotes.aiOptimizeDialogSubmit')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

@@ -120,7 +120,15 @@
       "ttsSyncedToast": "Речь повторно синтезирована",
       "ttsSyncedDescription": "Студенты услышат обновлённое озвучивание",
       "ttsSyncedBadge": "TTS синхронизирован",
-      "ttsSyncedBadgeTitle": "Сценарий изменён — при следующем воспроизведении будет использован новый TTS"
+      "ttsSyncedBadgeTitle": "Сценарий изменён — при следующем воспроизведении будет использован новый TTS",
+      "aiMockInstructionAppend": "\n\n[Учтено ваше указание] {{instructions}}",
+      "aiOptimizeDialogTitle": "Оптимизация текста ИИ",
+      "aiOptimizeDialogIntro": "Поле ниже необязательно: опишите, как изменить заметки или формулировки преподавателя (тон, структура, уровень терминов и т. д.).",
+      "aiOptimizeDialogBlankHint": "Если оставить пустым, текст будет сгенерирован или доработан по текущему слайду и правкам на этой странице.",
+      "aiOptimizeDialogSlideContext": "Страница: {{title}}",
+      "aiOptimizeDialogLabel": "Пожелания (необязательно)",
+      "aiOptimizeDialogPlaceholder": "Например: дружелюбнее; вопрос в начале; проще объяснить термины…",
+      "aiOptimizeDialogSubmit": "Сгенерировать"
     },
     "badge": {
       "qa": "Вопросы",
