@@ -1,16 +1,13 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, type MouseEvent as ReactMouseEvent } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from 'react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/hooks/use-i18n';
@@ -21,9 +18,11 @@ import { playBrowserTTSPreview } from '@/lib/audio/browser-tts-preview';
 import { getVoxCPMProviderOptions, useVoxCPMVoiceProfiles } from '@/lib/audio/voxcpm-voices';
 import { VOXCPM_AUTO_VOICE_ID, VOXCPM_TTS_PROVIDER_ID } from '@/lib/audio/voxcpm';
 import {
+  ArrowUp,
   Sparkles,
   ChevronDown,
-  ChevronUp,
+  Eye,
+  EyeOff,
   Shuffle,
   Volume2,
   VolumeX,
@@ -32,12 +31,10 @@ import {
   Minus,
   Plus,
   Search,
-  Trash2,
-  Wand2,
+  Users,
+  X,
 } from 'lucide-react';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -50,18 +47,17 @@ import {
 import {
   PUBLISHER_VOICE_GROUPS,
   PUBLISHER_CUSTOM_ROLES_MAX,
-  createNewPublisherRoleDraft,
   loadPublisherCustomRoles,
-  pickPublisherAvatar,
   savePublisherCustomRoles,
   type PublisherCustomRoleRow,
   type PublisherIdentityRole,
 } from '@/lib/publisher/publisher-custom-roles';
-import { getCurrentModelConfig } from '@/lib/utils/model-config';
-import { Button } from '@/components/ui/button';
+import {
+  AUTO_ROLES_EXAMPLE_PROMPTS,
+  generateAutoRolesDemo,
+} from '@/lib/publisher/publisher-roles-demo';
 import { toast } from 'sonner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { BatchGenerateRolesDialog } from '@/components/agent/batch-generate-roles-dialog';
 import type { AgentConfig } from '@/lib/orchestration/registry/types';
 import type { TTSProviderId } from '@/lib/audio/types';
 import type { ProviderWithVoices } from '@/lib/audio/voice-resolver';
@@ -657,133 +653,64 @@ function publisherRoleInitial(
   return t('agentBar.identityShortStudent');
 }
 
-function PublisherCustomRolesPanel({
-  value,
-  onChange,
-}: {
+/**
+ * Demo-only auto generation panel.
+ *
+ * Layout:
+ *   ┌── intro card ──────────────────────────────────────┐
+ *   │  Shuffle icon + 一句话说明                         │
+ *   ├── inline prompt input ─────────────────────────────┤
+ *   │  textarea + ↑ submit button                        │
+ *   │  3 ~ 5 example chips                               │
+ *   ├── generated role list (max 5) ─────────────────────┤
+ *   │  per-row card with editable name / identity /      │
+ *   │  voice / persona (eye to expand)                   │
+ *   └────────────────────────────────────────────────────┘
+ *
+ * The whole flow is a **front-end demo** — no real LLM call. Generated rows
+ * are persisted via `savePublisherCustomRoles` so refresh keeps them.
+ */
+interface AutoGenerateRolesPanelProps {
   value: PublisherCustomRoleRow[];
   onChange: (rows: PublisherCustomRoleRow[]) => void;
-}) {
-  const { t, locale } = useI18n();
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editorMode, setEditorMode] = useState<'create' | 'edit'>('create');
-  const [draft, setDraft] = useState<PublisherCustomRoleRow | null>(null);
-  const [magicBusy, setMagicBusy] = useState(false);
-  const [batchOpen, setBatchOpen] = useState(false);
+}
+
+function AutoGenerateRolesPanel({
+  value,
+  onChange,
+}: Readonly<AutoGenerateRolesPanelProps>) {
+  const { t } = useI18n();
+  const [prompt, setPrompt] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const abortRef = useRef<AbortController | null>(null);
 
   const remainingCapacity = Math.max(0, PUBLISHER_CUSTOM_ROLES_MAX - value.length);
+  const atCapacity = remainingCapacity === 0;
 
-  const patchList = (id: string, patch: Partial<PublisherCustomRoleRow>) => {
+  const examples = useMemo(() => AUTO_ROLES_EXAMPLE_PROMPTS.slice(0, 4), []);
+
+  const patchRow = (id: string, patch: Partial<PublisherCustomRoleRow>) => {
     onChange(value.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   };
 
-  const handleBatchGenerated = (rows: PublisherCustomRoleRow[]) => {
-    if (rows.length === 0) return;
-    const merged = [...value, ...rows].slice(0, PUBLISHER_CUSTOM_ROLES_MAX);
-    onChange(merged);
+  const removeRow = (id: string) => {
+    onChange(value.filter((r) => r.id !== id));
+    setExpandedIds((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
   };
 
-  const closeEditor = () => {
-    setEditorOpen(false);
-    setDraft(null);
-    setMagicBusy(false);
-  };
-
-  const openCreate = () => {
-    setEditorMode('create');
-    setDraft(createNewPublisherRoleDraft());
-    setEditorOpen(true);
-  };
-
-  const openEdit = (row: PublisherCustomRoleRow) => {
-    setEditorMode('edit');
-    setDraft({ ...row });
-    setEditorOpen(true);
-  };
-
-  const handleSave = () => {
-    if (!draft) return;
-    const name = draft.displayName.trim();
-    if (name.length === 0) {
-      toast.error(t('agentBar.publisherSaveNameRequired'));
-      return;
-    }
-    const avatar = pickPublisherAvatar(draft.identity, draft.id);
-    const saved: PublisherCustomRoleRow = { ...draft, displayName: name, avatar };
-    if (editorMode === 'create') {
-      if (value.length >= PUBLISHER_CUSTOM_ROLES_MAX) {
-        toast.error(t('agentBar.publisherMaxRoles', { max: PUBLISHER_CUSTOM_ROLES_MAX }));
-        return;
-      }
-      onChange([...value, saved]);
-    } else {
-      onChange(value.map((r) => (r.id === saved.id ? saved : r)));
-    }
-    toast.success(t('agentBar.publisherSaveSuccess'));
-    closeEditor();
-  };
-
-  const handleDelete = () => {
-    if (!draft || editorMode !== 'edit') return;
-    onChange(value.filter((r) => r.id !== draft.id));
-    toast.success(t('agentBar.publisherDeleteSuccess'));
-    closeEditor();
-  };
-
-  const handleDraftMagicFix = async () => {
-    if (!draft) return;
-    const text = draft.prompt.trim();
-    if (text.length < 2) {
-      toast.error(t('agentBar.magicFixTooShort'));
-      return;
-    }
-    const { modelId } = useSettingsStore.getState();
-    if (!modelId) {
-      toast.error(t('agentBar.magicFixNoModel'));
-      return;
-    }
-    setMagicBusy(true);
-    try {
-      const config = getCurrentModelConfig();
-      const payload: Record<string, unknown> = {
-        draft: text,
-        identity: draft.identity,
-        locale,
-      };
-      const dn = draft.displayName.trim();
-      if (dn.length > 0) {
-        payload.displayName = dn;
-      }
-      const body =
-        config.thinkingConfig !== undefined
-          ? { ...payload, thinkingConfig: config.thinkingConfig }
-          : payload;
-      const res = await fetch('/api/generate/publisher-role-prompt', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-model': config.modelString || '',
-          'x-api-key': config.apiKey || '',
-          'x-base-url': config.baseUrl || '',
-          'x-provider-type': config.providerType || '',
-        },
-        body: JSON.stringify(body),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        success?: boolean;
-        prompt?: string;
-        error?: string;
-      };
-      if (!res.ok || data.success !== true || typeof data.prompt !== 'string' || !data.prompt.trim()) {
-        throw new Error(data.error || `HTTP ${res.status}`);
-      }
-      setDraft((d) => (d ? { ...d, prompt: data.prompt!.trim() } : null));
-      toast.success(t('agentBar.magicFixSuccess'));
-    } catch {
-      toast.error(t('agentBar.magicFixError'));
-    } finally {
-      setMagicBusy(false);
-    }
+  const toggleExpand = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   const identityLabel = (identity: PublisherIdentityRole) => {
@@ -792,271 +719,511 @@ function PublisherCustomRolesPanel({
     return t('agentBar.identityStudent');
   };
 
-  const rowActivateEdit = (row: PublisherCustomRoleRow, e: ReactMouseEvent<HTMLDivElement>) => {
-    const el = e.target as HTMLElement;
-    if (el.closest('[role="checkbox"]') || el.closest('[data-slot="select-trigger"]')) return;
-    openEdit(row);
+  const roleBadgeClassFor = (identity: PublisherIdentityRole): string => {
+    if (identity === 'assistant') {
+      return 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300';
+    }
+    if (identity === 'teacher') {
+      return 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300';
+    }
+    return 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300';
   };
 
+  const handleGenerate = async () => {
+    if (busy) return;
+    const text = prompt.trim();
+    if (text.length < 2) {
+      toast.error(t('agentBar.autoGenerate.errorTooShort'));
+      return;
+    }
+    if (atCapacity) {
+      toast.error(t('agentBar.publisherMaxRoles', { max: PUBLISHER_CUSTOM_ROLES_MAX }));
+      return;
+    }
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setBusy(true);
+    try {
+      const result = await generateAutoRolesDemo(text, {
+        existing: value.length,
+        signal: controller.signal,
+      });
+      const merged = [...value, ...result.rows].slice(0, PUBLISHER_CUSTOM_ROLES_MAX);
+      onChange(merged);
+      // Auto-expand the freshly generated rows so the user sees the personas.
+      setExpandedIds((prev) => {
+        const next = new Set(prev);
+        for (const row of result.rows) next.add(row.id);
+        return next;
+      });
+      setPrompt('');
+      const verb =
+        result.intent.identity === 'assistant'
+          ? t('agentBar.identityAssistant')
+          : t('agentBar.identityStudent');
+      toast.success(
+        t('agentBar.autoGenerate.success', {
+          count: result.rows.length,
+          identity: verb,
+        }),
+      );
+      if (result.clamped) {
+        toast.message(
+          t('agentBar.autoGenerate.clampedHint', { max: PUBLISHER_CUSTOM_ROLES_MAX }),
+        );
+      }
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      const code = err instanceof Error ? err.message : '';
+      if (code === 'CAPACITY_FULL') {
+        toast.error(t('agentBar.publisherMaxRoles', { max: PUBLISHER_CUSTOM_ROLES_MAX }));
+      } else if (code === 'EMPTY_PROMPT') {
+        toast.error(t('agentBar.autoGenerate.errorTooShort'));
+      } else {
+        toast.error(t('agentBar.autoGenerate.errorGeneric'));
+      }
+    } finally {
+      setBusy(false);
+      abortRef.current = null;
+    }
+  };
+
+  // Cancel any in-flight demo generation when the panel unmounts (popover close).
+  useEffect(() => () => abortRef.current?.abort(), []);
+
   return (
-    <>
-      <div className="max-h-60 overflow-y-auto -mx-0.5 px-0.5 space-y-1.5">
-        {value.length === 0 ? (
-          <p className="text-[11px] text-muted-foreground/70 text-center py-4 px-2 leading-relaxed">
-            {t('agentBar.customRolesEmpty')}
-          </p>
-        ) : (
-          value.map((row) => (
-            <div
-              key={row.id}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  openEdit(row);
-                }
-              }}
-              onClick={(e) => rowActivateEdit(row, e)}
+    <div className="space-y-2.5">
+      {/* ── Inline prompt input ── */}
+      <div className="relative">
+        <Textarea
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value.slice(0, 200))}
+          onKeyDown={(e) => {
+            // Cmd/Ctrl + Enter to submit; plain Enter inserts newline.
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              void handleGenerate();
+            }
+          }}
+          placeholder={t('agentBar.autoGenerate.inputPlaceholder')}
+          rows={2}
+          disabled={busy}
+          className={cn(
+            'text-[12.5px] min-h-[64px] max-h-[128px] resize-none pr-12 leading-relaxed',
+            'bg-white dark:bg-slate-900 border-violet-200/70 dark:border-violet-800/50',
+            'focus-visible:border-violet-400 focus-visible:ring-violet-400/30',
+          )}
+          aria-label={t('agentBar.autoGenerate.inputAria')}
+        />
+        <button
+          type="button"
+          onClick={() => void handleGenerate()}
+          disabled={busy || prompt.trim().length < 2 || atCapacity}
+          className={cn(
+            'absolute bottom-2 right-2 inline-flex size-8 items-center justify-center rounded-full transition-all shrink-0',
+            'bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white shadow-sm',
+            'hover:shadow-md hover:from-violet-600 hover:to-fuchsia-600',
+            'disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:hover:from-violet-500 disabled:hover:to-fuchsia-500',
+          )}
+          aria-label={t('agentBar.autoGenerate.submitAria')}
+        >
+          {busy ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <ArrowUp className="size-4" />
+          )}
+        </button>
+      </div>
+
+      {/* Example chips — quick fill */}
+      {!busy && (
+        <div className="flex flex-wrap gap-1.5">
+          {examples.map((ex) => (
+            <button
+              key={ex}
+              type="button"
+              disabled={atCapacity}
+              onClick={() => setPrompt(ex)}
               className={cn(
-                'flex items-center gap-2 rounded-xl border border-border/50 bg-muted/15 px-2 py-1.5 text-left transition-colors',
-                'hover:bg-muted/35 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-violet-400/50',
+                'text-[11px] px-2 py-0.5 rounded-full border border-border/60 text-muted-foreground/85',
+                'hover:bg-violet-50 hover:text-violet-700 hover:border-violet-300/70',
+                'dark:hover:bg-violet-950/30 dark:hover:text-violet-300',
+                'transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-muted-foreground/85 disabled:hover:border-border/60',
               )}
             >
-              <span
-                className="shrink-0"
-                onClick={(e) => e.stopPropagation()}
-                onPointerDown={(e) => e.stopPropagation()}
-              >
-                <Checkbox
-                  checked={row.enabled}
-                  onCheckedChange={(c) => patchList(row.id, { enabled: c === true })}
-                  aria-label={t('agentBar.publisherEnableRole')}
-                />
+              {ex}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── Generated role list ── */}
+      {value.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border/60 bg-muted/15 px-3 py-4 text-center">
+          <p className="text-[11.5px] text-muted-foreground/75 leading-relaxed">
+            {busy ? t('agentBar.autoGenerate.thinking') : t('agentBar.autoGenerate.emptyHint')}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between px-0.5">
+            <span className="text-[11px] text-muted-foreground/75">
+              {t('agentBar.autoGenerate.listTitle', {
+                count: value.length,
+                max: PUBLISHER_CUSTOM_ROLES_MAX,
+              })}
+            </span>
+            {atCapacity && (
+              <span className="text-[10.5px] text-amber-600 dark:text-amber-400">
+                {t('agentBar.autoGenerate.atCapacity')}
               </span>
-              <div className="size-8 rounded-full overflow-hidden ring-1 ring-border/50 shrink-0 bg-muted">
-                {row.avatar ? (
-                  <img src={row.avatar} alt="" className="size-full object-cover" />
-                ) : (
-                  <div
-                    className={cn(
-                      'size-full flex items-center justify-center text-[10px] font-bold text-white',
-                      row.identity === 'teacher' && 'bg-gradient-to-br from-blue-500 to-indigo-600',
-                      row.identity === 'assistant' && 'bg-gradient-to-br from-violet-500 to-fuchsia-600',
-                      row.identity === 'student' && 'bg-gradient-to-br from-emerald-500 to-teal-600',
+            )}
+          </div>
+          {value.map((row) => {
+            const isExpanded = expandedIds.has(row.id);
+            const roleBadgeClass = roleBadgeClassFor(row.identity);
+            return (
+              <div
+                key={row.id}
+                className={cn(
+                  'rounded-xl border transition-colors',
+                  row.enabled
+                    ? 'border-violet-300/70 bg-violet-50/40 dark:border-violet-800/60 dark:bg-violet-950/20'
+                    : 'border-border/50 bg-muted/15',
+                )}
+              >
+                <div className="flex items-center gap-2 px-2.5 py-2">
+                  <Checkbox
+                    checked={row.enabled}
+                    onCheckedChange={(c) => patchRow(row.id, { enabled: c === true })}
+                    aria-label={t('agentBar.publisherEnableRole')}
+                    className="shrink-0"
+                  />
+                  <div className="size-8 rounded-full overflow-hidden ring-1 ring-border/40 shrink-0 bg-muted">
+                    {row.avatar ? (
+                      <img src={row.avatar} alt="" className="size-full object-cover" />
+                    ) : (
+                      <div
+                        className={cn(
+                          'size-full flex items-center justify-center text-[10px] font-bold text-white',
+                          row.identity === 'teacher' &&
+                            'bg-gradient-to-br from-blue-500 to-indigo-600',
+                          row.identity === 'assistant' &&
+                            'bg-gradient-to-br from-violet-500 to-fuchsia-600',
+                          row.identity === 'student' &&
+                            'bg-gradient-to-br from-emerald-500 to-teal-600',
+                        )}
+                      >
+                        {publisherRoleInitial(row, t)}
+                      </div>
                     )}
+                  </div>
+                  <div className="min-w-0 flex-1 flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={row.displayName}
+                      onChange={(e) =>
+                        patchRow(row.id, { displayName: e.target.value.slice(0, 24) })
+                      }
+                      placeholder={t('agentBar.customRoleNamePlaceholder')}
+                      className={cn(
+                        'min-w-0 flex-1 text-[13px] font-medium bg-transparent outline-none border-none px-0 py-0',
+                        'focus:bg-white/70 dark:focus:bg-slate-800/60 focus:px-1.5 focus:rounded-md focus:ring-1 focus:ring-violet-300/70 transition-all',
+                      )}
+                      aria-label={t('agentBar.customRoleName')}
+                    />
+                    <Select
+                      value={row.identity}
+                      onValueChange={(v) =>
+                        patchRow(row.id, { identity: v as PublisherIdentityRole })
+                      }
+                    >
+                      <SelectTrigger
+                        size="sm"
+                        className={cn(
+                          'h-5 px-1.5 text-[10px] font-medium rounded-full border-0 gap-1 shrink-0',
+                          roleBadgeClass,
+                        )}
+                      >
+                        <SelectValue>{identityLabel(row.identity)}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="assistant">
+                          {t('agentBar.identityAssistant')}
+                        </SelectItem>
+                        <SelectItem value="student">{t('agentBar.identityStudent')}</SelectItem>
+                        {/* Legacy data may carry identity='teacher' from the
+                            previous editor; expose it so users can switch off,
+                            but the demo generator will never produce it. */}
+                        {row.identity === 'teacher' && (
+                          <SelectItem value="teacher">{t('agentBar.identityTeacher')}</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Select
+                    value={row.voiceId}
+                    onValueChange={(vid) => patchRow(row.id, { voiceId: vid })}
                   >
-                    {publisherRoleInitial(row, t)}
+                    <SelectTrigger size="sm" className="h-7 text-[10px] px-1.5 w-[7.5rem] min-w-0">
+                      <SelectValue placeholder={t('agentBar.voiceLoading')} />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-56">
+                      {PUBLISHER_VOICE_GROUPS.map((g) => (
+                        <SelectGroup key={g.groupLabelKey}>
+                          <SelectLabel className="text-[11px]">{t(g.groupLabelKey)}</SelectLabel>
+                          {g.voices.map((v) => (
+                            <SelectItem key={v.id} value={v.id} className="text-[12px]">
+                              {t(v.nameKey)}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => toggleExpand(row.id)}
+                        className="size-6 inline-flex items-center justify-center rounded-md text-muted-foreground/60 hover:bg-muted/60 hover:text-foreground transition-colors shrink-0"
+                        aria-label={
+                          isExpanded
+                            ? t('agentBar.collapsePersona')
+                            : t('agentBar.viewPersona')
+                        }
+                      >
+                        {isExpanded ? (
+                          <EyeOff className="size-3.5" />
+                        ) : (
+                          <Eye className="size-3.5" />
+                        )}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-[11px]">
+                      {isExpanded ? t('agentBar.collapsePersona') : t('agentBar.viewPersona')}
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => removeRow(row.id)}
+                        className="size-6 inline-flex items-center justify-center rounded-md text-muted-foreground/50 hover:bg-destructive/10 hover:text-destructive transition-colors shrink-0"
+                        aria-label={t('agentBar.publisherDeleteRole')}
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-[11px]">
+                      {t('agentBar.publisherDeleteRole')}
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                {isExpanded && (
+                  <div className="px-3 pb-2.5 pt-0.5">
+                    <Textarea
+                      value={row.prompt}
+                      onChange={(e) => patchRow(row.id, { prompt: e.target.value })}
+                      placeholder={t('agentBar.customRolePromptPlaceholder')}
+                      rows={4}
+                      className="text-[11.5px] leading-relaxed resize-none bg-background/60 border-border/40 focus-visible:border-violet-300/70 focus-visible:ring-violet-300/30"
+                      aria-label={t('agentBar.customRolePrompt')}
+                    />
                   </div>
                 )}
               </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-[13px] font-medium truncate">{row.displayName || '—'}</div>
-                <div className="text-[10px] text-muted-foreground/70 truncate">
-                  {identityLabel(row.identity)}
-                </div>
-              </div>
-              <div
-                className="shrink-0 w-[min(42%,7.5rem)]"
-                onClick={(e) => e.stopPropagation()}
-                onPointerDown={(e) => e.stopPropagation()}
-              >
-                <Select value={row.voiceId} onValueChange={(vid) => patchList(row.id, { voiceId: vid })}>
-                  <SelectTrigger size="sm" className="h-7 text-[10px] px-1.5 w-full min-w-0">
-                    <SelectValue placeholder={t('agentBar.voiceLoading')} />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-56">
-                    {PUBLISHER_VOICE_GROUPS.map((g) => (
-                      <SelectGroup key={g.groupLabelKey}>
-                        <SelectLabel className="text-[11px]">{t(g.groupLabelKey)}</SelectLabel>
-                        {g.voices.map((v) => (
-                          <SelectItem key={v.id} value={v.id} className="text-[12px]">
-                            {t(v.nameKey)}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          ))
-        )}
-        <div className="flex gap-1.5">
-          <button
-            type="button"
-            disabled={remainingCapacity === 0}
-            onClick={(e) => {
-              e.stopPropagation();
-              openCreate();
-            }}
-            className={cn(
-              'flex-1 py-2 rounded-xl border border-dashed border-violet-300/60 text-[11px] font-medium text-violet-600 dark:text-violet-300 hover:bg-violet-500/5 transition-colors inline-flex items-center justify-center gap-1',
-              remainingCapacity === 0 && 'opacity-40 pointer-events-none',
-            )}
-          >
-            <Plus className="size-3" />
-            {t('agentBar.addCustomRoleManual')}
-          </button>
-          <button
-            type="button"
-            disabled={remainingCapacity === 0}
-            onClick={(e) => {
-              e.stopPropagation();
-              setBatchOpen(true);
-            }}
-            className={cn(
-              'flex-1 py-2 rounded-xl border border-dashed text-[11px] font-medium transition-colors inline-flex items-center justify-center gap-1',
-              'border-violet-400/70 bg-violet-50/40 dark:bg-violet-950/25 text-violet-700 dark:text-violet-200 hover:bg-violet-100/60 dark:hover:bg-violet-900/30',
-              remainingCapacity === 0 && 'opacity-40 pointer-events-none',
-            )}
-          >
-            <Wand2 className="size-3" />
-            {t('agentBar.batchGenerate.triggerLabel')}
-          </button>
+            );
+          })}
         </div>
-      </div>
-
-      <BatchGenerateRolesDialog
-        open={batchOpen}
-        onOpenChange={setBatchOpen}
-        remainingCapacity={remainingCapacity}
-        onGenerated={handleBatchGenerated}
-      />
-
-      <Dialog open={editorOpen} onOpenChange={(o) => !o && closeEditor()}>
-        <DialogContent
-          className="max-w-md gap-4"
-          onClick={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          <DialogHeader>
-            <DialogTitle className="text-base">
-              {editorMode === 'create'
-                ? t('agentBar.publisherEditorTitleNew')
-                : t('agentBar.publisherEditorTitleEdit')}
-            </DialogTitle>
-            <DialogDescription className="text-[12px]">
-              {t('agentBar.publisherEditorHint')}
-            </DialogDescription>
-          </DialogHeader>
-
-          {draft && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">{t('agentBar.customRoleName')}</Label>
-                  <Input
-                    value={draft.displayName}
-                    onChange={(e) => setDraft({ ...draft, displayName: e.target.value })}
-                    placeholder={t('agentBar.customRoleNamePlaceholder')}
-                    className="h-9 text-sm"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">{t('agentBar.customRoleIdentity')}</Label>
-                  <Select
-                    value={draft.identity}
-                    onValueChange={(v) =>
-                      setDraft({ ...draft, identity: v as PublisherIdentityRole })
-                    }
-                  >
-                    <SelectTrigger className="h-9 w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="teacher">{t('agentBar.identityTeacher')}</SelectItem>
-                      <SelectItem value="assistant">{t('agentBar.identityAssistant')}</SelectItem>
-                      <SelectItem value="student">{t('agentBar.identityStudent')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs">{t('agentBar.customRolePrompt')}</Label>
-                <div className="relative">
-                  <Textarea
-                    value={draft.prompt}
-                    onChange={(e) => setDraft({ ...draft, prompt: e.target.value })}
-                    placeholder={t('agentBar.customRolePromptPlaceholder')}
-                    rows={5}
-                    disabled={magicBusy}
-                    className={cn(
-                      'text-sm min-h-[120px] resize-none pr-[6.5rem] pb-9',
-                      magicBusy && 'opacity-80',
-                    )}
-                  />
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    className="absolute bottom-2 right-2 h-7 gap-1 px-2 text-[11px]"
-                    disabled={magicBusy || draft.prompt.trim().length < 2}
-                    onClick={() => void handleDraftMagicFix()}
-                  >
-                    {magicBusy ? (
-                      <Loader2 className="size-3.5 animate-spin shrink-0" aria-hidden />
-                    ) : (
-                      <Sparkles className="size-3.5 shrink-0 text-violet-500" aria-hidden />
-                    )}
-                    {magicBusy ? t('agentBar.magicFixLoading') : t('agentBar.magicFixButton')}
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs">{t('agentBar.voiceLabel')}</Label>
-                <Select value={draft.voiceId} onValueChange={(vid) => setDraft({ ...draft, voiceId: vid })}>
-                  <SelectTrigger className="h-9 w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-56">
-                    {PUBLISHER_VOICE_GROUPS.map((g) => (
-                      <SelectGroup key={g.groupLabelKey}>
-                        <SelectLabel>{t(g.groupLabelKey)}</SelectLabel>
-                        {g.voices.map((v) => (
-                          <SelectItem key={v.id} value={v.id}>
-                            {t(v.nameKey)}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter className="flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            {editorMode === 'edit' ? (
-              <Button
-                type="button"
-                variant="ghost"
-                className="text-destructive justify-start px-0 sm:px-3"
-                onClick={handleDelete}
-              >
-                <Trash2 className="size-4 shrink-0" />
-                {t('agentBar.publisherDeleteRole')}
-              </Button>
-            ) : (
-              <div className="min-w-0 flex-1" aria-hidden="true" />
-            )}
-            <div className="flex w-full gap-2 justify-end sm:w-auto">
-              <Button type="button" variant="outline" onClick={closeEditor}>
-                {t('agentBar.publisherCancel')}
-              </Button>
-              <Button type="button" onClick={handleSave} disabled={!draft || magicBusy}>
-                {t('agentBar.publisherSave')}
-              </Button>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+      )}
+    </div>
   );
 }
 
+/**
+ * Preset roles panel — read-only persona, expandable to view, checkable to
+ * include in the classroom session. Voice is configurable via AgentVoicePill.
+ *
+ * The user CANNOT edit name / persona — these are system-defined character
+ * presets. Preset agents come from the registry's built-in non-teacher
+ * `default-N` entries (assistant + students).
+ */
+interface PresetRolesPanelProps {
+  agents: AgentConfig[];
+  selectedAgentIds: string[];
+  setSelectedAgentIds: (ids: string[]) => void;
+  availableProviders: ProviderWithVoices[];
+  ttsEnabled: boolean;
+  showVoice: boolean;
+  getAgentName: (agent: { id: string; name: string }) => string;
+}
+
+function PresetRolesPanel({
+  agents,
+  selectedAgentIds,
+  setSelectedAgentIds,
+  availableProviders,
+  ttsEnabled,
+  showVoice,
+  getAgentName,
+}: Readonly<PresetRolesPanelProps>) {
+  const { t } = useI18n();
+
+  // Take the 5 non-teacher built-in agents (default-2..default-6).
+  const presets = useMemo(
+    () => agents.filter((a) => a.isDefault && a.role !== 'teacher').slice(0, 5),
+    [agents],
+  );
+
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  const togglePreset = (id: string, enabled: boolean) => {
+    if (enabled) {
+      if (!selectedAgentIds.includes(id)) {
+        setSelectedAgentIds([...selectedAgentIds, id]);
+      }
+    } else {
+      setSelectedAgentIds(selectedAgentIds.filter((sid) => sid !== id));
+    }
+  };
+
+  const toggleExpand = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const personaText = (a: AgentConfig): string => {
+    const key = `settings.agentPersonas.${a.id}`;
+    const translated = t(key);
+    return translated !== key ? translated : a.persona;
+  };
+
+  const enabledCount = presets.filter((p) => selectedAgentIds.includes(p.id)).length;
+
+  return (
+    <div className="space-y-2">
+      <p className="text-[11px] text-muted-foreground/75 leading-relaxed">
+        {t('agentBar.presetIntro')}
+      </p>
+      <div className="space-y-1.5">
+        {presets.map((agent, idx) => {
+          const isSelected = selectedAgentIds.includes(agent.id);
+          const isExpanded = expandedIds.has(agent.id);
+          const persona = personaText(agent);
+          const roleBadgeClass =
+            agent.role === 'assistant'
+              ? 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300'
+              : 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300';
+          return (
+            <div
+              key={agent.id}
+              className={cn(
+                'rounded-xl border transition-colors',
+                isSelected
+                  ? 'border-violet-300/70 bg-violet-50/40 dark:border-violet-800/60 dark:bg-violet-950/20'
+                  : 'border-border/50 bg-muted/15',
+              )}
+            >
+              <div className="flex items-center gap-2 px-2.5 py-2">
+                <Checkbox
+                  checked={isSelected}
+                  onCheckedChange={(c) => togglePreset(agent.id, c === true)}
+                  aria-label={t('agentBar.presetEnableAria')}
+                  className="shrink-0"
+                />
+                <div
+                  className="size-8 rounded-full overflow-hidden ring-1 ring-border/40 shrink-0"
+                  style={{ boxShadow: `0 0 0 2px ${agent.color}30` }}
+                >
+                  <img
+                    src={agent.avatar}
+                    alt=""
+                    className="size-full object-cover"
+                    aria-hidden
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-[13px] font-medium truncate">
+                      {getAgentName(agent)}
+                    </span>
+                    <span
+                      className={cn(
+                        'shrink-0 text-[10px] px-1.5 py-0.5 rounded-full font-medium',
+                        roleBadgeClass,
+                      )}
+                    >
+                      {t(`settings.agentRoles.${agent.role}`)}
+                    </span>
+                  </div>
+                </div>
+                {showVoice && (
+                  <AgentVoicePill
+                    agent={agent}
+                    agentIndex={idx + 1}
+                    availableProviders={availableProviders}
+                    disabled={!ttsEnabled}
+                  />
+                )}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => toggleExpand(agent.id)}
+                      className="size-6 inline-flex items-center justify-center rounded-md text-muted-foreground/60 hover:bg-muted/60 hover:text-foreground transition-colors shrink-0"
+                      aria-label={
+                        isExpanded
+                          ? t('agentBar.collapsePersona')
+                          : t('agentBar.viewPersona')
+                      }
+                    >
+                      {isExpanded ? (
+                        <EyeOff className="size-3.5" />
+                      ) : (
+                        <Eye className="size-3.5" />
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-[11px]">
+                    {isExpanded
+                      ? t('agentBar.collapsePersona')
+                      : t('agentBar.viewPersona')}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              {isExpanded && (
+                <div className="px-3 pb-2.5 pt-0.5">
+                  <div className="rounded-lg border border-border/40 bg-background/60 px-2.5 py-2 text-[11.5px] leading-relaxed text-muted-foreground/95 whitespace-pre-line">
+                    {persona}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-[10.5px] text-muted-foreground/60 text-center pt-0.5">
+        {t('agentBar.presetCount', {
+          count: enabledCount,
+          total: presets.length,
+        })}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Classroom role configuration entry. Renders as a small round icon-only
+ * trigger (sized to match other bottom-toolbar icon buttons) that opens a
+ * popover panel above it. Style/interaction mirrors `BookLibraryDialog` and
+ * `GenerationConfigPopover` so all three toolbar dialogs feel consistent.
+ */
 export function AgentBar() {
   const { t } = useI18n();
   const { listAgents } = useAgentRegistry();
@@ -1074,15 +1241,15 @@ export function AgentBar() {
   const [open, setOpen] = useState(false);
   const [browserVoices, setBrowserVoices] = useState<SpeechSynthesisVoice[]>([]);
   const { profiles: voxcpmProfiles } = useVoxCPMVoiceProfiles();
-  const containerRef = useRef<HTMLDivElement>(null);
 
   // Load browser native TTS voices
   useEffect(() => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
-    const loadVoices = () => setBrowserVoices(speechSynthesis.getVoices());
+    if (typeof globalThis.window === 'undefined' || !globalThis.speechSynthesis) return;
+    const loadVoices = () => setBrowserVoices(globalThis.speechSynthesis.getVoices());
     loadVoices();
-    speechSynthesis.addEventListener('voiceschanged', loadVoices);
-    return () => speechSynthesis.removeEventListener('voiceschanged', loadVoices);
+    globalThis.speechSynthesis.addEventListener('voiceschanged', loadVoices);
+    return () =>
+      globalThis.speechSynthesis.removeEventListener('voiceschanged', loadVoices);
   }, []);
 
   useEffect(() => {
@@ -1119,24 +1286,19 @@ export function AgentBar() {
   ];
   const showVoice = availableProviders.length > 0;
 
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (containerRef.current && containerRef.current.contains(target)) return;
-      // Don't close if clicking inside a Radix portal (Popover, Select, etc.)
-      if ((target as Element).closest?.('[data-radix-popper-content-wrapper]')) return;
-      if ((target as Element).closest?.('[data-slot="dialog-content"]')) return;
-      setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
-
+  /**
+   * UI tab → settings storage mapping:
+   *   预设模式 (PresetRolesPanel)  ↔  agentMode === 'custom'
+   *   自动生成 (AutoGenerate)      ↔  agentMode === 'auto'
+   * The 'custom' value is preserved for backward-compat with persisted state
+   * and downstream code that already understands 'auto' | 'custom'.
+   */
   const handleModeChange = (mode: 'auto' | 'custom') => {
     setAgentMode(mode);
     if (mode === 'custom') {
-      // Remove stale auto-generated agent IDs that may linger from a previous auto classroom
+      // When switching into preset mode, ensure selectedAgentIds only contains
+      // valid registry IDs (drop any leftover auto-generated IDs from a prior
+      // session) and always include the teacher.
       const registryIds = selectedAgentIds.filter((id) => agents.some((a) => a.id === id));
       const hasTeacher = registryIds.some((id) => {
         const a = agents.find((agent) => agent.id === id);
@@ -1157,252 +1319,221 @@ export function AgentBar() {
     return translated !== key ? translated : agent.name;
   };
 
-  const avatarRow = (
-    <div className="flex items-center gap-1.5 shrink-0">
-      {teacherAgent && (
-        <div className="size-8 rounded-full overflow-hidden ring-2 ring-blue-400/40 dark:ring-blue-500/30 shrink-0">
-          <img
-            src={teacherAgent.avatar}
-            alt={getAgentName(teacherAgent)}
-            className="size-full object-cover"
-          />
-        </div>
-      )}
-
-      {agentMode === 'auto' ? (
-        <>
-          <div className="flex -space-x-2">
-            {agents.find((a) => a.role === 'assistant') && (
-              <div className="size-6 rounded-full overflow-hidden ring-[1.5px] ring-background">
-                <img
-                  src={agents.find((a) => a.role === 'assistant')!.avatar}
-                  alt=""
-                  className="size-full object-cover"
-                />
-              </div>
-            )}
-          </div>
-          <Shuffle className="size-4 text-violet-400 dark:text-violet-500" />
-        </>
-      ) : (
-        <>
-          {(() => {
-            const enabled = publisherCustomRoles.filter((r) => r.enabled);
-            const strip = enabled.length > 0 ? enabled : publisherCustomRoles;
-            if (strip.length === 0) return null;
-            return (
-              <div className="flex -space-x-2">
-                {strip.slice(0, 4).map((row) => (
-                  <div
-                    key={row.id}
-                    className="size-6 rounded-full ring-[1.5px] ring-background overflow-hidden shrink-0 bg-muted"
-                  >
-                    {row.avatar ? (
-                      <img src={row.avatar} alt="" className="size-full object-cover" />
-                    ) : (
-                      <div
-                        className={cn(
-                          'size-full flex items-center justify-center text-[9px] font-bold text-white',
-                          row.identity === 'teacher' && 'bg-gradient-to-br from-blue-500 to-indigo-600',
-                          row.identity === 'assistant' && 'bg-gradient-to-br from-violet-500 to-fuchsia-600',
-                          row.identity === 'student' && 'bg-gradient-to-br from-emerald-500 to-teal-600',
-                        )}
-                      >
-                        {publisherRoleInitial(row, t)}
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {strip.length > 4 && (
-                  <div className="size-6 rounded-full bg-muted ring-[1.5px] ring-background flex items-center justify-center">
-                    <span className="text-[9px] font-bold text-muted-foreground">+{strip.length - 4}</span>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-        </>
-      )}
-      {showVoice &&
-        (ttsEnabled ? (
-          <Volume2 className="size-3.5 text-muted-foreground/40 group-hover:text-muted-foreground/60 transition-colors" />
-        ) : (
-          <VolumeX className="size-3.5 text-muted-foreground/30" />
-        ))}
-    </div>
-  );
-
   return (
-    <div ref={containerRef} className="relative w-96">
+    <Popover open={open} onOpenChange={setOpen}>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            className={cn(
-              'group flex items-center gap-2 cursor-pointer rounded-full px-2.5 py-2 transition-all w-full',
-              'border border-border/50 text-muted-foreground/70 hover:text-foreground hover:bg-muted/60',
-            )}
-            onClick={() => setOpen(!open)}
-          >
-            <span className="text-xs text-muted-foreground/60 group-hover:text-muted-foreground transition-colors hidden sm:block font-medium flex-1 text-left truncate">
-              {open ? t('agentBar.expandedTitle') : t('agentBar.readyToLearn')}
-            </span>
-            {avatarRow}
-            {open ? (
-              <ChevronUp className="size-3 text-muted-foreground/40 group-hover:text-muted-foreground/70 transition-colors" />
-            ) : (
-              <ChevronDown className="size-3 text-muted-foreground/40 group-hover:text-muted-foreground/70 transition-colors" />
-            )}
-          </button>
-        </TooltipTrigger>
+        <PopoverTrigger asChild>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label={t('agentBar.configTooltip')}
+              aria-expanded={open}
+              className={cn(
+                'inline-flex items-center justify-center rounded-full border size-8 shrink-0 transition-all cursor-pointer',
+                open
+                  ? 'border-violet-400/70 bg-violet-100 dark:bg-violet-900/35 text-violet-700 dark:text-violet-300'
+                  : 'bg-white border-border/60 text-muted-foreground/70 hover:bg-muted/40 hover:text-foreground',
+              )}
+            >
+              <Users className="size-3.5" />
+            </button>
+          </TooltipTrigger>
+        </PopoverTrigger>
         {!open && (
-          <TooltipContent side="bottom" sideOffset={4}>
+          <TooltipContent side="top" sideOffset={4}>
             {t('agentBar.configTooltip')}
           </TooltipContent>
         )}
       </Tooltip>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: -4, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -4, scale: 0.97 }}
-            transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-            className="absolute right-0 top-full mt-1 z-50 w-96"
+      <PopoverContent
+        side="top"
+        align="start"
+        sideOffset={8}
+        collisionPadding={12}
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        className={cn(
+          '!p-0 !gap-0 overflow-hidden bg-white dark:bg-slate-900',
+          'w-[min(calc(100vw-2rem),520px)] rounded-2xl border border-border/60',
+          'shadow-xl shadow-black/[0.06] dark:shadow-black/30 ring-1 ring-black/[0.03]',
+          'max-h-[min(85dvh,720px)] flex flex-col',
+        )}
+      >
+        {/* ── Header ── */}
+        <div className="relative px-5 pt-5 pb-3 border-b border-border/50 shrink-0 text-left space-y-1.5 pr-14">
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="absolute right-3 top-3 inline-flex size-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+            aria-label={t('common.close')}
           >
-            <div className="rounded-2xl bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm ring-1 ring-black/[0.04] dark:ring-white/[0.06] shadow-[0_1px_8px_-2px_rgba(0,0,0,0.06)] dark:shadow-[0_1px_8px_-2px_rgba(0,0,0,0.3)] px-2 py-1.5">
-              {/* Teacher — always visible */}
-              {teacherAgent && (
-                <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-primary/5 mb-2">
-                  <div
-                    className="size-7 rounded-full overflow-hidden shrink-0 ring-1 ring-border/40"
-                    style={{ boxShadow: `0 0 0 2px ${teacherAgent.color}30` }}
-                  >
-                    <img
-                      src={teacherAgent.avatar}
-                      alt={getAgentName(teacherAgent)}
-                      className="size-full object-cover"
-                    />
-                  </div>
-                  <span className="text-[13px] font-medium truncate min-w-0 flex-1">
-                    {getAgentName(teacherAgent)}
-                  </span>
-                  {showVoice && (
-                    <TeacherVoicePill
-                      availableProviders={availableProviders}
-                      disabled={!ttsEnabled}
-                    />
-                  )}
-                </div>
-              )}
+            <X className="size-4" />
+          </button>
+          <h2 className="text-base font-semibold pr-2">{t('agentBar.popoverTitle')}</h2>
+          <p className="text-[12px] leading-relaxed break-words text-muted-foreground">
+            {t('agentBar.popoverIntro')}
+          </p>
+        </div>
 
-              {/* Mode tabs: auto-generate | custom (names + identities in-panel) */}
-              <div className="flex rounded-lg border bg-muted/30 p-0.5 mb-2">
-                <button
-                  type="button"
-                  onClick={() => handleModeChange('auto')}
-                  className={cn(
-                    'flex-1 py-1.5 text-xs font-medium rounded-md transition-all text-center flex items-center justify-center gap-1',
-                    agentMode === 'auto'
-                      ? 'bg-background shadow-sm text-foreground'
-                      : 'text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  <Sparkles className="h-3 w-3" />
-                  {t('settings.agentModeAuto')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleModeChange('custom')}
-                  className={cn(
-                    'flex-1 py-1.5 text-xs font-medium rounded-md transition-all text-center',
-                    agentMode === 'custom'
-                      ? 'bg-background shadow-sm text-foreground'
-                      : 'text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  {t('settings.agentModeCustom')}
-                </button>
+        {/* ── Teacher — always visible at the top ── */}
+        {teacherAgent && (
+          <div className="px-4 pt-3 shrink-0">
+            <div className="flex items-center gap-2 px-2.5 py-2 rounded-xl bg-primary/5 border border-border/40">
+              <div
+                className="size-8 rounded-full overflow-hidden ring-1 ring-border/40 shrink-0"
+                style={{ boxShadow: `0 0 0 2px ${teacherAgent.color}30` }}
+              >
+                <img
+                  src={teacherAgent.avatar}
+                  alt={getAgentName(teacherAgent)}
+                  className="size-full object-cover"
+                />
               </div>
-
-              {agentMode === 'auto' ? (
-                <div className="flex flex-col items-center pt-6 pb-3 gap-4">
-                  <div className="relative flex items-center justify-center">
-                    <div className="absolute size-10 rounded-full bg-violet-400/10 dark:bg-violet-400/15 animate-ping [animation-duration:3s]" />
-                    <div className="absolute size-12 rounded-full bg-violet-400/5 dark:bg-violet-400/10 animate-pulse [animation-duration:2.5s]" />
-                    <Shuffle className="relative size-5 text-violet-400 dark:text-violet-500" />
-                  </div>
-                  <div className="flex-1" />
-                  <div className="text-center space-y-1">
-                    <p className="text-[11px] text-muted-foreground/60">
-                      {t('settings.agentModeAutoDesc')}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground/40">
-                      {t('agentBar.voiceAutoAssign')}
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <PublisherCustomRolesPanel
-                  value={publisherCustomRoles}
-                  onChange={setPublisherCustomRolesPersist}
+              <div className="min-w-0 flex-1 flex items-center gap-1.5">
+                <span className="text-[13px] font-medium truncate">
+                  {getAgentName(teacherAgent)}
+                </span>
+                <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
+                  {t('settings.agentRoles.teacher')}
+                </span>
+              </div>
+              {showVoice && (
+                <TeacherVoicePill
+                  availableProviders={availableProviders}
+                  disabled={!ttsEnabled}
                 />
               )}
-
-              {/* Max turns — compact stepper */}
-              <div className="flex items-center gap-1.5 px-2 py-1 mt-1 border-t border-border/30">
-                <MessageSquare className="size-3 text-muted-foreground/40 shrink-0" />
-                <span className="text-[11px] text-muted-foreground/50 flex-1">
-                  {t('settings.maxTurns')}
-                </span>
-                <div className="flex items-center rounded-full bg-muted/50 h-5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const v = Math.max(1, parseInt(maxTurns || '1') - 1);
-                      setMaxTurns(String(v));
-                    }}
-                    className="size-5 flex items-center justify-center text-muted-foreground/60 hover:text-foreground transition-colors rounded-full hover:bg-muted"
-                  >
-                    <Minus className="size-2.5" />
-                  </button>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={maxTurns}
-                    onChange={(e) => {
-                      const raw = e.target.value.replace(/\D/g, '');
-                      if (!raw) {
-                        setMaxTurns('');
-                        return;
-                      }
-                      const v = Math.min(20, Math.max(1, parseInt(raw)));
-                      setMaxTurns(String(v));
-                    }}
-                    onBlur={() => {
-                      if (!maxTurns || parseInt(maxTurns) < 1) setMaxTurns('1');
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                    className="w-5 h-5 text-[11px] font-medium tabular-nums text-center bg-transparent outline-none border-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const v = Math.min(20, parseInt(maxTurns || '1') + 1);
-                      setMaxTurns(String(v));
-                    }}
-                    className="size-5 flex items-center justify-center text-muted-foreground/60 hover:text-foreground transition-colors rounded-full hover:bg-muted"
-                  >
-                    <Plus className="size-2.5" />
-                  </button>
-                </div>
-              </div>
             </div>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
-    </div>
+
+        {/* ── Mode tabs ── */}
+        <div className="px-4 pt-3 shrink-0">
+          <div className="flex rounded-xl bg-muted/45 p-1 gap-1">
+            <button
+              type="button"
+              onClick={() => handleModeChange('custom')}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 px-2 text-[12px] font-medium transition-all',
+                agentMode === 'custom'
+                  ? 'bg-white dark:bg-slate-900 text-violet-700 dark:text-violet-300 shadow-sm ring-1 ring-border/40'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <Users className="size-3.5 shrink-0 opacity-80" />
+              {t('agentBar.modePreset')}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeChange('auto')}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 px-2 text-[12px] font-medium transition-all',
+                agentMode === 'auto'
+                  ? 'bg-white dark:bg-slate-900 text-violet-700 dark:text-violet-300 shadow-sm ring-1 ring-border/40'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <Sparkles className="size-3.5 shrink-0 opacity-80" />
+              {t('agentBar.modeAuto')}
+            </button>
+          </div>
+        </div>
+
+        {/* ── Body ── */}
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
+          {agentMode === 'custom' ? (
+            <PresetRolesPanel
+              agents={agents}
+              selectedAgentIds={selectedAgentIds}
+              setSelectedAgentIds={setSelectedAgentIds}
+              availableProviders={availableProviders}
+              ttsEnabled={ttsEnabled}
+              showVoice={showVoice}
+              getAgentName={getAgentName}
+            />
+          ) : (
+            <div className="space-y-3">
+              {/* Auto intro card — compact when there are already generated roles */}
+              {publisherCustomRoles.length === 0 && (
+                <div className="rounded-xl border border-violet-200/70 dark:border-violet-800/50 bg-violet-50/50 dark:bg-violet-950/25 px-4 py-3.5 flex items-start gap-3">
+                  <div className="relative flex items-center justify-center shrink-0 mt-0.5">
+                    <div className="absolute size-8 rounded-full bg-violet-400/10 dark:bg-violet-400/15 animate-ping [animation-duration:3s]" />
+                    <Shuffle className="relative size-4 text-violet-500 dark:text-violet-400" />
+                  </div>
+                  <div className="min-w-0 flex-1 text-left space-y-1">
+                    <p className="text-[12px] text-foreground/85 leading-relaxed">
+                      {t('agentBar.autoIntroDefault')}
+                    </p>
+                    <p className="text-[10.5px] text-muted-foreground/70 leading-relaxed">
+                      {t('agentBar.autoPromptHint')}
+                    </p>
+                  </div>
+                </div>
+              )}
+              {/* Inline prompt + editable role list */}
+              <AutoGenerateRolesPanel
+                value={publisherCustomRoles}
+                onChange={setPublisherCustomRolesPersist}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* ── Footer: Max turns ── */}
+        <div className="flex items-center gap-2 border-t border-border/50 px-4 py-2.5 shrink-0 bg-muted/20">
+          <MessageSquare className="size-3.5 text-muted-foreground/60 shrink-0" />
+          <span className="text-[12px] text-muted-foreground/85 flex-1">
+            {t('settings.maxTurns')}
+          </span>
+          <div className="flex items-center rounded-full bg-background border border-border/60 h-7 shrink-0 px-0.5">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                const v = Math.max(1, Number.parseInt(maxTurns || '1') - 1);
+                setMaxTurns(String(v));
+              }}
+              className="size-6 flex items-center justify-center text-muted-foreground/70 hover:text-foreground transition-colors rounded-full hover:bg-muted"
+              aria-label="−"
+            >
+              <Minus className="size-3" />
+            </button>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={maxTurns}
+              onChange={(e) => {
+                const raw = e.target.value.replaceAll(/\D/g, '');
+                if (!raw) {
+                  setMaxTurns('');
+                  return;
+                }
+                const v = Math.min(20, Math.max(1, Number.parseInt(raw)));
+                setMaxTurns(String(v));
+              }}
+              onBlur={() => {
+                if (!maxTurns || Number.parseInt(maxTurns) < 1) setMaxTurns('1');
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-7 h-6 text-[12px] font-semibold tabular-nums text-center bg-transparent outline-none border-none"
+              aria-label={t('settings.maxTurns')}
+            />
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                const v = Math.min(20, Number.parseInt(maxTurns || '1') + 1);
+                setMaxTurns(String(v));
+              }}
+              className="size-6 flex items-center justify-center text-muted-foreground/70 hover:text-foreground transition-colors rounded-full hover:bg-muted"
+              aria-label="+"
+            >
+              <Plus className="size-3" />
+            </button>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

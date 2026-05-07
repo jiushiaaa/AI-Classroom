@@ -158,102 +158,111 @@ export const ProsemirrorEditor = forwardRef<ProsemirrorEditorRef, ProsemirrorEdi
 
         const actions = 'command' in action ? [action] : action;
 
+        // Apply a mark/command. If there is a non-empty selection, operate on
+        // that selection only; otherwise (collapsed caret) fall back to
+        // selecting the whole document so the user's intent ("apply to whole
+        // text box") is preserved when no explicit range is selected.
+        // This is the key behaviour mini-toolbars rely on: never silently
+        // overwrite a real text selection with selectAll.
+        const applyOrSelectAll = (apply: () => void) => {
+          if (!editorView.current) return;
+          autoSelectAll(editorView.current);
+          apply();
+        };
+
         for (const item of actions) {
           if (item.command === 'fontname' && item.value !== undefined) {
-            const mark = editorView.current.state.schema.marks.fontname.create({
-              fontname: item.value,
+            applyOrSelectAll(() => {
+              const view = editorView.current!;
+              const mark = view.state.schema.marks.fontname.create({
+                fontname: item.value,
+              });
+              addMark(view, mark);
             });
-            autoSelectAll(editorView.current);
-            addMark(editorView.current, mark);
 
             if (item.value && !document.fonts.check(`16px ${item.value}`)) {
               toast.warning('Font is loading, please wait...');
             }
           } else if (item.command === 'fontsize' && item.value) {
-            const mark = editorView.current.state.schema.marks.fontsize.create({
-              fontsize: item.value,
-            });
-            autoSelectAll(editorView.current);
-            addMark(editorView.current, mark);
-            setListStyle(editorView.current, {
-              key: 'fontsize',
-              value: item.value,
+            applyOrSelectAll(() => {
+              const view = editorView.current!;
+              const mark = view.state.schema.marks.fontsize.create({
+                fontsize: item.value,
+              });
+              addMark(view, mark);
+              setListStyle(view, {
+                key: 'fontsize',
+                value: item.value as string,
+              });
             });
           } else if (item.command === 'fontsize-add') {
             const step = item.value ? +item.value : 2;
-            autoSelectAll(editorView.current);
-            const fontsize = getFontsize(editorView.current) + step + 'px';
-            const mark = editorView.current.state.schema.marks.fontsize.create({
-              fontsize,
-            });
-            addMark(editorView.current, mark);
-            setListStyle(editorView.current, {
-              key: 'fontsize',
-              value: fontsize,
+            applyOrSelectAll(() => {
+              const view = editorView.current!;
+              const fontsize = getFontsize(view) + step + 'px';
+              const mark = view.state.schema.marks.fontsize.create({ fontsize });
+              addMark(view, mark);
+              setListStyle(view, { key: 'fontsize', value: fontsize });
             });
           } else if (item.command === 'fontsize-reduce') {
             const step = item.value ? +item.value : 2;
-            autoSelectAll(editorView.current);
-            let fontsize = getFontsize(editorView.current) - step;
-            if (fontsize < 12) fontsize = 12;
-            const mark = editorView.current.state.schema.marks.fontsize.create({
-              fontsize: fontsize + 'px',
-            });
-            addMark(editorView.current, mark);
-            setListStyle(editorView.current, {
-              key: 'fontsize',
-              value: fontsize + 'px',
+            applyOrSelectAll(() => {
+              const view = editorView.current!;
+              let fontsize = getFontsize(view) - step;
+              if (fontsize < 12) fontsize = 12;
+              const mark = view.state.schema.marks.fontsize.create({
+                fontsize: fontsize + 'px',
+              });
+              addMark(view, mark);
+              setListStyle(view, { key: 'fontsize', value: fontsize + 'px' });
             });
           } else if (item.command === 'color' && item.value) {
-            const mark = editorView.current.state.schema.marks.forecolor.create({
-              color: item.value,
-            });
-            autoSelectAll(editorView.current);
-            addMark(editorView.current, mark);
-            setListStyle(editorView.current, {
-              key: 'color',
-              value: item.value,
+            applyOrSelectAll(() => {
+              const view = editorView.current!;
+              const mark = view.state.schema.marks.forecolor.create({
+                color: item.value,
+              });
+              addMark(view, mark);
+              setListStyle(view, { key: 'color', value: item.value as string });
             });
           } else if (item.command === 'backcolor' && item.value) {
-            const mark = editorView.current.state.schema.marks.backcolor.create({
-              backcolor: item.value,
+            applyOrSelectAll(() => {
+              const view = editorView.current!;
+              const mark = view.state.schema.marks.backcolor.create({
+                backcolor: item.value,
+              });
+              addMark(view, mark);
             });
-            autoSelectAll(editorView.current);
-            addMark(editorView.current, mark);
           } else if (item.command === 'bold') {
-            autoSelectAll(editorView.current);
-            toggleMark(editorView.current.state.schema.marks.strong)(
-              editorView.current.state,
-              editorView.current.dispatch,
-            );
+            applyOrSelectAll(() => {
+              const view = editorView.current!;
+              toggleMark(view.state.schema.marks.strong)(view.state, view.dispatch);
+            });
           } else if (item.command === 'em') {
-            autoSelectAll(editorView.current);
-            toggleMark(editorView.current.state.schema.marks.em)(
-              editorView.current.state,
-              editorView.current.dispatch,
-            );
+            applyOrSelectAll(() => {
+              const view = editorView.current!;
+              toggleMark(view.state.schema.marks.em)(view.state, view.dispatch);
+            });
           } else if (item.command === 'underline') {
-            autoSelectAll(editorView.current);
-            toggleMark(editorView.current.state.schema.marks.underline)(
-              editorView.current.state,
-              editorView.current.dispatch,
-            );
+            applyOrSelectAll(() => {
+              const view = editorView.current!;
+              toggleMark(view.state.schema.marks.underline)(view.state, view.dispatch);
+            });
           } else if (item.command === 'strikethrough') {
-            autoSelectAll(editorView.current);
-            toggleMark(editorView.current.state.schema.marks.strikethrough)(
-              editorView.current.state,
-              editorView.current.dispatch,
-            );
+            applyOrSelectAll(() => {
+              const view = editorView.current!;
+              toggleMark(view.state.schema.marks.strikethrough)(view.state, view.dispatch);
+            });
           } else if (item.command === 'subscript') {
-            toggleMark(editorView.current.state.schema.marks.subscript)(
-              editorView.current.state,
-              editorView.current.dispatch,
-            );
+            applyOrSelectAll(() => {
+              const view = editorView.current!;
+              toggleMark(view.state.schema.marks.subscript)(view.state, view.dispatch);
+            });
           } else if (item.command === 'superscript') {
-            toggleMark(editorView.current.state.schema.marks.superscript)(
-              editorView.current.state,
-              editorView.current.dispatch,
-            );
+            applyOrSelectAll(() => {
+              const view = editorView.current!;
+              toggleMark(view.state.schema.marks.superscript)(view.state, view.dispatch);
+            });
           } else if (item.command === 'blockquote') {
             const isBlockquote = isActiveOfParentNodeType('blockquote', editorView.current.state);
             if (isBlockquote) lift(editorView.current.state, editorView.current.dispatch);
@@ -302,13 +311,15 @@ export const ProsemirrorEditor = forwardRef<ProsemirrorEditorRef, ProsemirrorEdi
               textStyle,
             )(editorView.current.state, editorView.current.dispatch);
           } else if (item.command === 'clear') {
-            autoSelectAll(editorView.current);
-            const { $from, $to } = editorView.current.state.selection;
-            editorView.current.dispatch(editorView.current.state.tr.removeMark($from.pos, $to.pos));
-            setListStyle(editorView.current, [
-              { key: 'fontsize', value: '' },
-              { key: 'color', value: '' },
-            ]);
+            applyOrSelectAll(() => {
+              const view = editorView.current!;
+              const { $from, $to } = view.state.selection;
+              view.dispatch(view.state.tr.removeMark($from.pos, $to.pos));
+              setListStyle(view, [
+                { key: 'fontsize', value: '' },
+                { key: 'color', value: '' },
+              ]);
+            });
           } else if (item.command === 'link') {
             const markType = editorView.current.state.schema.marks.link;
             const { from, to } = editorView.current.state.selection;

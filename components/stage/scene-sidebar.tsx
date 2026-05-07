@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   PanelLeftClose,
@@ -36,6 +36,11 @@ import {
   AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
 import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
@@ -44,6 +49,7 @@ import {
 } from '@/components/ui/context-menu';
 import { AddScenePopover, buildBlankSlideScene } from '@/components/stage/add-scene-popover';
 import { AIGenerateSceneDialog } from '@/components/stage/ai-generate-scene-dialog';
+import { AIModifyPanel } from '@/components/scene-renderers/ai-modify-panel';
 
 interface SceneSidebarProps {
   readonly collapsed: boolean;
@@ -82,8 +88,22 @@ export function SceneSidebar({
   const reorderScenes = useStageStore.use.reorderScenes();
   const deleteSceneAction = useStageStore.use.deleteScene();
   const insertSceneAt = useStageStore.use.insertSceneAt();
+  const duplicateScene = useStageStore.use.duplicateScene();
   const sceneClipboard = useStageStore.use.sceneClipboard();
-  const setSceneClipboard = useStageStore.use.setSceneClipboard();
+
+  const sceneListRef = useRef<HTMLDivElement>(null);
+
+  // Keep the active scene thumbnail in view when current page changes from any
+  // source (sidebar, notes panel, transport controls, playback).
+  useEffect(() => {
+    if (!currentSceneId || currentSceneId === PENDING_SCENE_ID) return;
+    const root = sceneListRef.current;
+    if (!root) return;
+    const tile = root.querySelector(`[data-scene-id="${CSS.escape(currentSceneId)}"]`);
+    if (tile instanceof HTMLElement) {
+      tile.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [currentSceneId]);
 
   // Drag-and-drop reordering state. We use HTML5 native DnD (no extra dep)
   // so the publisher can grab a thumbnail and drop it anywhere — including
@@ -96,15 +116,7 @@ export function SceneSidebar({
   // each AddScenePopover) so the menu can pin the insertIndex independently
   // from the inline "+" slot popovers.
   const [aiDialogIndex, setAiDialogIndex] = useState<number | null>(null);
-
-  /** Deep-clone a scene into the clipboard so subsequent edits to the source
-   *  don't bleed into a future paste. */
-  const handleCopyScene = useCallback(
-    (scene: Scene) => {
-      setSceneClipboard(structuredClone(scene));
-    },
-    [setSceneClipboard],
-  );
+  const [aiOptimizeSceneId, setAiOptimizeSceneId] = useState<string | null>(null);
 
   /** Paste the clipboard's scene immediately after `index`, preserving the
    *  publisher's mental model that "paste lands here, below this slide". */
@@ -292,6 +304,7 @@ export function SceneSidebar({
 
         {/* Scenes List */}
         <div
+          ref={sceneListRef}
           data-testid="scene-list"
           className="flex-1 overflow-y-auto overflow-x-hidden p-2 scrollbar-hide pt-1"
         >
@@ -315,7 +328,7 @@ export function SceneSidebar({
               dropLineIndex === index + 1 && draggingIndex !== index && draggingIndex !== index + 1;
 
             return (
-              <div key={scene.id} className="relative">
+              <div key={scene.id} data-scene-id={scene.id} className="relative">
                 {/* Drop indicator: thin purple bar above tile */}
                 {showDropLineAbove && (
                   <div
@@ -350,7 +363,7 @@ export function SceneSidebar({
                         }
                       }}
                       className={cn(
-                        'group relative rounded-lg transition-all duration-200 cursor-pointer flex flex-col gap-1 p-1.5 my-1',
+                        'group/slide relative rounded-lg transition-all duration-200 cursor-pointer flex flex-col gap-1 p-1.5 my-1',
                         isActive
                           ? 'bg-purple-50 dark:bg-purple-900/20 ring-1 ring-purple-200 dark:ring-purple-700'
                           : 'hover:bg-gray-50/80 dark:hover:bg-gray-800/50',
@@ -391,6 +404,39 @@ export function SceneSidebar({
 
                 {/* Thumbnail */}
                 <div className="relative aspect-video w-full rounded overflow-hidden bg-gray-100 dark:bg-gray-800 ring-1 ring-black/5 dark:ring-white/5">
+                  {!readOnly && (
+                    <div
+                      className={cn(
+                        'absolute inset-0 z-30 flex items-end justify-center gap-1.5 pb-1.5 px-1',
+                        'bg-gradient-to-t from-black/55 via-black/20 to-transparent',
+                        'opacity-0 pointer-events-none transition-opacity duration-150',
+                        'group-hover/slide:opacity-100 group-hover/slide:pointer-events-auto',
+                      )}
+                    >
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPendingDeleteId(scene.id);
+                        }}
+                        className="inline-flex items-center gap-0.5 rounded-md bg-white/95 dark:bg-zinc-900/95 px-2 py-1 text-[10px] font-bold text-rose-600 dark:text-rose-400 shadow-sm ring-1 ring-rose-200/60 dark:ring-rose-800/40 hover:bg-rose-50 dark:hover:bg-rose-950/40 active:scale-95"
+                      >
+                        <Trash2 className="size-3 shrink-0" />
+                        {t('sceneActions.hoverDelete')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setAiOptimizeSceneId(scene.id);
+                        }}
+                        className="inline-flex items-center gap-0.5 rounded-md bg-white/95 dark:bg-zinc-900/95 px-2 py-1 text-[10px] font-bold text-violet-700 dark:text-violet-300 shadow-sm ring-1 ring-violet-200/70 dark:ring-violet-700/40 hover:bg-violet-50 dark:hover:bg-violet-950/30 active:scale-95"
+                      >
+                        <Sparkles className="size-3 shrink-0" />
+                        {t('sceneActions.hoverAiOptimize')}
+                      </button>
+                    </div>
+                  )}
                   <div className="absolute inset-0 flex items-center justify-center">
                     {isSlide && slideContent ? (
                       <ThumbnailSlide
@@ -526,7 +572,7 @@ export function SceneSidebar({
                   </ContextMenuTrigger>
                   <ContextMenuContent className="w-52">
                     <ContextMenuItem
-                      onClick={() => handleCopyScene(scene)}
+                      onClick={() => duplicateScene(scene.id)}
                       className="gap-2"
                     >
                       <Copy className="size-4 text-gray-500" />
@@ -818,6 +864,32 @@ export function SceneSidebar({
         }}
         insertIndex={aiDialogIndex ?? undefined}
       />
+
+      <Dialog
+        open={aiOptimizeSceneId !== null}
+        onOpenChange={(open) => {
+          if (!open) setAiOptimizeSceneId(null);
+        }}
+      >
+        <DialogContent
+          showCloseButton
+          className={cn(
+            'sm:max-w-lg !p-0 !gap-0 overflow-hidden border-0',
+            'rounded-2xl shadow-xl shadow-black/[0.06] dark:shadow-black/30 ring-1 ring-black/[0.03]',
+          )}
+        >
+          <VisuallyHidden.Root>
+            <DialogTitle>{t('sceneActions.aiOptimizeDialogTitle')}</DialogTitle>
+          </VisuallyHidden.Root>
+          {aiOptimizeSceneId ? (
+            <AIModifyPanel
+              sceneId={aiOptimizeSceneId}
+              onClose={() => setAiOptimizeSceneId(null)}
+              layout="embedded"
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       {/* Delete confirmation */}
       <AlertDialog

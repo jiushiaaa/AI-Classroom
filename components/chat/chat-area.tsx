@@ -5,15 +5,15 @@ import { toast } from 'sonner';
 import type { SessionType, LectureNoteEntry } from '@/lib/types/chat';
 import type { DiscussionRequest } from '@/components/roundtable';
 import type { Action, SpeechAction, DiscussionAction } from '@/lib/types/action';
+import { extractSlidePlainText } from '@/lib/utils/extract-slide-plain-text';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/hooks/use-i18n';
-import { useStageStore, useEditModeStore } from '@/lib/store';
-import { PanelRightClose, BookOpen, MessageSquare, Volume2, Palette } from 'lucide-react';
+import { useStageStore } from '@/lib/store';
+import { PanelRightClose, BookOpen, MessageSquare, Volume2, Sparkles } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useChatSessions } from './use-chat-sessions';
 import { SessionList } from './session-list';
 import { LectureNotesView } from './lecture-notes-view';
-import { StylePanel } from './style-panel';
 
 interface ChatAreaProps {
   className?: string;
@@ -38,6 +38,8 @@ interface ChatAreaProps {
   /** When provided and returns true, StreamBuffer holds on the current text item after reveal. */
   shouldHoldAfterReveal?: () => { holding: boolean; segmentDone: number } | boolean;
   currentSceneId?: string | null;
+  /** Explicit navigation from lecture note cards (same gating as sidebar). */
+  onLectureNoteSceneSelect?: (sceneId: string) => void;
   /**
    * When true, suppress publisher-only affordances inside the side panel —
    * specifically the inline lecture-notes edit pencil. Used by the mobile /
@@ -90,6 +92,7 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
       onSegmentSealed,
       shouldHoldAfterReveal,
       currentSceneId,
+      onLectureNoteSceneSelect,
       readOnly = false,
     },
     ref,
@@ -129,17 +132,11 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
       shouldHoldAfterReveal,
     });
 
-    const [activeTab, setActiveTab] = useState<'lecture' | 'chat' | 'style'>('lecture');
-    // P3: Style tab is gated on edit-mode. When the publisher leaves edit
-    // mode while parked on the Style tab we kick them back to the Notes tab
-    // so they don't see an empty Style panel.
-    const isEditingPanel = useEditModeStore.use.isEditing();
-    if (!isEditingPanel && activeTab === 'style') {
-      // Schedule on a microtask so React doesn't complain about
-      // setState-in-render. (`Promise.resolve().then` is the same trick used
-      // elsewhere in this codebase.)
-      Promise.resolve().then(() => setActiveTab('lecture'));
-    }
+    const [activeTab, setActiveTab] = useState<'lecture' | 'chat'>('lecture');
+    // The "样式" tab used to live here; it now opens as a right-side drawer
+    // in the slide editor (see SlideStyleDrawer + useEditModeStore.stylePanelOpen).
+    // Reading isEditing here purely so we can suppress edit-mode-only chrome
+    // is no longer needed in this file.
     const isDraggingRef = useRef(false);
     const [isDragging, setIsDragging] = useState(false);
     const bottomRef = useRef<HTMLDivElement>(null);
@@ -148,14 +145,14 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
     // Preserves action order so spotlight/laser badges appear inline between speech texts
     const lectureNotes: LectureNoteEntry[] = useMemo(
       () =>
-        scenes
-          .filter((scene) => scene.actions && scene.actions.length > 0)
+        [...scenes]
+          .sort((a, b) => a.order - b.order)
           .map((scene) => ({
             sceneId: scene.id,
             sceneTitle: scene.title,
             sceneOrder: scene.order,
-            items: scene
-              .actions!.filter(
+            items: (scene.actions ?? [])
+              .filter(
                 (a) =>
                   a.type === 'speech' ||
                   a.type === 'spotlight' ||
@@ -180,8 +177,7 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
                 };
               }),
             completedAt: scene.updatedAt || scene.createdAt || 0,
-          }))
-          .sort((a, b) => a.sceneOrder - b.sceneOrder),
+          })),
       [scenes],
     );
 
@@ -224,6 +220,46 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
           description: t('chat.lectureNotes.ttsSyncedDescription'),
           icon: <Volume2 className="w-4 h-4 text-purple-500" />,
           duration: 2400,
+        });
+      },
+      [scenes, updateScene, t],
+    );
+
+    /** Mock one-click draft for the AI teacher script from slide text (offline demo). */
+    const handleAiGenerateTeacherScript = useCallback(
+      (sceneId: string) => {
+        const scene = scenes.find((s) => s.id === sceneId);
+        if (!scene || !scene.actions?.length) {
+          toast.error(t('chat.lectureNotes.aiGenerateNoSpeech'));
+          return;
+        }
+        const speechIdx = scene.actions.findIndex((a) => a.type === 'speech');
+        if (speechIdx === -1) {
+          toast.error(t('chat.lectureNotes.aiGenerateNoSpeech'));
+          return;
+        }
+        const excerpt =
+          scene.type === 'slide' && scene.content.type === 'slide'
+            ? extractSlidePlainText(scene.content)
+            : '';
+        const generated = t('chat.lectureNotes.aiMockScriptBody', {
+          title: scene.title,
+          excerpt: excerpt || t('chat.lectureNotes.aiMockNoExcerpt'),
+        });
+        const nextActions: Action[] = scene.actions.map((a, i) => {
+          if (i !== speechIdx || a.type !== 'speech') return a;
+          const updated: SpeechAction = {
+            ...(a as SpeechAction),
+            text: generated,
+            userEditedAt: Date.now(),
+            audioId: undefined,
+            audioUrl: undefined,
+          };
+          return updated;
+        });
+        updateScene(sceneId, { actions: nextActions, updatedAt: Date.now() });
+        toast.success(t('chat.lectureNotes.aiGenerateToast'), {
+          icon: <Sparkles className="w-4 h-4 text-purple-500" />,
         });
       },
       [scenes, updateScene, t],
@@ -329,7 +365,7 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
         <div className={cn('flex flex-col w-full h-full overflow-hidden', collapsed && 'hidden')}>
           <Tabs
             value={activeTab}
-            onValueChange={(v) => setActiveTab(v as 'lecture' | 'chat' | 'style')}
+            onValueChange={(v) => setActiveTab(v as 'lecture' | 'chat')}
             className="flex flex-col h-full gap-0"
           >
             {/* Tab header row */}
@@ -350,14 +386,6 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
                     </span>
                   )}
                 </TabsTrigger>
-                {/* P3: Style tab — only rendered while editing so the layout
-                doesn't get a permanent dead tab during normal playback. */}
-                {isEditingPanel && (
-                  <TabsTrigger value="style" className="text-xs gap-1 flex-1">
-                    <Palette className="w-3.5 h-3.5" />
-                    {t('chat.tabs.style')}
-                  </TabsTrigger>
-                )}
               </TabsList>
 
               {onCollapseChange && (
@@ -372,19 +400,28 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
 
             {/* Notes Tab */}
             <TabsContent value="lecture" className="flex-1 overflow-hidden flex flex-col">
+              {!readOnly && currentSceneId && (
+                <div className="shrink-0 px-3 pt-1 pb-2 border-b border-gray-100/80 dark:border-gray-800/80">
+                  <button
+                    type="button"
+                    onClick={() => handleAiGenerateTeacherScript(currentSceneId)}
+                    className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg py-2 px-3 text-xs font-semibold text-white bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 shadow-sm shadow-purple-500/20 active:scale-[0.99] transition-all"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                    {t('chat.lectureNotes.aiOneClick')}
+                  </button>
+                  <p className="mt-1.5 text-[10px] text-center text-gray-400 dark:text-gray-500 leading-snug">
+                    {t('chat.lectureNotes.aiOneClickHint')}
+                  </p>
+                </div>
+              )}
               <LectureNotesView
                 notes={lectureNotes}
                 currentSceneId={currentSceneId}
                 onEditSpeech={readOnly ? undefined : handleEditSpeech}
+                onSelectScene={onLectureNoteSceneSelect}
               />
             </TabsContent>
-
-            {/* Style Tab — P3 */}
-            {isEditingPanel && (
-              <TabsContent value="style" className="flex-1 overflow-hidden flex flex-col">
-                <StylePanel />
-              </TabsContent>
-            )}
 
             {/* Chat Tab */}
             <TabsContent value="chat" className="flex-1 overflow-hidden flex flex-col">

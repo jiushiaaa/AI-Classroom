@@ -5,7 +5,7 @@ import { AnimatePresence } from 'motion/react';
 import { useStageStore } from '@/lib/store';
 import { PENDING_SCENE_ID } from '@/lib/store/stage';
 import { useCanvasStore } from '@/lib/store/canvas';
-import { useSettingsStore } from '@/lib/store/settings';
+import { useSettingsStore, PLAYBACK_SPEEDS } from '@/lib/store/settings';
 import { usePreviewDeviceStore } from '@/lib/store/preview-device';
 import { useEditModeStore } from '@/lib/store/edit-mode';
 import { useI18n } from '@/lib/hooks/use-i18n';
@@ -13,10 +13,11 @@ import { SceneSidebar } from './stage/scene-sidebar';
 import { Header } from './header';
 import { CanvasArea } from '@/components/canvas/canvas-area';
 import { Roundtable } from '@/components/roundtable';
-import { DeviceFrame } from '@/components/preview/device-frame';
-import { RotationHint } from '@/components/preview/rotation-hint';
-import { ScaledViewport } from '@/components/preview/scaled-viewport';
 import { DevicePreviewTabs } from '@/components/preview/device-preview-tabs';
+import { OrientationToggle } from '@/components/preview/orientation-toggle';
+import { DevicePreviewShell } from '@/components/mobile/device-preview-shell';
+import { PhoneClassroomView } from '@/components/mobile/phone-classroom-view';
+import { TabletClassroomView } from '@/components/mobile/tablet-classroom-view';
 import { PlaybackEngine, computePlaybackView } from '@/lib/playback';
 import type { EngineMode, TriggerEvent, Effect } from '@/lib/playback';
 import { ActionEngine } from '@/lib/action/engine';
@@ -67,10 +68,12 @@ export function Stage({
 
   const currentScene = getCurrentScene();
 
-  // Multi-device preview state (web | mobile | tablet) — drives the editor
-  // chrome around the playback engine. The engine itself is mounted once and
-  // shared across all three views so the playback position survives toggling.
+  // Multi-device preview state (web | mobile | tablet) + orientation —
+  // drives the editor chrome around the playback engine. The engine itself
+  // is mounted once and shared across all views so the playback position
+  // survives toggling.
   const previewDevice = usePreviewDeviceStore((s) => s.previewDevice);
+  const previewOrientation = usePreviewDeviceStore((s) => s.previewOrientation);
   const isPreviewMode = previewDevice !== 'web';
 
   // Layout state from settings store (persisted via localStorage)
@@ -164,6 +167,10 @@ export function Stage({
   const selectedAgentIds = useSettingsStore((s) => s.selectedAgentIds);
   const ttsMuted = useSettingsStore((s) => s.ttsMuted);
   const ttsEnabled = useSettingsStore((s) => s.ttsEnabled);
+  // v1.12 — subscribe so the mobile / iPad control bar updates when
+  // the publisher cycles speed or toggles auto-play in preview mode.
+  const previewPlaybackSpeed = useSettingsStore((s) => s.playbackSpeed);
+  const previewAutoPlayLecture = useSettingsStore((s) => s.autoPlayLecture);
 
   // Generate participants from selected agents
   const participants = useMemo(
@@ -388,12 +395,25 @@ export function Stage({
     }
   }, [isEditing, discussionTTS]);
 
-  // Reset edit mode whenever the active scene changes — every scene starts
-  // in playback mode so edit selection state doesn't leak across scenes.
-  const resetEditMode = useEditModeStore.use.reset();
+  // Scene switches should preserve edit mode for batch editing across slides,
+  // but per-scene canvas/text selections must not leak into the next scene.
+  const clearCanvasSelection = useCanvasStore.use.clearSelection();
+  const setSelectedEditElementId = useEditModeStore.use.setSelectedElementId();
+  const setEditing = useEditModeStore.use.setEditing();
   useEffect(() => {
-    resetEditMode();
-  }, [currentSceneId, resetEditMode]);
+    clearCanvasSelection();
+    setSelectedEditElementId(null);
+
+    const editableScene =
+      currentScene?.type === 'slide' ||
+      currentScene?.type === 'quiz' ||
+      currentScene?.type === 'interactive' ||
+      currentScene?.type === 'pbl';
+
+    if (!editableScene) {
+      setEditing(false);
+    }
+  }, [currentSceneId, currentScene?.type, clearCanvasSelection, setSelectedEditElementId, setEditing]);
 
   useEffect(() => {
     if (!isPresenting) {
@@ -991,7 +1011,7 @@ export function Stage({
   }, [togglePresentation]);
 
   // Map engine mode to the CanvasArea's expected engine state
-  const canvasEngineState = (() => {
+  const canvasEngineState: 'idle' | 'playing' | 'paused' = (() => {
     switch (engineMode) {
       case 'playing':
       case 'live':
@@ -1106,6 +1126,7 @@ export function Stage({
                 : undefined
             }
             readOnly={isPreviewMode}
+            hideEditToggle={!isPresenting && !isPreviewMode}
           />
         </div>
 
@@ -1262,6 +1283,7 @@ export function Stage({
         activeBubbleId={activeBubbleId}
         onActiveBubble={(id) => setActiveBubbleId(id)}
         currentSceneId={currentSceneId}
+        onLectureNoteSceneSelect={gatedSceneSwitch}
         readOnly={isPreviewMode}
         onLiveSpeech={(text, agentId) => {
           // Capture epoch at call time — discard if scene has changed since
@@ -1361,43 +1383,161 @@ export function Stage({
   );
 
   // ─── Multi-device preview branch ──────────────────────────────
-  // When previewDevice is mobile or tablet, the editor surface darkens to a
-  // mask and shows the SAME classroom view inside a centred device frame,
-  // scaled to the device's aspect ratio via ScaledViewport. PlaybackEngine
-  // and Zustand state are unchanged so toggling between web/mobile/tablet
-  // keeps the current scene and any ongoing playback in sync, while
-  // guaranteeing functional / UI parity across all three views.
+  // When previewDevice is mobile or tablet we mount a dedicated touch-first
+  // surface (PhoneClassroomView / TabletClassroomView) inside a scale-to-fit
+  // device shell. The hidden ChatArea instance below stays mounted off-screen
+  // so PlaybackEngine / use-chat-sessions / StreamBuffer continue driving
+  // shared Zustand state. The publisher edits exclusively from web mode;
+  // mobile / iPad are preview-only views — optimised for "this is how a
+  // student sees it" rather than parity with the desktop publisher.
   if (isPreviewMode) {
+    // TS doesn't narrow `previewDevice` from the derived `isPreviewMode`
+    // boolean, so we lock the narrowed device kind here once.
+    const mobileDevice: 'mobile' | 'tablet' =
+      previewDevice === 'mobile' ? 'mobile' : 'tablet';
+    // The teacher / discussion agent registry powers the mobile members
+    // chips, dock avatar, and message list sender resolution.
+    const mobileAgents = selectedAgents;
+
+    // v1.12 — same playback / tool state the desktop CanvasToolbar
+    // uses, so the mobile / iPad control bar can mirror 倍速 / 自动
+    // 播放 / 全屏 / 白板 behaviour exactly. We use a fresh getState()
+    // inside the click handlers (rather than capturing a stale value)
+    // so cycling the speed always advances from the *current* value.
+    const cycleSpeed = () => {
+      const cur = useSettingsStore.getState().playbackSpeed;
+      const idx = PLAYBACK_SPEEDS.indexOf(cur as (typeof PLAYBACK_SPEEDS)[number]);
+      const next = PLAYBACK_SPEEDS[(idx + 1) % PLAYBACK_SPEEDS.length];
+      useSettingsStore.getState().setPlaybackSpeed(next);
+    };
+    const toggleAutoPlay = () => {
+      const cur = useSettingsStore.getState().autoPlayLecture;
+      useSettingsStore.getState().setAutoPlayLecture(!cur);
+    };
+
+    // Shared props consumed by both the phone and tablet views. Built
+    // once so the two branches don't drift over time.
+    const sharedClassroomProps = {
+      orientation: previewOrientation,
+      chatAreaRef,
+      currentScene,
+      currentSceneTitle:
+        currentScene?.title ||
+        (isCourseComplete && isPendingScene ? t('stage.courseComplete') : ''),
+      currentSceneId,
+      currentSceneIndex,
+      scenesCount: totalScenesCount,
+      scenes,
+      mode,
+      engineState: canvasEngineState,
+      isLiveSession:
+        chatIsStreaming || isTopicPending || engineMode === 'live' || !!chatSessionType,
+      isPendingScene,
+      isCourseComplete,
+      isGenerationFailed:
+        isPendingScene && failedOutlines.some((f) => f.id === generatingOutlines[0]?.id),
+      chatIsStreaming,
+      onPrevSlide: handlePreviousScene,
+      onNextSlide: handleNextScene,
+      onPlayPause: handlePlayPause,
+      onSelectScene: gatedSceneSwitch,
+      onTogglePresentation: togglePresentation,
+      onRetryGeneration:
+        onRetryOutline && generatingOutlines[0]
+          ? () => onRetryOutline(generatingOutlines[0].id)
+          : undefined,
+      // v1.12 — web-parity controls
+      whiteboardOpen,
+      onToggleWhiteboard: handleWhiteboardToggle,
+      playbackSpeed: previewPlaybackSpeed,
+      onCycleSpeed: cycleSpeed,
+      autoPlayLecture: previewAutoPlayLecture,
+      onToggleAutoPlay: toggleAutoPlay,
+      playbackView,
+      speakingAgentId,
+      thinkingState,
+      agents: mobileAgents,
+    };
+
     return (
-      <div className="flex-1 flex flex-col overflow-hidden bg-gray-100 dark:bg-gray-950">
-        {/* Page-level slim tab strip — publisher's device toggle */}
-        <div className="shrink-0 h-14 px-6 flex items-center justify-center bg-white/70 dark:bg-gray-900/70 backdrop-blur-md border-b border-gray-200/40 dark:border-gray-700/40 z-10">
+      <div className="flex-1 flex flex-col overflow-hidden bg-gray-50 dark:bg-gray-950">
+        {/* Page-level slim strip — device toggle + orientation toggle */}
+        <div className="shrink-0 h-12 px-4 flex items-center justify-center gap-3 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200/60 dark:border-gray-800/60 z-10">
           <DevicePreviewTabs />
+          <OrientationToggle />
         </div>
 
-        {/* Mask + centred device frame */}
-        <div className="relative flex-1 min-h-0 overflow-hidden flex items-center justify-center p-6 bg-gradient-to-br from-gray-200/60 via-gray-300/40 to-gray-400/40 dark:from-gray-900/80 dark:via-black/70 dark:to-gray-950/80">
-          {/* Decorative grid behind the device for depth */}
-          <div
-            className="absolute inset-0 pointer-events-none opacity-30 dark:opacity-15"
-            style={{
-              backgroundImage:
-                'radial-gradient(circle at 1px 1px, rgba(120,80,200,0.25) 1px, transparent 0)',
-              backgroundSize: '28px 28px',
-            }}
-          />
-          <RotationHint device={previewDevice} />
+        {/* Preview area — minimal chrome, scale-to-fit shell takes care
+            of sizing the device-shaped surface to the available space. */}
+        <div className="relative flex-1 min-h-0 overflow-hidden flex items-center justify-center px-3 py-3 sm:px-4 sm:py-4 bg-gray-100 dark:bg-gray-950">
           <AnimatePresence mode="wait">
-            <DeviceFrame key={previewDevice} device={previewDevice}>
-              <ScaledViewport
-                width={previewDevice === 'mobile' ? 1280 : 1024}
-                height={previewDevice === 'mobile' ? 720 : 768}
-              >
-                {classroomView}
-              </ScaledViewport>
-            </DeviceFrame>
+            <DevicePreviewShell
+              key={`${mobileDevice}-${previewOrientation}`}
+              device={mobileDevice}
+              orientation={previewOrientation}
+            >
+              {mobileDevice === 'mobile' ? (
+                <PhoneClassroomView {...sharedClassroomProps} />
+              ) : (
+                <TabletClassroomView {...sharedClassroomProps} />
+              )}
+            </DevicePreviewShell>
           </AnimatePresence>
         </div>
+
+        {/* Hidden engine shell — ChatArea kept mounted off-screen so the
+            PlaybackEngine / use-chat-sessions / StreamBuffer continue to
+            drive shared state. Mobile UI talks to it via chatAreaRef. */}
+        <div
+          className="fixed left-[-99999px] top-0 w-0 h-0 invisible pointer-events-none"
+          aria-hidden
+        >
+          <ChatArea
+            ref={chatAreaRef}
+            width={0}
+            collapsed
+            currentSceneId={currentSceneId}
+            onLectureNoteSceneSelect={gatedSceneSwitch}
+            readOnly
+            onLiveSpeech={(text, agentId) => {
+              const epoch = sceneEpochRef.current;
+              queueMicrotask(() => {
+                if (sceneEpochRef.current !== epoch) return;
+                setLiveSpeech(text);
+                if (agentId !== undefined) {
+                  setSpeakingAgentId(agentId);
+                }
+                if (text !== null || agentId) {
+                  setChatIsStreaming(true);
+                  setChatSessionType(chatAreaRef.current?.getActiveSessionType?.() ?? null);
+                  setIsTopicPending(false);
+                } else if (text === null && agentId === null) {
+                  setChatIsStreaming(false);
+                }
+              });
+            }}
+            onSpeechProgress={(ratio) => {
+              const epoch = sceneEpochRef.current;
+              queueMicrotask(() => {
+                if (sceneEpochRef.current !== epoch) return;
+                setSpeechProgress(ratio);
+              });
+            }}
+            onThinking={(state) => {
+              const epoch = sceneEpochRef.current;
+              queueMicrotask(() => {
+                if (sceneEpochRef.current !== epoch) return;
+                setThinkingState(state);
+              });
+            }}
+            onCueUser={() => setIsCueUser(true)}
+            onLiveSessionError={handleLiveSessionError}
+            onStopSession={doSessionCleanup}
+            onSegmentSealed={discussionTTS.handleSegmentSealed}
+            shouldHoldAfterReveal={discussionTTS.shouldHold}
+          />
+        </div>
+
         {sceneSwitchDialog}
       </div>
     );

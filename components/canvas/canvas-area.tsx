@@ -12,8 +12,6 @@ import type { CanvasToolbarProps } from '@/components/canvas/canvas-toolbar';
 import type { Scene, StageMode } from '@/lib/types/stage';
 import { useI18n } from '@/lib/hooks/use-i18n';
 import { ClassroomCompletePageConnected } from '@/components/scene-renderers/classroom-complete';
-import { ScenePageAIAssistant } from '@/components/scene-renderers/scene-page-ai-assistant';
-import { InlineAIController } from '@/components/scene-renderers/inline-ai-controller';
 import { useEditModeStore } from '@/lib/store/edit-mode';
 
 interface CanvasAreaProps extends CanvasToolbarProps {
@@ -52,6 +50,7 @@ export function CanvasArea({
   isGenerationFailed,
   onRetryGeneration,
   readOnly,
+  hideEditToggle,
 }: CanvasAreaProps) {
   const { t } = useI18n();
   const isEditing = useEditModeStore.use.isEditing();
@@ -203,29 +202,11 @@ export function CanvasArea({
             )}
           </AnimatePresence>
 
-          {/* Scene Number Badge — bottom-right watermark, kept clear of the
-              top-right "AI 助手" launcher in edit mode. */}
+          {/* Scene Number Badge — bottom-right watermark */}
           {currentScene && (
             <div className="absolute bottom-4 right-4 text-gray-200 dark:text-gray-700 font-black text-4xl opacity-50 pointer-events-none select-none mix-blend-multiply dark:mix-blend-screen">
               {(currentSceneIndex + 1).toString().padStart(2, '0')}
             </div>
-          )}
-
-          {/* AI 单页助手 — always-visible launcher in edit mode for any scene
-              type. Hidden in preview / read-only / pending / generation-failed
-              states so it doesn't fight other overlays for attention. */}
-          {isEditing && currentScene && !readOnly && !isPendingScene && (
-            <ScenePageAIAssistant sceneId={currentScene.id} />
-          )}
-
-          {/* Inline AI chat — Cursor-style cmd-K popup that appears when the
-              publisher selects text or clicks an image element on the slide
-              canvas. Coexists with the floating launcher above; both write
-              to the same `scene.aiCommands` log. Mounted at canvas-area
-              level (rather than inside the slide renderer) because it uses
-              `position: fixed` and listens at the window/document level. */}
-          {isEditing && currentScene && !readOnly && !isPendingScene && (
-            <InlineAIController sceneId={currentScene.id} />
           )}
 
           {/* Play hint — breathing button when idle or paused (slides only) */}
@@ -295,9 +276,10 @@ export function CanvasArea({
           isPresenting={isPresenting}
           onTogglePresentation={onTogglePresentation}
           showStopDiscussion={showStopDiscussion}
-          onStopDiscussion={onStopDiscussion}
-          readOnly={readOnly}
-        />
+            onStopDiscussion={onStopDiscussion}
+            readOnly={readOnly}
+            hideEditToggle={hideEditToggle}
+          />
       )}
     </div>
   );

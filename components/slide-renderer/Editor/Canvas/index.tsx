@@ -24,6 +24,10 @@ import { ElementCreateSelection } from './ElementCreateSelection';
 import { ShapeCreateCanvas } from './ShapeCreateCanvas';
 import { Ruler } from './Ruler';
 import { GridLines } from './GridLines';
+import { TextSelectionMiniToolbar } from './TextSelectionMiniToolbar';
+import { ImageMiniToolbar } from './ImageMiniToolbar';
+import { TableMiniToolbar } from './TableMiniToolbar';
+import { VideoMiniToolbar } from './VideoMiniToolbar';
 import type { PPTElement } from '@/lib/types/slides';
 import type { AlignmentLineProps } from '@/lib/types/edit';
 import type { ContextmenuItem } from './EditableElement';
@@ -171,7 +175,52 @@ export function Canvas(_props: CanvasProps) {
     setLinkDialogVisible(true);
   };
 
-  const { pasteElement, selectAllElements, deleteAllElements } = useCanvasOperations();
+  const { pasteElement, selectAllElements, deleteAllElements, deleteElement } = useCanvasOperations();
+
+  const elementsRef = useRef<PPTElement[]>(elementList);
+  elementsRef.current = elementList;
+
+  useEffect(() => {
+    const isTextInputFocused = (): boolean => {
+      const active = document.activeElement;
+      if (!(active instanceof HTMLElement)) return false;
+      if (active.isContentEditable || active.closest('[contenteditable="true"]')) {
+        return true;
+      }
+      return (
+        active.closest(
+          ['input', 'textarea', 'select', '[role="slider"]', 'input[type="range"]'].join(', '),
+        ) !== null
+      );
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+      const key = event.key;
+      if (key !== 'Backspace' && key !== 'Delete') return;
+
+      const canvasState = useCanvasStore.getState();
+      if (canvasState.disableHotkeys) return;
+      if (canvasState.creatingElement || canvasState.creatingCustomShape) return;
+      if (canvasState.clipingImageElementId) return;
+      if (!canvasState.activeElementIdList.length) return;
+      if (isTextInputFocused()) return;
+
+      const slideElements = elementsRef.current;
+      const selected = slideElements.filter((el) =>
+        canvasState.activeElementIdList.includes(el.id),
+      );
+      if (!selected.length || selected.some((el) => el.lock)) return;
+
+      event.preventDefault();
+      deleteElement();
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [deleteElement]);
 
   const contextmenus = (): ContextmenuItem[] => {
     return [
@@ -349,6 +398,12 @@ export function Canvas(_props: CanvasProps) {
 
           {/* TODO: Add LinkDialog modal */}
           {linkDialogVisible && <div>LinkDialog placeholder</div>}
+
+          {/* Floating selection toolbars (portaled to document.body) */}
+          <TextSelectionMiniToolbar />
+          <ImageMiniToolbar />
+          <TableMiniToolbar />
+          <VideoMiniToolbar />
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>

@@ -7,6 +7,7 @@ export type MyCoursesCategoryFilter = 'all' | 'uncategorized' | CourseCategory;
 export type MyCoursesSortId =
   | 'createdAtDesc'
   | 'createdAtAsc'
+  | 'updatedAtDesc'
   | 'scanActivity'
   | 'namePinyin';
 
@@ -117,7 +118,7 @@ export const MY_COURSE_TREE_GROUPS: MyCourseTreeGroup[] = [
   },
 ];
 
-export function sortMyCourses<T extends { id: string; name: string; createdAt: number }>(
+export function sortMyCourses<T extends { id: string; name: string; createdAt: number; updatedAt: number }>(
   items: T[],
   sortId: MyCoursesSortId,
 ): T[] {
@@ -129,6 +130,8 @@ export function sortMyCourses<T extends { id: string; name: string; createdAt: n
     arr.sort((a, b) => a.createdAt - b.createdAt);
   } else if (sortId === 'createdAtDesc') {
     arr.sort((a, b) => b.createdAt - a.createdAt);
+  } else if (sortId === 'updatedAtDesc') {
+    arr.sort((a, b) => b.updatedAt - a.updatedAt);
   } else {
     arr.sort(
       (a, b) => getMyCourseAiMeta(b.id).scanActivity - getMyCourseAiMeta(a.id).scanActivity,

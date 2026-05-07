@@ -33,6 +33,9 @@ import { getElementListRange } from '@/lib/utils/element';
 import { useOrderElement } from './use-order-element';
 import { nanoid } from 'nanoid';
 
+/** In-session clipboard for slide elements (copy / cut / paste on canvas). */
+let slideElementsClipboard: PPTElement[] | null = null;
+
 type PPTElementKey = keyof PPTElement;
 
 interface RemovePropData {
@@ -178,34 +181,42 @@ export function useCanvasOperations() {
     [updateSceneData],
   );
 
-  // Copy selected element data to clipboard
   const copyElement = () => {
-    // if (!activeElementIdList.length) return
-
-    // const text = JSON.stringify({
-    //   type: 'elements',
-    //   data: activeElementList,
-    // })
-
-    // copyText(text).then(() => {
-    //   setEditorareaFocus(true)
-    // })
-    toast.warning('Not implemented');
+    if (!activeElementIdList.length) {
+      toast.message('Select an element first');
+      return;
+    }
+    slideElementsClipboard = activeElementList.map((el) => structuredClone(el));
+    toast.success('Copied to canvas clipboard');
   };
 
-  // Copy and delete selected elements (cut)
   const cutElement = () => {
-    // copyElement()
-    // deleteElement()
-    toast.warning('Not implemented');
+    if (!activeElementIdList.length) return;
+    slideElementsClipboard = activeElementList.map((el) => structuredClone(el));
+    deleteElement();
+    toast.success('Cut to canvas clipboard');
   };
 
-  // Attempt to paste element data from clipboard
   const pasteElement = () => {
-    // readClipboard().then(text => {
-    //   pasteTextClipboardData(text)
-    // }).catch(err => toast.warning(err))
-    toast.warning('Not implemented');
+    if (!slideElementsClipboard?.length) {
+      toast.message('Nothing in canvas clipboard — use Copy or Cut first');
+      return;
+    }
+    const offset = 28;
+    const newElements: PPTElement[] = slideElementsClipboard.map((el) => {
+      const c = structuredClone(el) as PPTElement & { groupId?: string };
+      c.id = `${el.type}-${nanoid(10)}`;
+      c.left = (c.left ?? 0) + offset;
+      c.top = (c.top ?? 0) + offset;
+      delete c.groupId;
+      return c;
+    });
+    updateSceneData((draft) => {
+      draft.canvas.elements.push(...newElements);
+    });
+    setActiveElementIdList(newElements.map((e) => e.id));
+    addHistorySnapshot();
+    toast.success('Pasted');
   };
 
   // Copy and immediately paste selected elements

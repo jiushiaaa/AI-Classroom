@@ -24,6 +24,19 @@ export interface PublisherKnowledgeChunkPreview {
   sourcePage: string;
 }
 
+/**
+ * One uploaded attachment row, shared between the Home composer and the
+ * unified upload-center popover. The "main book" and supplementary files use
+ * the same shape — every attachment is parsed independently.
+ */
+export interface PublisherAttachmentEntry {
+  id: string;
+  file: File;
+  phase: PublisherParsePhase;
+  detectedCategories: CourseCategory[];
+  mockChunks: PublisherKnowledgeChunkPreview[];
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }

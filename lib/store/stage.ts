@@ -4,6 +4,7 @@ import { createSelectors } from '@/lib/utils/create-selectors';
 import type { ChatSession } from '@/lib/types/chat';
 import type { SceneOutline } from '@/lib/types/generation';
 import { createLogger } from '@/lib/logger';
+import { ensureSlideHasSpeechAction } from '@/lib/utils/ensure-slide-speech';
 
 const log = createLogger('StageStore');
 
@@ -178,7 +179,8 @@ const useStageStoreBase = create<StageState>()((set, get) => ({
       );
       return;
     }
-    const scenes = [...get().scenes, scene];
+    const patched = ensureSlideHasSpeechAction(scene);
+    const scenes = [...get().scenes, patched];
     // Remove the matching outline from generatingOutlines (match by order)
     const generatingOutlines = get().generatingOutlines.filter((o) => o.order !== scene.order);
     // Auto-switch from pending page to the newly generated scene
@@ -230,19 +232,19 @@ const useStageStoreBase = create<StageState>()((set, get) => ({
 
     // Insert duplicate right after the source, then re-normalise `order`
     // for the whole list so it stays a 0..N sequence.
-    const inserted: Scene = {
+    const inserted: Scene = ensureSlideHasSpeechAction({
       ...cloned,
       id: `${source.id}-copy-${now}`,
-      title: `${cloned.title} (副本)`,
+      title: cloned.title,
       createdAt: now,
       updatedAt: now,
-    };
+    });
 
     const next = [...allScenes];
     next.splice(sourceIndex + 1, 0, inserted);
     const normalised = next.map((s, i) => ({ ...s, order: i }));
 
-    set({ scenes: normalised });
+    set({ scenes: normalised, currentSceneId: inserted.id });
     debouncedSave();
   },
 
@@ -295,10 +297,11 @@ const useStageStoreBase = create<StageState>()((set, get) => ({
       );
       return;
     }
+    const patched = ensureSlideHasSpeechAction(scene);
     const all = get().scenes;
     const clamped = Math.max(0, Math.min(index, all.length));
     const next = [...all];
-    next.splice(clamped, 0, scene);
+    next.splice(clamped, 0, patched);
     const normalised = next.map((s, i) => ({ ...s, order: i }));
     // Pull this insertion off any pending generating outline matched by order
     const generatingOutlines = get().generatingOutlines.filter((o) => o.order !== scene.order);

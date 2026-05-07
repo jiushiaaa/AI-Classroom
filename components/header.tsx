@@ -11,6 +11,7 @@ import { useExportPPTX } from '@/lib/export/use-export-pptx';
 import { useExportClassroom } from '@/lib/export/use-export-classroom';
 import { DevicePreviewTabs } from './preview/device-preview-tabs';
 import { PublishButton } from './publish/publish-button';
+import { EditModeToggleButton } from '@/components/canvas/edit-mode-toggle-button';
 
 interface HeaderProps {
   readonly currentSceneTitle: string;
@@ -93,17 +94,15 @@ export function Header({
         </div>
       </div>
 
-      {/* Centre: Multi-device preview tabs */}
-      {!hideDeviceTabs && (
-        <div className="shrink-0 flex justify-center">
-          <DevicePreviewTabs />
-        </div>
-      )}
-
-      <div className="flex items-center justify-end gap-3 flex-1 basis-0">
+      {/* Right: edit + device preview icons + publish + download — centre column
+          removed so title area can use the freed horizontal space */}
+      <div className="flex items-center justify-end gap-2 flex-1 basis-0">
         {!readOnly && (
           <>
-            {/* Publish — purple gradient CTA opens preflight + QR wizard */}
+            <EditModeToggleButton variant="header" />
+            {!hideDeviceTabs && <DevicePreviewTabs variant="iconRail" />}
+            {/* Publish — compact icon button (hover to reveal "发布"); flush
+                left of the Download icon so the two share a single visual rail. */}
             <PublishButton
               disabled={!canExport}
               disabledReason={canExport ? undefined : t('share.notReady')}

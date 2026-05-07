@@ -61,6 +61,7 @@ next-env.d.ts
 # IDE
 .idea
 .vscode
+.cursor/
 
 # worktrees
 .worktrees

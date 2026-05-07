@@ -10,6 +10,12 @@
   "bookLibrary": {
     "openTrigger": "选择图书",
     "openTriggerHint": "选择图书与章节，用于生成课堂",
+    "hubTrigger": "上传中心",
+    "hubTitle": "上传中心",
+    "hubTriggerHint": "图书库 + 临时附件统一入口，单文件 ≤ {{maxMb}}MB，最多 5 个附件。",
+    "hubTriggerHintWithCount": "已选图书章节 {{chapters}} 个 · 已上传附件 {{files}} 个，点击继续编辑。",
+    "tabLibrary": "图书库",
+    "tabAttachments": "我的附件",
     "title": "选择图书",
     "subtitle": "选择图书与章节用于生成课堂",
     "addTitle": "添加图书",
@@ -29,17 +35,34 @@
     "changeSelection": "重新选择",
     "confirmAndGenerate": "确认",
     "dropTitle": "拖拽至空白处或",
-    "dropTitleClick": "选择 PDF 文件",
+    "dropTitleClick": "选择文件",
     "dropHint": "支持单文件最大 {{maxMb}} MB",
     "changeFile": "重新选择文件",
     "bookName": "图书名称",
     "bookNamePlaceholder": "请输入图书名称",
     "uploadedSubject": "自传图书",
     "placeholderChapter": "章节 {{index}}",
-    "requirementPrefix": "基于《{{bookName}}》的章节{{chapters}}生成 AI 课堂；按生成配置产出课件与互动环节。"
+    "attachmentChapterTitle": "{{name}}（附件）",
+    "addDropTitle": "拖拽到此处，或",
+    "addDropHint": "PDF / Word / Markdown / ePub，单文件 ≤ {{maxMb}}MB，最多 {{max}} 个文件",
+    "addListTitle": "已选文件 {{count}} / {{max}}",
+    "addMoreFiles": "添加文件",
+    "addMaxReached": "已达 {{max}} 个上限",
+    "addCapacityHit": "本次添加超过 {{max}} 个上限，已截断后续文件",
+    "addRolePrimary": "主资料",
+    "addRoleAttachment": "附件 {{index}}",
+    "addRoleHint": "第一个文件作为主资料拆为 5 章节，其余文件各自作为一章「附件」追加",
+    "addSubtitleMulti": "{{main}} · 含 {{extra}} 份附件",
+    "requirementPrefix": "基于《{{bookName}}》的章节{{chapters}}生成 AI 课堂；按生成配置产出课件与互动环节。",
+    "attachmentsDropTitle": "拖拽到此处，或点击选择多个文件",
+    "attachmentsDropHint": "PDF / Word / Markdown / ePub，单文件 ≤ {{maxMb}}MB，还可再添加 {{remaining}} 个",
+    "attachmentsAtCapacity": "已达 {{max}} 个上限，请先移除部分附件再继续添加",
+    "attachmentsTryDemo": "没有合适文件？载入 3 份演示附件看效果",
+    "attachmentsListTitle": "已上传附件 {{count}} / {{max}}",
+    "attachmentReadyHint": "解析完成 · {{count}} 段知识片段已就绪"
   },
   "home": {
-    "brand": "AI课堂，让你的每一本图书都拥有专属数字老师",
+    "brand": "AI课堂，让每一本图书都拥有专属数字老师",
     "slogan": "面向出版商的 AI 课堂内容生成平台",
     "greetingWithName": "嗨，{{name}}",
     "tabs": {
@@ -54,12 +77,12 @@
       "tabUnpublished": "未发布",
       "emptyPublished": "暂无已发布的课程",
       "emptyUnpublished": "暂无未发布的草稿",
-      "emptyFiltered": "没有符合条件的课程，可调整分类或书名搜索",
+      "emptyFiltered": "没有找到匹配的课程，试试其他关键词",
       "searchTitlePlaceholder": "搜索书名…",
       "shelfCategoryLabel": "图书分类",
       "categoryFilterAll": "全部分类",
       "clearFilter": "清除筛选",
-      "editTooltip": "编辑课程",
+      "editTooltip": "重命名",
       "editName": "课程名称",
       "editCategory": "图书分类",
       "editSave": "保存",
@@ -132,10 +155,11 @@
     },
     "publisher": {
       "dropHint": "拖拽到此处，或点击选择文件",
-      "dropTitle": "上传图书课件",
-      "dropSub": "支持 PDF、Word、Markdown、ePub · 单文件最高 {{maxMb}}MB",
+      "dropTitle": "上传图书或附件",
+      "dropSub": "支持 PDF / Word / Markdown / ePub · 单文件最高 {{maxMb}}MB · 可上传多个",
       "reupload": "更换文件",
       "clearFile": "移除",
+      "addMoreFiles": "添加文件",
       "parseUploading": "正在接收文件…",
       "parseToc": "正在解析目录结构…",
       "parseChunks": "语义切片处理中…",
@@ -149,7 +173,8 @@
       "supplementary": "补充说明",
       "supplementaryPlaceholder": "可选：如「请侧重第三章实验步骤」「面向高二少拓展」",
       "nonPdfHint": "当前生成管线仅附加 PDF；其他格式可先在此预览解析，进入课堂时请改用 PDF 或仅使用下方文字说明。",
-      "defaultRequirement": "基于图书《{{name}}》生成与目录对齐的互动课堂；按生成配置产出课件与互动环节。"
+      "defaultRequirement": "基于图书《{{name}}》生成与目录对齐的互动课堂；按生成配置产出课件与互动环节。",
+      "parsingInline": "{{count}} 个文件正在后台解析，点击查看详情"
     }
   },
   "toolbar": {
@@ -184,8 +209,9 @@
     "generationConfig": {
       "label": "生成配置",
       "title": "选择需要生成的内容",
-      "subtitle": "可勾选多种产物，并自定义每种产物的数量",
+      "subtitle": "为每项内容选择数量，或交给 AI 自动决定",
       "subtitleWhenAuto": "已开启智能模式：产物类型与数量将由 AI 根据图书内容自动规划",
+      "dialogIntro": "为每项内容选择具体数量，或交给 AI 自动决定。当总页数不为「自动」时，下方各项已配置的数量需要相加 ≤ 总页数，剩余部分由 AI 自动分配。",
       "dialogIntroAuto": "当前为「AI 自动生成」：解析图书后由模型规划产物组合与数量。",
       "dialogIntroCustom": "当前为「自定义」：勾选需要的产物并调整数量；可随时切回智能模式。",
       "modeAuto": "AI 自动生成",
@@ -204,44 +230,53 @@
       "autoModeDescShort": "模型会结合目录与正文，自动选择课件、测验、互动等类型及数量，无需手动勾选。",
       "autoFooter": "智能模式 · 由模型规划产物",
       "autoBadge": "AUTO",
+      "autoLabel": "自动",
+      "tipSetCustom": "点击设为自定义数量",
+      "tipSetAuto": "点击切换为「自动」",
+      "statusAllAuto": "AI 将根据课程内容自动规划全部产物",
+      "statusTotalAuto": "总页数由 AI 决定（已自定义 {{custom}} 项）",
+      "statusBalanced": "已配置完毕：{{total}}{{unit}}",
+      "statusUnderBudget": "已配置 {{used}}{{unit}} / 共 {{total}}{{unit}}，剩余 {{remaining}}{{unit}} 由 AI 分配",
+      "statusOverBudget": "已超出总页数 {{over}}{{unit}}，请减少配置",
+      "statusMismatch": "已配置 {{used}}{{unit}} ≠ 总页数 {{total}}{{unit}}，请调整",
       "autoTooltip": "当前为智能生成：进入生成流程后由 AI 自动配置产物组合",
       "selectedCount": "已选 {{count}} 项",
       "apply": "应用",
       "items": {
-        "ppt": {
-          "name": "PPT 课件",
+        "explanationPpt": {
+          "name": "讲解PPT",
           "desc": "结构化讲解幻灯片",
           "unit": "页"
         },
-        "video": {
-          "name": "讲解视频",
-          "desc": "AI 配音的讲解短片",
-          "unit": "条"
-        },
-        "game": {
-          "name": "互动游戏",
-          "desc": "知识点闯关 / 益智小游戏",
-          "unit": "关"
-        },
-        "simulation": {
-          "name": "仿真模拟",
-          "desc": "可调参数的实验/模型",
-          "unit": "个"
-        },
-        "quiz": {
-          "name": "课堂测验",
+        "testQuestions": {
+          "name": "测试题",
           "desc": "选择/判断/简答题",
           "unit": "题"
         },
-        "pbl": {
-          "name": "项目式学习",
-          "desc": "PBL 真实问题任务",
+        "simulation": {
+          "name": "模拟实验",
+          "desc": "可调参数的实验/模型演示",
+          "unit": "个"
+        },
+        "gameAnimation": {
+          "name": "游戏动画",
+          "desc": "知识点闯关 / 益智小游戏",
+          "unit": "个"
+        },
+        "onlineCoding": {
+          "name": "在线编程",
+          "desc": "可运行的代码练习与示例",
+          "unit": "题"
+        },
+        "projectChallenge": {
+          "name": "项目挑战",
+          "desc": "真实问题驱动的项目任务",
           "unit": "项"
         },
-        "whiteboard": {
-          "name": "白板画布",
-          "desc": "可手写演算的白板",
-          "unit": "块"
+        "mindMap": {
+          "name": "思维导图",
+          "desc": "知识结构梳理与发散",
+          "unit": "个"
         }
       }
     },
@@ -300,12 +335,20 @@
       "empty": "播放课程后，笔记将在此显示",
       "emptyHint": "点击播放按钮开始授课",
       "pageLabel": "第 {{n}} 页",
+      "goToSlideCard": "转到第 {{n}} 页：{{title}}",
       "currentPage": "当前页",
       "editHint": "点击编辑讲稿",
       "ttsSyncedToast": "语音已重新合成",
       "ttsSyncedDescription": "学生端将听到修改后的内容",
       "ttsSyncedBadge": "TTS 已同步",
-      "ttsSyncedBadgeTitle": "讲稿已修改，下一次播放时将使用最新语音"
+      "ttsSyncedBadgeTitle": "讲稿已修改，下一次播放时将使用最新语音",
+      "noScript": "本页暂无讲解动作，可在左侧添加页面或使用 AI 生成。",
+      "aiOneClick": "AI 一键生成当前页讲解稿",
+      "aiOneClickHint": "根据当前页幻灯片文字生成首条讲解稿草稿，可继续手动润色。",
+      "aiGenerateToast": "已写入首条讲解稿（演示）",
+      "aiGenerateNoSpeech": "本页没有可写入的讲解句，请先添加幻灯片页面。",
+      "aiMockScriptBody": "同学们好，这一页「{{title}}」我们先抓住三个要点：第一，结合版面信息，{{excerpt}}；第二，请大家对照自己的理解做一句小结；第三，下一页我们会把这些概念串起来。以上由 AI 根据当前页内容生成的讲解草稿，请老师按需修改。",
+      "aiMockNoExcerpt": "请结合画面上的标题与正文展开讲解"
     },
     "badge": {
       "qa": "Q&A",
@@ -344,6 +387,30 @@
     "readyToLearn": "准备好一起学习了吗？",
     "expandedTitle": "课堂角色配置",
     "configTooltip": "点击配置课堂角色",
+    "popoverTitle": "课堂角色配置",
+    "popoverIntro": "为本节课挑选 AI 老师、助教与学生角色，并指定他们的音色。",
+    "modePreset": "预设模式",
+    "modeAuto": "自动生成",
+    "presetIntro": "勾选要进入课堂的预设角色；预设角色的人设由系统提供，仅可查看与勾选。",
+    "presetEnableAria": "启用此预设角色",
+    "presetCount": "已勾选 {{count}} / {{total}} 个预设角色",
+    "viewPersona": "查看人设",
+    "collapsePersona": "收起人设",
+    "autoIntroDefault": "进入课堂时，AI 会根据课程内容自动生成适配的角色。",
+    "autoPromptHint": "也可以在下方输入一句提示词，让 AI 立即按你的描述生成角色（最多 5 个）；生成后姓名 / 身份 / 介绍 / 音色都可以再调整。",
+    "autoGenerate": {
+      "inputPlaceholder": "用一句话描述你想要的角色，例如：生成一个爱提问的学生（⌘ / Ctrl + Enter 生成）",
+      "inputAria": "描述要生成的角色",
+      "submitAria": "生成角色",
+      "thinking": "正在准备角色，请稍候…",
+      "emptyHint": "在上方输入你想要的角色描述，AI 会按描述帮你生成；生成的角色可以再编辑姓名、身份、介绍与音色，左侧勾选可控制是否启用。",
+      "listTitle": "已生成 {{count}} / {{max}} 个角色",
+      "atCapacity": "已达上限",
+      "success": "已生成 {{count}} 个{{identity}}",
+      "clampedHint": "已达到 {{max}} 个角色上限，本次未继续添加",
+      "errorTooShort": "请至少输入 2 个字符的描述",
+      "errorGeneric": "生成失败，请稍后重试"
+    },
     "voiceLabel": "音色",
     "voiceLoading": "加载中...",
     "voiceAutoAssign": "音色将自动分配",
@@ -447,6 +514,50 @@
     "enterTooltip": "进入幻灯片编辑模式（自动暂停播放）",
     "exitTooltip": "退出编辑，返回讲解视图",
     "pausedBanner": "编辑模式已暂停",
+    "insertToolbar": {
+      "label": "插入",
+      "groupInsert": "插入",
+      "groupFont": "字体",
+      "groupParagraph": "段落",
+      "groupAdvanced": "高级",
+      "text": "文本",
+      "image": "图片",
+      "table": "表格",
+      "font": "字体",
+      "fontSize": "字号",
+      "bold": "加粗",
+      "italic": "倾斜",
+      "underline": "下划线",
+      "strikethrough": "删除线",
+      "textColor": "文字颜色",
+      "highlight": "突出显示",
+      "alignLeft": "左对齐",
+      "alignCenter": "居中",
+      "alignRight": "右对齐",
+      "alignJustify": "两端对齐",
+      "superscript": "上标",
+      "subscript": "下标",
+      "clearFormat": "清除格式",
+      "textShadow": "文字阴影"
+    },
+    "miniToolbar": {
+      "toolbarAriaLabel": "文字格式工具栏",
+      "imageToolbarAriaLabel": "图片操作工具栏",
+      "tableToolbarAriaLabel": "表格操作工具栏",
+      "videoToolbarAriaLabel": "视频操作工具栏",
+      "crop": "裁剪图片",
+      "replace": "替换图片",
+      "replaceVideo": "替换视频",
+      "layers": "图层",
+      "layerTop": "置于顶层",
+      "layerUp": "上移一层",
+      "layerDown": "下移一层",
+      "layerBottom": "置于底层",
+      "opacity": "透明度",
+      "lock": "锁定",
+      "more": "更多",
+      "openStylePanel": "打开样式面板"
+    },
     "quiz": {
       "editorBadge": "题目编辑",
       "questionAriaLabel": "题干（可编辑）",
@@ -474,13 +585,68 @@
       "font": "字体",
       "textColor": "文字颜色",
       "fill": "背景填充",
-      "subsetHint": "本面板仅暴露最常用的 4 项。需要更精细控制时，可在画布上直接调用 PPTist 浮动工具栏。",
+      "more": "更多",
+      "moreDialogTitle": "大小与更多属性",
+      "posLeft": "左 (px)",
+      "posTop": "顶 (px)",
+      "posWidth": "宽 (px)",
+      "posHeight": "高 (px)",
+      "posRotate": "旋转 (°)",
+      "opacity": "不透明度 (0–1)",
+      "textOpacityPercent": "不透明度",
+      "lineHeight": "行高 (倍)",
+      "format": "段落格式",
+      "fontSize": "字号",
+      "layers": "图层顺序",
+      "layerTop": "置于顶层",
+      "layerUp": "上移一层",
+      "layerDown": "下移一层",
+      "layerBottom": "置于底层",
+      "clipboard": "剪贴板",
+      "copy": "复制",
+      "cut": "剪切",
+      "paste": "粘贴",
+      "sizeAndPosition": "大小和位置",
+      "videoSource": "视频源",
+      "replaceVideoFile": "从本机替换视频…",
+      "lockAspect": "锁定宽高比",
+      "imageOpacityPercent": "透明度",
+      "imageSource": "图片源",
+      "replaceImageFile": "从本机替换…",
+      "enterCrop": "进入裁剪",
+      "subsetHint": "段落加粗/倾斜/对齐作用于首段样式。线条元素不支持「更多」几何编辑。",
       "notEditingTitle": "未进入编辑模式",
       "notEditingMessage": "在工具栏点击 “进入编辑” 后即可调整元素样式。",
       "notASlideTitle": "当前不是幻灯片场景",
       "notASlideMessage": "样式面板仅适用于幻灯片元素。",
       "noSelectionTitle": "未选中元素",
       "noSelectionMessage": "在画布上点击任意元素后，可在此调整字体、颜色与背景。"
+    },
+    "contextMenu": {
+      "unlock": "解锁",
+      "cut": "剪切",
+      "copy": "复制",
+      "paste": "粘贴",
+      "alignHorizontal": "水平居中",
+      "alignVertical": "垂直居中",
+      "alignCenter": "水平垂直居中",
+      "alignLeft": "左对齐",
+      "alignRight": "右对齐",
+      "alignTop": "顶部对齐",
+      "alignBottom": "底部对齐",
+      "layerTop": "置于顶层",
+      "layerBottom": "置于底层",
+      "layerUp": "上移一层",
+      "layerDown": "下移一层",
+      "setLink": "设置链接",
+      "combine": "组合",
+      "uncombine": "取消组合",
+      "selectAll": "全选",
+      "lock": "锁定",
+      "delete": "删除",
+      "deleteShortcut": "退格键 / Delete",
+      "replaceImage": "替换图片",
+      "cropImage": "裁剪图片"
     }
   },
   "aiPolish": {
@@ -596,11 +762,14 @@
     "dragToReorder": "拖动以重新排序",
     "duplicate": "复制此页",
     "delete": "删除此页",
+    "hoverDelete": "删除",
+    "hoverAiOptimize": "AI 优化",
+    "aiOptimizeDialogTitle": "AI 优化本页",
     "contextMenu": {
-      "copy": "复制幻灯片",
-      "paste": "粘贴幻灯片",
+      "copy": "复制",
+      "paste": "粘贴",
       "aiAdd": "AI 新增幻灯片",
-      "addBlank": "新增空白幻灯片",
+      "addBlank": "插入空白页面",
       "delete": "删除幻灯片"
     },
     "confirmDeleteTitle": "删除此页？",
@@ -640,7 +809,87 @@
     "speaking": "正在发言",
     "inputPlaceholder": "向 AI 提问…",
     "scanHint": "扫码进入课堂",
-    "qrCaption": "学生扫码后看到的样子"
+    "qrCaption": "学生扫码后看到的样子",
+    "orientation": {
+      "toggleToPortrait": "切换为竖屏",
+      "toggleToLandscape": "切换为横屏"
+    }
+  },
+  "mobile": {
+    "qa": {
+      "title": "问答",
+      "discussionTitle": "问答讨论",
+      "classMembers": "课堂成员",
+      "inputPlaceholder": "输入问题…",
+      "send": "发送",
+      "stop": "停止",
+      "you": "我",
+      "emptyHint": "暂无消息，发起一个问题开始讨论"
+    },
+    "topBar": {
+      "openSceneGrid": "场景列表",
+      "fullscreen": "全屏",
+      "exitFullscreen": "退出全屏",
+      "toggleQa": "问答面板",
+      "more": "更多",
+      "back": "返回",
+      "whiteboard": "打开白板",
+      "whiteboardClose": "收起白板"
+    },
+    "teacherDock": {
+      "pageHint": "这是第 {{n}} 页的内容讲解",
+      "fallbackName": "讲师",
+      "play": "播放",
+      "pause": "暂停",
+      "statusSpeaking": "正在讲解",
+      "statusWaiting": "等待回答",
+      "statusReady": "待开始",
+      "expand": "展开讲稿"
+    },
+    "pager": {
+      "prev": "上一页",
+      "next": "下一页"
+    },
+    "sceneDrawer": {
+      "title": "课堂场景",
+      "empty": "尚未生成任何场景"
+    },
+    "tabs": {
+      "composer": "课件",
+      "narration": "讲解",
+      "qa": "问答",
+      "members": "成员"
+    },
+    "narration": {
+      "title": "老师讲解",
+      "speed": "倍速",
+      "captions": "字幕",
+      "pageOf": "第 {{current}} / {{total}} 页",
+      "empty": "本页暂无讲稿，点击播放试听老师朗读。",
+      "close": "收起"
+    },
+    "members": {
+      "title": "课堂成员",
+      "currentSpeaker": "当前讲解",
+      "nobodySpeaking": "暂无成员发言",
+      "roleTeacher": "老师",
+      "roleAssistant": "助教",
+      "roleStudent": "学生",
+      "memberCount": "共 {{count}} 位成员",
+      "close": "收起"
+    },
+    "tablet": {
+      "sidePanel": {
+        "qa": "问答",
+        "members": "成员",
+        "narrationLog": "讲解记录",
+        "collapse": "收起辅助面板",
+        "expand": "展开辅助面板"
+      },
+      "narrationLog": {
+        "empty": "本节课暂无讲解记录"
+      }
+    }
   },
   "classroomComplete": {
     "title": "课程完成",
@@ -855,7 +1104,7 @@
   "upload": {
     "pdfSizeLimit": "支持 PDF、Word、Markdown、ePub，单文件最高 500MB",
     "generateFailed": "生成课堂失败，请重试",
-    "requirementPlaceholder": "输入你想学的任何内容，例如：\n「从零学 Python，30 分钟写出第一个程序」\n「用白板给我讲解傅里叶变换」\n「阿瓦隆桌游怎么玩」",
+    "requirementPlaceholder": "上传图书后，告诉 AI 老师您希望如何讲解这本书，例如：\n「按章节循序讲解，每节穿插提问与小测」\n「面向零基础读者，多举生活化案例」\n「针对考点与易错点，配套课后习题与互动测验」",
     "requirementRequired": "请上传图书并等待解析完成，或填写补充说明 / 文字需求",
     "requirementOrBook": "请上传图书课件，或展开「补充说明」输入文字需求",
     "fileTooLarge": "文件过大，请选择小于 {{maxMb}}MB 的课件",
@@ -981,6 +1230,13 @@
       "default-4": "充满好奇心，总爱追问为什么",
       "default-5": "认真记录，整理课堂重点笔记",
       "default-6": "深入思考，喜欢探讨问题本质"
+    },
+    "agentPersonas": {
+      "default-2": "课堂助教，把老师讲的难点用更通俗的语言再解释一遍，并补充贴近生活的小例子；偶尔在白板上做简短补充，帮助每位同学跟上节奏，但不抢老师的主线。",
+      "default-3": "课堂气氛担当，擅长用幽默、玩梗和流行文化把抽象概念变得轻松；遇到关键讲解会立刻收敛，回到认真听讲的状态。",
+      "default-4": "对什么都想问“为什么”和“怎么会这样”的学生，凭好奇心驱动课堂讨论，常常问出大家心里也想问的问题，把老师的解释引向更深入。",
+      "default-5": "课堂记录员，喜欢把老师讲的内容整理成清晰的条目和小结；遇到关键概念会主动复述一遍，并在白板上写下要点，方便大家回看。",
+      "default-6": "深度思考型学生，喜欢提出“但是如果……”和“这是不是和……矛盾”的问题，把讨论引向更深的层次，常常带来意想不到的视角。"
     },
     "close": "关闭",
     "save": "保存",

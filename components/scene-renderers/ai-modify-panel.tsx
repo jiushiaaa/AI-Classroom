@@ -51,6 +51,11 @@ import { Button } from '@/components/ui/button';
 interface AIModifyPanelProps {
   readonly sceneId: string;
   readonly onClose: () => void;
+  /**
+   * `floating` — draggable canvas overlay (default).
+   * `embedded` — static body for use inside a `Dialog` (no drag handle).
+   */
+  readonly layout?: 'floating' | 'embedded';
 }
 
 /** Placeholder per scene type — gives the publisher concrete examples. */
@@ -84,7 +89,11 @@ function resolveAiCommands(scene: Scene | undefined): AICommand[] {
   return [];
 }
 
-export function AIModifyPanel({ sceneId, onClose }: AIModifyPanelProps) {
+export function AIModifyPanel({
+  sceneId,
+  onClose,
+  layout = 'floating',
+}: AIModifyPanelProps) {
   const { t } = useI18n();
   const updateScene = useStageStore.use.updateScene();
   const scene = useStageStore((s) => s.scenes.find((sc) => sc.id === sceneId));
@@ -191,21 +200,20 @@ export function AIModifyPanel({ sceneId, onClose }: AIModifyPanelProps) {
 
   if (!scene) return null;
 
-  return (
-    <motion.div
-      drag
-      dragMomentum={false}
-      dragElastic={0.05}
-      initial={{ opacity: 0, scale: 0.92, y: 12 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.92, y: 12 }}
-      transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-      className="absolute top-14 right-4 z-40 w-[380px] rounded-2xl bg-white dark:bg-zinc-900 shadow-2xl shadow-purple-500/20 ring-1 ring-purple-200/50 dark:ring-purple-700/30 overflow-hidden flex flex-col max-h-[calc(100%-5rem)]"
-      role="dialog"
-      aria-label={t('aiModify.panelAriaLabel')}
-    >
-      <div className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500/10 via-violet-500/10 to-fuchsia-500/10 border-b border-purple-100/50 dark:border-purple-800/30 cursor-grab active:cursor-grabbing select-none">
-        <GripHorizontal className="w-3.5 h-3.5 text-purple-400/70" />
+  const isEmbedded = layout === 'embedded';
+
+  const shellClass = isEmbedded
+    ? 'w-full max-w-full rounded-none bg-white dark:bg-zinc-900 flex flex-col max-h-[min(70vh,560px)] overflow-hidden'
+    : 'absolute top-14 right-4 z-40 w-[380px] rounded-2xl bg-white dark:bg-zinc-900 shadow-2xl shadow-purple-500/20 ring-1 ring-purple-200/50 dark:ring-purple-700/30 overflow-hidden flex flex-col max-h-[calc(100%-5rem)]';
+
+  const headerRowClass = isEmbedded
+    ? 'flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500/10 via-violet-500/10 to-fuchsia-500/10 border-b border-purple-100/50 dark:border-purple-800/30 select-none'
+    : 'flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500/10 via-violet-500/10 to-fuchsia-500/10 border-b border-purple-100/50 dark:border-purple-800/30 cursor-grab active:cursor-grabbing select-none';
+
+  const inner = (
+    <>
+      <div className={headerRowClass}>
+        {isEmbedded ? null : <GripHorizontal className="w-3.5 h-3.5 text-purple-400/70" />}
         <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
         <div className="flex-1 min-w-0">
           <div className="text-xs text-purple-700/70 dark:text-purple-300/70 font-medium leading-tight">
@@ -215,15 +223,17 @@ export function AIModifyPanel({ sceneId, onClose }: AIModifyPanelProps) {
             {sceneTitle}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label={t('aiModify.close')}
-          title={t('aiModify.close')}
-          className="p-1 rounded-md text-zinc-500 hover:bg-purple-100/60 dark:hover:bg-purple-800/30 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
-        >
-          <X className="w-4 h-4" />
-        </button>
+        {isEmbedded ? null : (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t('aiModify.close')}
+            title={t('aiModify.close')}
+            className="p-1 rounded-md text-zinc-500 hover:bg-purple-100/60 dark:hover:bg-purple-800/30 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {previewing ? (
@@ -317,6 +327,27 @@ export function AIModifyPanel({ sceneId, onClose }: AIModifyPanelProps) {
           </Button>
         </div>
       </div>
+    </>
+  );
+
+  if (isEmbedded) {
+    return <div className={shellClass}>{inner}</div>;
+  }
+
+  return (
+    <motion.div
+      drag
+      dragMomentum={false}
+      dragElastic={0.05}
+      initial={{ opacity: 0, scale: 0.92, y: 12 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.92, y: 12 }}
+      transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+      className={shellClass}
+      role="dialog"
+      aria-label={t('aiModify.panelAriaLabel')}
+    >
+      {inner}
     </motion.div>
   );
 }

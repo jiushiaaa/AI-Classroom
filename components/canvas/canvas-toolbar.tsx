@@ -58,6 +58,12 @@ export interface CanvasToolbarProps {
    * see — the publisher edits exclusively from the web view.
    */
   readonly readOnly?: boolean;
+  /**
+   * When true, the edit-mode toggle is omitted (shown in the stage header
+   * instead). When presenting fullscreen the header is hidden, so callers
+   * should pass false to keep edit on this toolbar.
+   */
+  readonly hideEditToggle?: boolean;
 }
 
 /* Compact control button */
@@ -117,6 +123,7 @@ export function CanvasToolbar({
   playbackSpeed = 1,
   onCycleSpeed,
   readOnly = false,
+  hideEditToggle = false,
 }: CanvasToolbarProps) {
   const { t } = useI18n();
   const canGoPrev = currentSceneIndex > 0;
@@ -441,11 +448,11 @@ export function CanvasToolbar({
 
       {/* ── Right: edit toggle + fullscreen + chat toggle ── */}
       <div className="flex items-center justify-end gap-px shrink-0 pr-1">
-        <CtrlDivider />
+        {canEnterEdit && !hideEditToggle ? <CtrlDivider /> : null}
         {/* P3: Enter / Exit edit mode. Hidden when the active scene type
         cannot be inline-edited (interactive / pbl rely on the AI-modify
         button shipped in P4 instead). */}
-        {canEnterEdit && (
+        {canEnterEdit && !hideEditToggle && (
           <TooltipProvider delayDuration={0}>
             <Tooltip>
               <TooltipTrigger asChild>

@@ -5,7 +5,7 @@
  * ----------------------
  * Mock "AI 辅助生成" flow used by AddScenePopover. Two interaction paths:
  *
- *  - **Pick a module type** (PPT / 视频 / 互动游戏 / 仿真 / 测验 / PBL / 白板)
+ *  - **Pick a module type** (讲解PPT / 测试题 / 模拟实验 / 游戏动画 / 在线编程 / 项目挑战 / 思维导图)
  *    → the scene template is fixed by the module; the textarea becomes an
  *    optional refinement (e.g. "再增加一道关于光合作用的简答题"). Mirrors the
  *    selectable items shown in the homepage GenerationConfigPopover so the
@@ -23,13 +23,13 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Sparkles,
   Wand2,
-  FileText,
-  Video,
+  BookOpen,
+  CircleHelp,
+  FlaskConical,
   Gamepad2,
-  Atom,
-  ListChecks,
-  GraduationCap,
-  PencilRuler,
+  Code,
+  Target,
+  Brain,
   Check,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -64,7 +64,14 @@ interface AIGenerateSceneDialogProps {
 
 /* ─────────────────────────── Module catalog ─────────────────────────── */
 
-type ModuleId = 'ppt' | 'video' | 'game' | 'simulation' | 'quiz' | 'pbl' | 'whiteboard';
+type ModuleId =
+  | 'explanationPpt'
+  | 'testQuestions'
+  | 'simulation'
+  | 'gameAnimation'
+  | 'onlineCoding'
+  | 'projectChallenge'
+  | 'mindMap';
 
 interface ModuleDef {
   id: ModuleId;
@@ -77,44 +84,44 @@ interface ModuleDef {
 
 const MODULES: ModuleDef[] = [
   {
-    id: 'ppt',
-    icon: FileText,
+    id: 'explanationPpt',
+    icon: BookOpen,
     selectedClass: 'border-violet-400 bg-violet-50 dark:bg-violet-900/30 ring-violet-300/60',
     iconBgClass: 'bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-300',
   },
   {
-    id: 'video',
-    icon: Video,
-    selectedClass: 'border-rose-400 bg-rose-50 dark:bg-rose-900/30 ring-rose-300/60',
-    iconBgClass: 'bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-300',
+    id: 'testQuestions',
+    icon: CircleHelp,
+    selectedClass: 'border-amber-400 bg-amber-50 dark:bg-amber-900/30 ring-amber-300/60',
+    iconBgClass: 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-300',
   },
   {
-    id: 'game',
+    id: 'simulation',
+    icon: FlaskConical,
+    selectedClass: 'border-cyan-400 bg-cyan-50 dark:bg-cyan-900/30 ring-cyan-300/60',
+    iconBgClass: 'bg-cyan-100 dark:bg-cyan-900/40 text-cyan-600 dark:text-cyan-300',
+  },
+  {
+    id: 'gameAnimation',
     icon: Gamepad2,
     selectedClass: 'border-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 ring-emerald-300/60',
     iconBgClass: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-300',
   },
   {
-    id: 'simulation',
-    icon: Atom,
-    selectedClass: 'border-cyan-400 bg-cyan-50 dark:bg-cyan-900/30 ring-cyan-300/60',
-    iconBgClass: 'bg-cyan-100 dark:bg-cyan-900/40 text-cyan-600 dark:text-cyan-300',
+    id: 'onlineCoding',
+    icon: Code,
+    selectedClass: 'border-rose-400 bg-rose-50 dark:bg-rose-900/30 ring-rose-300/60',
+    iconBgClass: 'bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-300',
   },
   {
-    id: 'quiz',
-    icon: ListChecks,
-    selectedClass: 'border-amber-400 bg-amber-50 dark:bg-amber-900/30 ring-amber-300/60',
-    iconBgClass: 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-300',
-  },
-  {
-    id: 'pbl',
-    icon: GraduationCap,
+    id: 'projectChallenge',
+    icon: Target,
     selectedClass: 'border-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 ring-indigo-300/60',
     iconBgClass: 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300',
   },
   {
-    id: 'whiteboard',
-    icon: PencilRuler,
+    id: 'mindMap',
+    icon: Brain,
     selectedClass: 'border-sky-400 bg-sky-50 dark:bg-sky-900/30 ring-sky-300/60',
     iconBgClass: 'bg-sky-100 dark:bg-sky-900/40 text-sky-600 dark:text-sky-300',
   },
@@ -255,7 +262,7 @@ function buildPPTScene({ stageId, sceneId, order, title, refinement }: SceneBuil
   };
 }
 
-function buildWhiteboardScene({ stageId, sceneId, order, title }: SceneBuildContext): Scene {
+function buildMindMapScene({ stageId, sceneId, order, title }: SceneBuildContext): Scene {
   return {
     id: sceneId,
     stageId,
@@ -271,13 +278,13 @@ function buildWhiteboardScene({ stageId, sceneId, order, title }: SceneBuildCont
         titleElement(sceneId, title),
         {
           type: 'text',
-          id: `ai-gen-wb-hint-${sceneId}`,
+          id: `ai-gen-mm-hint-${sceneId}`,
           content:
-            '<p style="color:#94a3b8;font-size:14px">点击进入编辑模式，使用形状 / 线条 / 公式 / 文本工具开始板书演算。</p>',
+            '<p style="color:#64748b;font-size:14px;line-height:1.7">从中心主题出发，梳理主分支与关键词；可继续补充子节点与跨分支联系。</p>',
           left: 48,
           top: 152,
           width: 904,
-          height: 60,
+          height: 72,
           rotate: 0,
           defaultFontName: BASE_THEME.fontName,
           defaultColor: '#64748b',
@@ -285,70 +292,17 @@ function buildWhiteboardScene({ stageId, sceneId, order, title }: SceneBuildCont
         },
         {
           type: 'shape',
-          id: `ai-gen-wb-frame-${sceneId}`,
+          id: `ai-gen-mm-frame-${sceneId}`,
           left: 48,
-          top: 232,
+          top: 240,
           width: 904,
-          height: 280,
+          height: 272,
           rotate: 0,
           viewBox: [200, 200],
           path: 'M 0 0 L 200 0 L 200 200 L 0 200 Z',
-          fill: '#f8fafc',
+          fill: '#faf5ff',
           fixedRatio: false,
-          outline: { color: '#cbd5e1', style: 'dashed', width: 2 },
-        },
-      ]),
-    },
-  };
-}
-
-function buildVideoScene({ stageId, sceneId, order, title, refinement }: SceneBuildContext): Scene {
-  const topic = refinement || title;
-  return {
-    id: sceneId,
-    stageId,
-    type: 'slide',
-    title,
-    order,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-    actions: [
-      { id: `ai-gen-video-speech-1-${sceneId}`, type: 'speech', text: `下面用一段视频帮助理解"${topic}"。` },
-      { id: `ai-gen-video-play-${sceneId}`, type: 'play_video', elementId: `ai-gen-video-clip-${sceneId}` },
-      { id: `ai-gen-video-speech-2-${sceneId}`, type: 'speech', text: '视频结束后我们一起回顾要点。' },
-    ],
-    content: {
-      type: 'slide',
-      canvas: makeSlideCanvas(sceneId, [
-        titleElement(sceneId, title),
-        {
-          type: 'video',
-          id: `ai-gen-video-clip-${sceneId}`,
-          src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-          poster: `https://picsum.photos/seed/ai-gen-${sceneId}/960/540`,
-          autoplay: false,
-          left: 48,
-          top: 132,
-          width: 560,
-          height: 316,
-          rotate: 0,
-        },
-        {
-          type: 'text',
-          id: `ai-gen-video-notes-${sceneId}`,
-          content:
-            `<p><strong>观察要点</strong></p>` +
-            `<ul><li>视频与"${topic}"的关键关联</li>` +
-            `<li>抓住核心概念的一个画面</li>` +
-            `<li>看完后请补充一个自己的提问</li></ul>`,
-          left: 632,
-          top: 132,
-          width: 320,
-          height: 280,
-          rotate: 0,
-          defaultFontName: BASE_THEME.fontName,
-          defaultColor: '#334155',
-          textType: 'content',
+          outline: { color: '#c4b5fd', style: 'dashed', width: 2 },
         },
       ]),
     },
@@ -393,6 +347,46 @@ items.forEach((it,i)=>{
 });
 let s = 0; setInterval(()=>{document.getElementById('time').textContent = ++s;}, 1000);
 </script></body></html>`;
+
+const CODE_HTML = (topic: string) => `<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="utf-8" />
+<style>
+  body { margin:0; font:14px/1.5 Consolas, 'Courier New', monospace;
+         background:#0f172a; color:#e2e8f0; min-height:100vh; padding:24px; }
+  h1 { font-family:'Microsoft Yahei',sans-serif; font-size:18px; color:#a78bfa; margin:0 0 12px; }
+  pre { background:#1e293b; border-radius:10px; padding:16px; overflow:auto; font-size:13px; color:#cbd5e1; }
+</style></head><body>
+<h1>在线编程 · ${topic}</h1>
+<pre>// Demo：根据提示修改下列函数\nfunction sum(a, b) {\n  return a + b;\n}\nconsole.log(sum(2, 3));</pre>
+</body></html>`;
+
+function buildOnlineCodingScene({ stageId, sceneId, order, title, refinement }: SceneBuildContext): Scene {
+  const topic = refinement || title;
+  return {
+    id: sceneId,
+    stageId,
+    type: 'interactive',
+    title,
+    order,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    actions: [],
+    content: {
+      type: 'interactive',
+      url: '',
+      html: CODE_HTML(topic),
+      widgetType: 'game',
+      widgetConfig: {
+        type: 'game',
+        gameType: 'puzzle',
+        description: `围绕"${topic}"的编程练习`,
+        scoring: { correctPoints: 10 },
+      },
+      teacherActions: [],
+      aiCommands: [],
+    },
+  };
+}
 
 function buildGameScene({ stageId, sceneId, order, title, refinement }: SceneBuildContext): Scene {
   const topic = refinement || title;
@@ -674,13 +668,13 @@ function buildPBLScene({ stageId, sceneId, order, title, refinement }: SceneBuil
 }
 
 const MODULE_BUILDERS: Record<ModuleId, (ctx: SceneBuildContext) => Scene> = {
-  ppt: buildPPTScene,
-  video: buildVideoScene,
-  game: buildGameScene,
+  explanationPpt: buildPPTScene,
+  testQuestions: buildQuizScene,
   simulation: buildSimulationScene,
-  quiz: buildQuizScene,
-  pbl: buildPBLScene,
-  whiteboard: buildWhiteboardScene,
+  gameAnimation: buildGameScene,
+  onlineCoding: buildOnlineCodingScene,
+  projectChallenge: buildPBLScene,
+  mindMap: buildMindMapScene,
 };
 
 /* ─────────────────────────── Component ─────────────────────────── */
@@ -759,7 +753,7 @@ export function AIGenerateSceneDialog({
       title = refinement || t('sceneActions.newPageTitle');
     }
 
-    const builder = MODULE_BUILDERS[moduleId ?? 'ppt'];
+    const builder = MODULE_BUILDERS[moduleId ?? 'explanationPpt'];
     const built = builder({
       stageId: stage.id,
       sceneId,
@@ -788,24 +782,32 @@ export function AIGenerateSceneDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg" showCloseButton={!isRunning}>
-        <DialogHeader>
-          <div className="flex items-center gap-3">
+      <DialogContent
+        showCloseButton={!isRunning}
+        className={cn(
+          'w-[min(calc(100vw-2rem),560px)] max-w-[min(calc(100vw-2rem),560px)] !p-0 !gap-0 overflow-hidden',
+          'rounded-2xl border border-border/60 bg-white dark:bg-slate-900',
+          'shadow-xl shadow-black/[0.06] dark:shadow-black/30 ring-1 ring-black/[0.03]',
+          'max-h-[min(94dvh,820px)] flex flex-col',
+        )}
+      >
+        <DialogHeader className="relative px-5 pt-5 pb-3 border-b border-border/50 shrink-0 text-left space-y-1.5 pr-14">
+          <div className="flex items-start gap-3">
             <span className="w-9 h-9 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-500 text-white flex items-center justify-center shadow-md shadow-purple-500/30 shrink-0">
               <Wand2 className="w-4 h-4" />
             </span>
-            <div className="flex-1">
-              <DialogTitle className="text-base font-bold">
+            <div className="flex-1 min-w-0">
+              <DialogTitle className="text-base font-semibold pr-2">
                 {t('sceneActions.aiGenerateDialogTitle')}
               </DialogTitle>
-              <DialogDescription className="mt-1">
+              <DialogDescription className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
                 {t('sceneActions.aiGenerateDialogDescription')}
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-4">
           {/* Module type picker */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -925,12 +927,13 @@ export function AIGenerateSceneDialog({
           </AnimatePresence>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-row items-center justify-end gap-3 border-t border-border/50 px-4 py-3 shrink-0 bg-muted/15">
           <Button
             type="button"
             variant="outline"
             onClick={() => onOpenChange(false)}
             disabled={isRunning}
+            className="rounded-full"
           >
             {t('common.cancel')}
           </Button>
@@ -938,7 +941,7 @@ export function AIGenerateSceneDialog({
             type="button"
             onClick={startMockGeneration}
             disabled={!canGenerate}
-            className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white border-0"
+            className="rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white border-0 px-5"
           >
             <Sparkles className="w-4 h-4 mr-1" />
             {isRunning ? t('sceneActions.aiGeneratingHint') : t('sceneActions.aiGenerateAction')}

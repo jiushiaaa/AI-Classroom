@@ -6,19 +6,14 @@ import { motion, AnimatePresence } from 'motion/react';
 import Link from 'next/link';
 import {
   ArrowUp,
-  BookOpen,
-  Check,
   ChevronDown,
   ChevronRight,
-  Library,
   Loader2,
   Upload,
-  X,
 } from 'lucide-react';
 import { useI18n } from '@/lib/hooks/use-i18n';
 import { createLogger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
-import { GenerationToolbar } from '@/components/generation/generation-toolbar';
 import { GenerationConfigPopover } from '@/components/generation/generation-config-popover';
 import { AgentBar } from '@/components/agent/agent-bar';
 import {
@@ -37,62 +32,53 @@ import {
 import type { Slide } from '@/lib/types/slides';
 import { useMediaGenerationStore } from '@/lib/store/media-generation';
 import { toast } from 'sonner';
-import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useDraftCache } from '@/lib/hooks/use-draft-cache';
 import { SpeechButton } from '@/components/audio/speech-button';
 import { DISCOVER_COURSES, type CourseCategory } from '@/lib/mock/discover-courses';
-import {
-  courseMatchesMyCategoryFilter,
-  sortMyCourses,
-} from '@/lib/publisher/my-course-classification';
+import { sortMyCourses } from '@/lib/publisher/my-course-classification';
 import {
   PUBLISHER_MAX_BOOK_BYTES,
-  PUBLISHER_BOOK_ACCEPT,
   PUBLISHER_MAX_BOOK_MB,
-  type PublisherParsePhase,
+  type PublisherAttachmentEntry,
   runPublisherParseMock,
-  isPdfBookFile,
   inferMockCategories,
   buildMockKnowledgeChunks,
-  type PublisherKnowledgeChunkPreview,
 } from '@/lib/publisher/publisher-book-parse-mock';
 import {
   BookLibraryDialog,
   type BookLibrarySelection,
 } from '@/components/publisher/book-library-dialog';
 import { ClassroomCard } from '@/components/publisher/classroom-card';
-import { formatCardTimestamp } from '@/lib/utils/format-card-timestamp';
-import {
-  PUBLISHER_SHELF_CATEGORY_IDS,
-  type PublisherShelfCategoryId,
-  resolveShelfCategory,
-} from '@/lib/publisher/publisher-shelf-category';
-import {
-  readShelfCategoryMap,
-  setShelfCategoryInStorage,
-} from '@/lib/utils/publisher-course-shelf-category-storage';
+import { buildDemoAttachmentEntries } from '@/lib/publisher/publisher-demo-attachments';
 
 const log = createLogger('Home');
 
-const WEB_SEARCH_STORAGE_KEY = 'webSearchEnabled';
-
 interface FormState {
-  pdfFile: File | null;
   requirement: string;
-  webSearch: boolean;
   interactiveMode: boolean;
 }
 
 const initialFormState: FormState = {
-  pdfFile: null,
   requirement: '',
-  webSearch: false,
   interactiveMode: false,
 };
 
+/**
+ * One attachment entry. The first added file is conceptually the "main book"
+ * but the pipeline treats every entry as an independent knowledge source so
+ * users can also upload N standalone handouts (e.g. 5 考研 lecture PDFs).
+ *
+ * Re-exports the shared shape from publisher-book-parse-mock so the upload
+ * hub popover and this page consume the same type.
+ */
+type AttachmentEntry = PublisherAttachmentEntry;
+
 const INTERACTIVE_MODE_STORAGE_KEY = 'pubInteractiveMode';
-const REQUIREMENT_MAX = 2000;
+
+function makeAttachmentId(file: File): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}-${file.name}`;
+}
 
 function HomePage() {
   const { t } = useI18n();
@@ -106,14 +92,6 @@ function HomePage() {
   // Hydrate client-only state after mount (avoids SSR mismatch)
   /* eslint-disable react-hooks/set-state-in-effect -- Hydration from localStorage must happen in effect */
   useEffect(() => {
-    try {
-      const savedWebSearch = localStorage.getItem(WEB_SEARCH_STORAGE_KEY);
-      if (savedWebSearch === 'true') {
-        setForm((prev) => ({ ...prev, webSearch: true }));
-      }
-    } catch {
-      /* localStorage unavailable */
-    }
     try {
       const savedInteractive = localStorage.getItem(INTERACTIVE_MODE_STORAGE_KEY);
       if (savedInteractive === 'true') {
@@ -138,18 +116,25 @@ function HomePage() {
   const [classrooms, setClassrooms] = useState<StageListItem[]>([]);
   const [thumbnails, setThumbnails] = useState<Record<string, Slide>>({});
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const [shelfMap, setShelfMap] = useState<Record<string, PublisherShelfCategoryId>>({});
   const requirementTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const bookFileInputRef = useRef<HTMLInputElement>(null);
-  const parseRunId = useRef(0);
 
-  const [parsePhase, setParsePhase] = useState<PublisherParsePhase>('idle');
-  const [detectedCategories, setDetectedCategories] = useState<CourseCategory[]>([]);
-  const [mockChunks, setMockChunks] = useState<PublisherKnowledgeChunkPreview[]>([]);
+  /** Multi-file upload state — supports book + multiple supplementary attachments. */
+  const [attachments, setAttachments] = useState<AttachmentEntry[]>([]);
+  /** Per-attachment AbortControllers so removing a file cancels its mock parse. */
+  const parseControllersRef = useRef<Map<string, AbortController>>(new Map());
   const [dropActive, setDropActive] = useState(false);
 
   const [bookLibraryOpen, setBookLibraryOpen] = useState(false);
+  const [bookLibraryInitialTab, setBookLibraryInitialTab] = useState<
+    'library' | 'attachments'
+  >('library');
   const [bookSelection, setBookSelection] = useState<BookLibrarySelection | null>(null);
+
+  /** Programmatic opener for the unified upload hub — chooses initial tab. */
+  const openUploadHub = (tab: 'library' | 'attachments') => {
+    setBookLibraryInitialTab(tab);
+    setBookLibraryOpen(true);
+  };
 
   const loadClassrooms = async () => {
     try {
@@ -177,25 +162,7 @@ function HomePage() {
 
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Store hydration on mount
     loadClassrooms();
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Store hydration on mount
-    setShelfMap(readShelfCategoryMap());
   }, []);
-
-  const handleShelfCategoryChange = (
-    courseId: string,
-    next: PublisherShelfCategoryId,
-  ) => {
-    setShelfMap((prev) => setShelfCategoryInStorage(courseId, next, prev));
-  };
-
-  const shelfCategoryOptions = useMemo(
-    () =>
-      PUBLISHER_SHELF_CATEGORY_IDS.map((id) => ({
-        id,
-        label: t(`home.mySpace.shelfCategories.${id}`),
-      })),
-    [t],
-  );
 
   const handleDelete = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -218,23 +185,27 @@ function HomePage() {
   };
 
   const handleRename = async (id: string, newName: string) => {
+    const touch = Date.now();
     if (isPublisherMockCourse(id)) {
-      setClassrooms((prev) => prev.map((c) => (c.id === id ? { ...c, name: newName } : c)));
+      setClassrooms((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, name: newName, updatedAt: touch } : c)),
+      );
       return;
     }
     try {
       await renameStage(id, newName);
-      setClassrooms((prev) => prev.map((c) => (c.id === id ? { ...c, name: newName } : c)));
+      setClassrooms((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, name: newName, updatedAt: touch } : c)),
+      );
     } catch (err) {
       log.error('Failed to rename classroom:', err);
       toast.error(t('classroom.renameFailed'));
     }
   };
 
-  /** Home preview: latest 5 courses (no filters). */
+  /** Home preview: latest 5 courses by recent update, no filters. */
   const previewMySpaceCourses = useMemo(() => {
-    const list = classrooms.filter((c) => courseMatchesMyCategoryFilter(c.id, 'all'));
-    return sortMyCourses(list, 'createdAtDesc').slice(0, 5);
+    return sortMyCourses([...classrooms], 'updatedAtDesc').slice(0, 5);
   }, [classrooms]);
 
   /** Inspiration row: all mock courses, recently updated first. */
@@ -245,7 +216,6 @@ function HomePage() {
   const updateForm = <K extends keyof FormState>(field: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     try {
-      if (field === 'webSearch') localStorage.setItem(WEB_SEARCH_STORAGE_KEY, String(value));
       if (field === 'interactiveMode')
         localStorage.setItem(INTERACTIVE_MODE_STORAGE_KEY, String(value));
       if (field === 'requirement') updateRequirementCache(value as string);
@@ -254,37 +224,14 @@ function HomePage() {
     }
   };
 
+  // Cancel all in-flight mock parses on unmount
   useEffect(() => {
-    if (!form.pdfFile) return;
-    const ac = new AbortController();
-    const runId = ++parseRunId.current;
-    const file = form.pdfFile;
-
-    void (async () => {
-      try {
-        await runPublisherParseMock((phase) => {
-          if (parseRunId.current !== runId) return;
-          setParsePhase(phase);
-        }, ac.signal);
-        if (parseRunId.current !== runId || ac.signal.aborted) return;
-        setMockChunks(buildMockKnowledgeChunks(file.name));
-        setForm((prev) => {
-          if (!prev.requirement.trim() && prev.pdfFile && prev.pdfFile.name === file.name) {
-            const def = t('home.publisher.defaultRequirement', { name: prev.pdfFile.name });
-            updateRequirementCache(def);
-            return { ...prev, requirement: def };
-          }
-          return prev;
-        });
-      } catch {
-        /* aborted */
-      }
-    })();
-
+    const controllers = parseControllersRef.current;
     return () => {
-      ac.abort();
+      controllers.forEach((ac) => ac.abort());
+      controllers.clear();
     };
-  }, [form.pdfFile, t]);
+  }, []);
 
   const validateBookFile = (file: File): string | null => {
     if (file.size > PUBLISHER_MAX_BOOK_BYTES) {
@@ -293,32 +240,82 @@ function HomePage() {
     return null;
   };
 
-  const assignBookFile = (file: File | null) => {
-    setError(null);
-    if (!file) {
-      parseRunId.current += 1;
-      setParsePhase('idle');
-      setDetectedCategories([]);
-      setMockChunks([]);
-      updateForm('pdfFile', null);
-      return;
-    }
-    setParsePhase('uploading');
-    setDetectedCategories(inferMockCategories(file.name));
-    setMockChunks([]);
-    updateForm('pdfFile', file);
+  /** Kicks off mock parse pipeline for a single attachment; updates per-id phase. */
+  const startParseForAttachment = (id: string, file: File) => {
+    parseControllersRef.current.get(id)?.abort();
+    const ac = new AbortController();
+    parseControllersRef.current.set(id, ac);
+
+    void (async () => {
+      try {
+        await runPublisherParseMock((phase) => {
+          if (ac.signal.aborted) return;
+          setAttachments((prev) =>
+            prev.map((a) => (a.id === id ? { ...a, phase } : a)),
+          );
+        }, ac.signal);
+        if (ac.signal.aborted) return;
+        const chunks = buildMockKnowledgeChunks(file.name);
+        setAttachments((prev) =>
+          prev.map((a) => (a.id === id ? { ...a, mockChunks: chunks } : a)),
+        );
+      } catch {
+        /* aborted */
+      }
+    })();
   };
 
-  const onBookFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    e.target.value = '';
-    if (!f) return;
-    const err = validateBookFile(f);
-    if (err) {
-      setError(err);
-      return;
+  const addFiles = (incoming: File[]) => {
+    if (incoming.length === 0) return;
+    setError(null);
+    const newEntries: AttachmentEntry[] = [];
+    let firstError: string | null = null;
+    for (const file of incoming) {
+      const err = validateBookFile(file);
+      if (err) {
+        firstError ??= err;
+        continue;
+      }
+      newEntries.push({
+        id: makeAttachmentId(file),
+        file,
+        phase: 'uploading',
+        detectedCategories: inferMockCategories(file.name),
+        mockChunks: [],
+      });
     }
-    assignBookFile(f);
+    if (firstError) setError(firstError);
+    if (newEntries.length === 0) return;
+    setAttachments((prev) => [...prev, ...newEntries]);
+    for (const entry of newEntries) {
+      startParseForAttachment(entry.id, entry.file);
+    }
+  };
+
+  const removeAttachment = (id: string) => {
+    parseControllersRef.current.get(id)?.abort();
+    parseControllersRef.current.delete(id);
+    setAttachments((prev) => prev.filter((a) => a.id !== id));
+  };
+
+  /**
+   * Demo helper — loads 3 pre-parsed sample attachments so reviewers can see
+   * the full chip + categories + knowledge-chunk preview without having to
+   * drag a real file in. Skips items that would exceed the 5-file cap.
+   */
+  const loadDemoAttachments = () => {
+    setError(null);
+    const seeds = buildDemoAttachmentEntries();
+    setAttachments((prev) => {
+      const room = Math.max(0, 5 - prev.length);
+      if (room === 0) return prev;
+      const slice = seeds.slice(0, room).map((s) => ({
+        ...s,
+        detectedCategories: [...s.detectedCategories],
+        mockChunks: s.mockChunks.map((c) => ({ ...c })),
+      }));
+      return [...prev, ...slice];
+    });
   };
 
   /**
@@ -327,10 +324,10 @@ function HomePage() {
    */
   const handleGenerate = async () => {
     const hasText = form.requirement.trim().length > 0;
-    const hasFile = !!form.pdfFile;
+    const hasFiles = attachments.length > 0;
     const hasBookSelection = !!bookSelection && bookSelection.chapters.length > 0;
 
-    if (!hasText && !hasFile && !hasBookSelection) {
+    if (!hasText && !hasFiles && !hasBookSelection) {
       setError(t('upload.requirementOrBook'));
       return;
     }
@@ -341,41 +338,45 @@ function HomePage() {
 
   const canGenerate = useMemo(() => {
     const req = form.requirement.trim();
-    const hasFile = !!form.pdfFile;
+    const hasFiles = attachments.length > 0;
     const hasBookSelection = !!bookSelection && bookSelection.chapters.length > 0;
-    return req.length > 0 || hasFile || hasBookSelection;
-  }, [form.pdfFile, form.requirement, bookSelection]);
+    return req.length > 0 || hasFiles || hasBookSelection;
+  }, [attachments.length, form.requirement, bookSelection]);
 
-  const generationConfigLocked = !!form.pdfFile && parsePhase !== 'ready';
-
-  const parseProgressValue = useMemo(() => {
-    const map: Record<PublisherParsePhase, number> = {
-      idle: 0,
-      uploading: 18,
-      toc: 40,
-      chunks: 65,
-      vectors: 90,
-      ready: 100,
-    };
-    return map[parsePhase];
-  }, [parsePhase]);
-
-  const parsePhaseLabel = useMemo(() => {
-    switch (parsePhase) {
-      case 'uploading':
-        return t('home.publisher.parseUploading');
-      case 'toc':
-        return t('home.publisher.parseToc');
-      case 'chunks':
-        return t('home.publisher.parseChunks');
-      case 'vectors':
-        return t('home.publisher.parseVectors');
-      case 'ready':
-        return t('home.publisher.parseReady');
-      default:
-        return '';
+  /** Aggregated detected disciplines across all ready attachments (deduped). */
+  const aggregatedCategories = useMemo<CourseCategory[]>(() => {
+    const set = new Set<CourseCategory>();
+    for (const a of attachments) {
+      if (a.phase !== 'ready') continue;
+      for (const c of a.detectedCategories) set.add(c);
     }
-  }, [parsePhase, t]);
+    return Array.from(set).slice(0, 6);
+  }, [attachments]);
+
+  /** Flattened knowledge chunk previews from all ready attachments. */
+  const aggregatedChunks = useMemo(() => {
+    return attachments.flatMap((a) =>
+      a.mockChunks.map((ch) => ({
+        ...ch,
+        composedId: `${a.id}::${ch.id}`,
+        sourceFile: a.file.name,
+      })),
+    );
+  }, [attachments]);
+
+  /** Single badge for the unified upload-hub button: chapters + attachments. */
+  const hubBadgeCount = useMemo(() => {
+    const ch = bookSelection?.chapters.length ?? 0;
+    return ch + attachments.length;
+  }, [bookSelection, attachments.length]);
+
+  const anyAttachmentParsing = attachments.some(
+    (a) => a.phase !== 'idle' && a.phase !== 'ready',
+  );
+  const anyAttachmentReady = attachments.some((a) => a.phase === 'ready');
+
+  /** Lock generation config while at least one attachment is still parsing. */
+  const generationConfigLocked = anyAttachmentParsing;
 
   const handleRequirementKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
@@ -441,13 +442,6 @@ function HomePage() {
           transition={{ delay: 0.35 }}
           className="relative z-10 -mt-[4.6rem] w-full overflow-visible sm:-mt-[5.1rem] md:-mt-[5.6rem]"
         >
-          <input
-            ref={bookFileInputRef}
-            type="file"
-            className="sr-only"
-            accept={PUBLISHER_BOOK_ACCEPT}
-            onChange={onBookFileInputChange}
-          />
           <div
             onDragEnter={(e) => {
               e.preventDefault();
@@ -463,14 +457,9 @@ function HomePage() {
             onDrop={(e) => {
               e.preventDefault();
               setDropActive(false);
-              const f = e.dataTransfer.files?.[0];
-              if (!f) return;
-              const err = validateBookFile(f);
-              if (err) {
-                setError(err);
-                return;
-              }
-              assignBookFile(f);
+              const fileList = e.dataTransfer.files;
+              if (!fileList || fileList.length === 0) return;
+              addFiles(Array.from(fileList));
             }}
             className={cn(
               'relative w-full rounded-2xl border bg-white/85 dark:bg-slate-900/80 backdrop-blur-xl shadow-xl shadow-black/[0.03] dark:shadow-black/20 transition-all',
@@ -479,132 +468,52 @@ function HomePage() {
                 : 'border-border/60 hover:border-border/80',
             )}
           >
-            {/* ── Agents — chat-like top row (top-left) ── */}
-            <div className="relative z-20 flex items-start justify-start">
-              <div className="pl-3 pt-3.5 shrink-0 flex items-start gap-1.5">
-                <AgentBar />
-              </div>
-            </div>
-
-            <div className="px-4 pb-2 pt-1 space-y-2.5">
-              {/* Compact selected-book chip — only when a book is picked from the library */}
-              {bookSelection && (
-                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-violet-200/70 dark:border-violet-800/50 bg-violet-50/60 dark:bg-violet-950/30 px-3 py-2">
-                  <div
-                    className={cn(
-                      'shrink-0 size-7 rounded-md bg-gradient-to-br flex items-center justify-center text-white text-[14px]',
-                      bookSelection.book.coverGradient,
-                    )}
-                  >
-                    {bookSelection.book.coverEmoji}
-                  </div>
-                  <span className="text-[12px] font-medium truncate max-w-[160px] sm:max-w-[240px]">
-                    {bookSelection.book.title}
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-[10px] text-violet-700 dark:text-violet-300 px-2 py-0.5 rounded-full bg-violet-100/80 dark:bg-violet-900/40 shrink-0">
-                    <Check className="size-3" />
-                    {t('bookLibrary.selectedChapterChip', {
-                      count: bookSelection.chapters.length,
+            <div className="px-4 pb-2 pt-3 space-y-2">
+              {/* Inline background-parse status — clickable, opens upload hub
+                  on the «我的附件» tab so users can monitor / cancel parses. */}
+              {anyAttachmentParsing && (
+                <button
+                  type="button"
+                  onClick={() => openUploadHub('attachments')}
+                  className="inline-flex items-center gap-1.5 text-[11px] text-violet-700 dark:text-violet-300 hover:underline cursor-pointer"
+                >
+                  <Loader2 className="size-3 animate-spin" />
+                  <span>
+                    {t('home.publisher.parsingInline', {
+                      count: attachments.filter(
+                        (a) => a.phase !== 'idle' && a.phase !== 'ready',
+                      ).length,
                     })}
                   </span>
-                  <div className="ml-auto flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setBookLibraryOpen(true)}
-                      className="text-[11px] px-2 py-0.5 rounded-md text-violet-700/80 dark:text-violet-300/80 hover:bg-violet-100/80 dark:hover:bg-violet-900/40 transition-colors"
-                    >
-                      {t('bookLibrary.changeSelection')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setBookSelection(null)}
-                      className="inline-flex items-center justify-center size-5 rounded-full text-muted-foreground/60 hover:bg-foreground/10 hover:text-foreground transition-colors"
-                      aria-label={t('home.publisher.clearFile')}
-                    >
-                      <X className="size-3" />
-                    </button>
-                  </div>
-                </div>
+                </button>
               )}
 
-              {/* Compact attached-PDF chip — when user dragged a real PDF onto the card */}
-              {form.pdfFile && (
-                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-violet-200/70 dark:border-violet-800/50 bg-violet-50/60 dark:bg-violet-950/30 px-3 py-2">
-                  {parsePhase === 'ready' ? (
-                    <Check className="size-3.5 text-emerald-600 shrink-0" />
-                  ) : parsePhase === 'idle' ? (
-                    <BookOpen className="size-3.5 text-violet-600 shrink-0" />
-                  ) : (
-                    <Loader2 className="size-3.5 text-violet-600 animate-spin shrink-0" />
-                  )}
-                  <span className="text-[12px] font-medium truncate max-w-[180px] sm:max-w-[280px]">
-                    {form.pdfFile.name}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground/80 tabular-nums shrink-0">
-                    {(form.pdfFile.size / (1024 * 1024)).toFixed(1)} MB
-                  </span>
-                  {parsePhase !== 'idle' && parsePhase !== 'ready' && (
-                    <span className="inline-flex items-center gap-1.5 text-[10px] text-violet-700 dark:text-violet-300 shrink-0">
-                      <span className="hidden sm:inline">{parsePhaseLabel}</span>
-                      <span className="tabular-nums">{parseProgressValue}%</span>
-                    </span>
-                  )}
-                  {parsePhase === 'ready' && (
-                    <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-300 shrink-0">
-                      {t('home.publisher.parseReady')}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => assignBookFile(null)}
-                    className="ml-auto inline-flex items-center justify-center size-5 rounded-full text-muted-foreground/60 hover:bg-foreground/10 hover:text-foreground transition-colors shrink-0"
-                    aria-label={t('home.publisher.clearFile')}
-                  >
-                    <X className="size-3" />
-                  </button>
-                </div>
-              )}
-
-              {form.pdfFile && parsePhase !== 'idle' && parsePhase !== 'ready' && (
-                <div className="px-1">
-                  <Progress value={parseProgressValue} className="h-1" />
-                </div>
-              )}
-
-              {form.pdfFile && !isPdfBookFile(form.pdfFile) && (
-                <p className="text-[11px] text-amber-700/90 dark:text-amber-300/90 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/60 dark:border-amber-800/50 rounded-lg px-3 py-1.5">
-                  {t('home.publisher.nonPdfHint')}
-                </p>
-              )}
-
-              {/* Primary textarea — chat-style multi-line input with char counter */}
-              <div className="relative">
-                <textarea
-                  ref={requirementTextareaRef}
-                  placeholder={t('upload.requirementPlaceholder')}
-                  maxLength={REQUIREMENT_MAX}
-                  className={cn(
-                    'w-full resize-none bg-transparent border-0 px-1 py-1.5 pr-14 text-[14px] leading-relaxed',
-                    'placeholder:text-muted-foreground/45 placeholder:whitespace-pre-line',
-                    'focus:outline-none focus:ring-0 min-h-[112px] max-h-[260px]',
-                  )}
-                  value={form.requirement}
-                  onChange={(e) => updateForm('requirement', e.target.value)}
-                  onKeyDown={handleRequirementKeyDown}
-                  rows={4}
-                />
-                <span className="absolute bottom-1 right-1 text-[10px] tabular-nums text-muted-foreground/55 select-none pointer-events-none">
-                  {form.requirement.length}/{REQUIREMENT_MAX}
-                </span>
-              </div>
+              {/* Primary textarea — chat-style multi-line input */}
+              <textarea
+                ref={requirementTextareaRef}
+                placeholder={t('upload.requirementPlaceholder')}
+                className={cn(
+                  'w-full resize-none bg-transparent border-0 px-1 py-1.5 text-[14px] leading-relaxed',
+                  'placeholder:text-muted-foreground/45 placeholder:whitespace-pre-line',
+                  'focus:outline-none focus:ring-0 min-h-[112px] max-h-[260px]',
+                )}
+                value={form.requirement}
+                onChange={(e) => updateForm('requirement', e.target.value)}
+                onKeyDown={handleRequirementKeyDown}
+                rows={4}
+              />
             </div>
 
             {/* ── Bottom toolbar ── */}
             <div className="px-3 pb-3 pt-1 flex items-center gap-1.5 border-t border-border/30">
+              {/* Unified upload hub — single entry for both books and attachments.
+                  Badge sums chapters + attachments so the user sees their total
+                  ingested-content count at a glance. */}
               <Tooltip>
                 <BookLibraryDialog
                   open={bookLibraryOpen}
                   onOpenChange={setBookLibraryOpen}
+                  initialTab={bookLibraryInitialTab}
                   onConfirm={(sel) => {
                     setBookSelection(sel);
                     setError(null);
@@ -617,34 +526,51 @@ function HomePage() {
                         }
                       : null
                   }
+                  attachments={attachments}
+                  onAddFiles={addFiles}
+                  onRemoveAttachment={removeAttachment}
+                  onLoadDemoAttachments={loadDemoAttachments}
                   side="top"
                   align="start"
                 >
                   <TooltipTrigger asChild>
                     <button
                       type="button"
-                      aria-label={t('bookLibrary.openTrigger')}
+                      aria-label={t('bookLibrary.hubTrigger')}
+                      onClick={() => setBookLibraryInitialTab('library')}
                       className={cn(
-                        'inline-flex items-center justify-center rounded-full border size-8 shrink-0 transition-all cursor-pointer',
-                        bookSelection || form.pdfFile
+                        'relative inline-flex items-center justify-center rounded-full border size-8 shrink-0 transition-all cursor-pointer',
+                        bookSelection || attachments.length > 0
                           ? 'border-violet-400/70 bg-violet-100 dark:bg-violet-900/35 text-violet-700 dark:text-violet-300'
                           : 'bg-white border-border/60 text-muted-foreground/70 hover:bg-muted/40 hover:text-foreground',
                       )}
                     >
-                      <Library className="size-3.5" />
+                      <Upload className="size-3.5" />
+                      {hubBadgeCount > 0 && (
+                        <span
+                          className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] font-semibold bg-violet-600 text-white border border-white dark:border-slate-900 shadow-sm tabular-nums"
+                          aria-hidden
+                        >
+                          {hubBadgeCount}
+                        </span>
+                      )}
                     </button>
                   </TooltipTrigger>
                 </BookLibraryDialog>
-                <TooltipContent side="top" sideOffset={4} className="max-w-[260px] text-xs">
-                  <div className="font-medium">{t('bookLibrary.openTrigger')}</div>
-                  <div className="opacity-80 mt-0.5">{t('bookLibrary.openTriggerHint')}</div>
+                <TooltipContent side="top" sideOffset={4} className="max-w-[300px] text-xs">
+                  <div className="font-medium">{t('bookLibrary.hubTrigger')}</div>
+                  <div className="opacity-80 mt-0.5">
+                    {hubBadgeCount === 0
+                      ? t('bookLibrary.hubTriggerHint', { maxMb: PUBLISHER_MAX_BOOK_MB })
+                      : t('bookLibrary.hubTriggerHintWithCount', {
+                          chapters: bookSelection?.chapters.length ?? 0,
+                          files: attachments.length,
+                        })}
+                  </div>
                 </TooltipContent>
               </Tooltip>
 
-              <GenerationToolbar
-                webSearch={form.webSearch}
-                onWebSearchChange={(v) => updateForm('webSearch', v)}
-              />
+              <AgentBar />
 
               <GenerationConfigPopover locked={generationConfigLocked} />
 
@@ -701,21 +627,20 @@ function HomePage() {
             </AnimatePresence>
           </div>
 
-          {/* Knowledge base preview — compact, only when ready & has content */}
-          {form.pdfFile &&
-            parsePhase === 'ready' &&
-            (detectedCategories.length > 0 || mockChunks.length > 0) && (
+          {/* Knowledge base preview — compact, aggregated across all ready attachments */}
+          {anyAttachmentReady &&
+            (aggregatedCategories.length > 0 || aggregatedChunks.length > 0) && (
               <motion.div
                 initial={{ opacity: 0, y: -2 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="mt-2 rounded-xl border border-emerald-200/60 dark:border-emerald-800/40 bg-emerald-50/40 dark:bg-emerald-950/20 px-3 py-2.5 space-y-2"
               >
-                {detectedCategories.length > 0 && (
+                {aggregatedCategories.length > 0 && (
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70 shrink-0">
                       {t('home.publisher.detectedLabel')}
                     </span>
-                    {detectedCategories.map((cat) => (
+                    {aggregatedCategories.map((cat) => (
                       <span
                         key={cat}
                         className="px-2 py-0.5 rounded-full text-[11px] bg-violet-100 dark:bg-violet-900/40 text-violet-800 dark:text-violet-200"
@@ -725,22 +650,29 @@ function HomePage() {
                     ))}
                   </div>
                 )}
-                {mockChunks.length > 0 && (
+                {aggregatedChunks.length > 0 && (
                   <details className="group/details">
                     <summary className="cursor-pointer list-none flex items-center gap-1.5 text-[11px] text-emerald-800 dark:text-emerald-300">
                       <ChevronDown className="size-3 transition-transform group-open/details:rotate-180" />
                       {t('home.publisher.chunksTitle')}
                       <span className="text-[10px] text-muted-foreground/70">
-                        · {mockChunks.length}
+                        · {aggregatedChunks.length}
                       </span>
                     </summary>
                     <ul className="mt-2 space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
-                      {mockChunks.map((ch) => (
+                      {aggregatedChunks.map((ch) => (
                         <li
-                          key={ch.id}
+                          key={ch.composedId}
                           className="rounded-lg border border-border/40 bg-background/60 px-2.5 py-1.5 text-[11px]"
                         >
-                          <div className="font-medium text-foreground/90">{ch.title}</div>
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="font-medium text-foreground/90 truncate">
+                              {ch.title}
+                            </span>
+                            <span className="text-[9.5px] text-muted-foreground/60 truncate">
+                              · {ch.sourceFile}
+                            </span>
+                          </div>
                           <p className="text-muted-foreground/90 mt-0.5 line-clamp-2">
                             {ch.excerpt}
                           </p>
@@ -802,12 +734,6 @@ function HomePage() {
                 const mockVis = isPublisherMockCourse(classroom.id)
                   ? getMyCourseMockVisual(classroom.id)
                   : undefined;
-                const shelfCat = resolveShelfCategory(
-                  classroom.id,
-                  shelfMap,
-                  classroom.name,
-                );
-                const isOverridden = !!shelfMap[classroom.id];
                 return (
                   <motion.div
                     key={classroom.id}
@@ -819,7 +745,7 @@ function HomePage() {
                       ease: 'easeOut',
                     }}
                   >
-                    <ClassroomCard<PublisherShelfCategoryId>
+                    <ClassroomCard
                       classroom={classroom}
                       slide={thumbnails[classroom.id]}
                       mockCover={
@@ -830,13 +756,6 @@ function HomePage() {
                             }
                           : undefined
                       }
-                      shelfEdit={{
-                        current: shelfCat,
-                        isOverridden,
-                        currentLabel: t(`home.mySpace.shelfCategories.${shelfCat}`),
-                        options: shelfCategoryOptions,
-                        onChange: (next) => handleShelfCategoryChange(classroom.id, next),
-                      }}
                       onDelete={handleDelete}
                       onRename={handleRename}
                       confirmingDelete={pendingDeleteId === classroom.id}
@@ -908,12 +827,9 @@ function DiscoverCard({ course }: { course: import('@/lib/mock/discover-courses'
           <span className="text-6xl drop-shadow-sm select-none">{course.coverEmoji}</span>
         </div>
       </div>
-      <div className="mt-2.5 px-1 space-y-0.5">
+      <div className="mt-2.5 px-1">
         <p className="font-medium text-[15px] leading-snug text-foreground/90 line-clamp-2">
           {course.title}
-        </p>
-        <p className="text-[12px] text-muted-foreground/75 tabular-nums">
-          {formatCardTimestamp(course.updatedAt)}
         </p>
       </div>
     </div>

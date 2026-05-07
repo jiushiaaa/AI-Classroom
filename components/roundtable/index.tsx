@@ -655,6 +655,7 @@ export function Roundtable({
       playbackSpeed={playbackSpeed}
       onCycleSpeed={handleCycleSpeed}
       readOnly={readOnly}
+      hideEditToggle={!isPresenting && !readOnly}
     />
   );
 

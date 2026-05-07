@@ -27,33 +27,44 @@ interface EditModeState {
   isEditing: boolean;
   /**
    * Currently focused element id on the PPTist canvas (slide editing). Only
-   * meaningful when `isEditing === true`. Used to enable the Style tab in
-   * ChatArea and to highlight the right element.
+   * meaningful when `isEditing === true`. Used to drive the right-side
+   * style drawer (see `stylePanelOpen`) and to highlight the right element.
    */
   selectedElementId: string | null;
+  /**
+   * Right-side "样式 / Format" drawer state. The drawer slides out from the
+   * right edge of the slide canvas (NOT inside ChatArea) and renders the
+   * existing StylePanel for the currently selected element. It's only
+   * meaningful when `isEditing === true` and a slide element is selected;
+   * users open it by clicking "更多" inside any element mini toolbar.
+   */
+  stylePanelOpen: boolean;
 
   setEditing: (next: boolean) => void;
   setSelectedElementId: (id: string | null) => void;
-  /** Convenience: clear edit state (used on scene change / unmount). */
+  setStylePanelOpen: (next: boolean) => void;
+  /** Convenience: clear edit state (used on preview switches / unmount). */
   reset: () => void;
 }
 
 const useEditModeStoreBase = create<EditModeState>()((set) => ({
   isEditing: false,
   selectedElementId: null,
+  stylePanelOpen: false,
 
   setEditing: (next) =>
     set((state) => {
-      // Leaving edit mode invalidates any selection.
-      if (!next && state.selectedElementId) {
-        return { isEditing: false, selectedElementId: null };
+      // Leaving edit mode invalidates any selection and closes the drawer.
+      if (!next && (state.selectedElementId || state.stylePanelOpen)) {
+        return { isEditing: false, selectedElementId: null, stylePanelOpen: false };
       }
       return { isEditing: next };
     }),
 
   setSelectedElementId: (id) => set({ selectedElementId: id }),
+  setStylePanelOpen: (next) => set({ stylePanelOpen: next }),
 
-  reset: () => set({ isEditing: false, selectedElementId: null }),
+  reset: () => set({ isEditing: false, selectedElementId: null, stylePanelOpen: false }),
 }));
 
 export const useEditModeStore = createSelectors(useEditModeStoreBase);

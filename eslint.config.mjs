@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     'packages/**',
     // Claude Code local files:
     '.claude/**',
+    // Cursor IDE local skills/settings (not part of the app):
+    '.cursor/**',
     '.superpowers/**',
     '.worktrees/**',
     // Playwright e2e tests (not React code):

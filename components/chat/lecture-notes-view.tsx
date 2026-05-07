@@ -6,6 +6,7 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type FocusEvent as ReactFocusEvent,
+  type MouseEvent as ReactMouseEvent,
 } from 'react';
 import {
   BookOpen,
@@ -49,12 +50,15 @@ interface LectureNotesViewProps {
    * as read-only.
    */
   onEditSpeech?: (sceneId: string, actionId: string, newText: string) => void;
+  /** Card click jumps global current scene (scroll alone does not call this). */
+  onSelectScene?: (sceneId: string) => void;
 }
 
 export function LectureNotesView({
   notes,
   currentSceneId,
   onEditSpeech,
+  onSelectScene,
 }: LectureNotesViewProps) {
   const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -68,6 +72,21 @@ export function LectureNotesView({
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }, [currentSceneId]);
+
+  const handleNoteCardClick = (sceneId: string, e: ReactMouseEvent<HTMLDivElement>) => {
+    if (!onSelectScene) return;
+    const raw = e.target;
+    const el =
+      raw instanceof Element
+        ? raw
+        : raw instanceof Node && raw.parentNode instanceof Element
+          ? raw.parentNode
+          : null;
+    if (!el) return;
+    if (el.closest('span[contenteditable="true"]')) return;
+    if (el.closest('button')) return;
+    onSelectScene(sceneId);
+  };
 
   // Empty state
   if (notes.length === 0) {
@@ -100,11 +119,40 @@ export function LectureNotesView({
           <div
             key={note.sceneId}
             data-scene-id={note.sceneId}
+            onClick={(e) => handleNoteCardClick(note.sceneId, e)}
+            onKeyDown={
+              onSelectScene
+                ? (e) => {
+                    if (e.key !== 'Enter' && e.key !== ' ') return;
+                    const ae = document.activeElement;
+                    if (
+                      ae instanceof Element &&
+                      e.currentTarget.contains(ae) &&
+                      ae.closest('span[contenteditable="true"]')
+                    ) {
+                      return;
+                    }
+                    e.preventDefault();
+                    onSelectScene(note.sceneId);
+                  }
+                : undefined
+            }
+            tabIndex={onSelectScene ? 0 : undefined}
+            aria-label={
+              onSelectScene
+                ? t('chat.lectureNotes.goToSlideCard', {
+                    n: pageNum,
+                    title: note.sceneTitle,
+                  })
+                : undefined
+            }
             className={cn(
               'relative mb-3 last:mb-0 rounded-lg px-3 py-2.5 transition-colors duration-200',
               isCurrent
                 ? 'bg-purple-50/80 dark:bg-purple-950/25 ring-1 ring-purple-200/60 dark:ring-purple-700/30'
                 : 'bg-gray-50/50 dark:bg-gray-800/30',
+              onSelectScene &&
+                'cursor-pointer hover:bg-gray-100/90 dark:hover:bg-gray-800/55 hover:ring-1 hover:ring-gray-200/70 dark:hover:ring-gray-600/40',
             )}
           >
             {/* Page label row */}
@@ -182,6 +230,16 @@ export function LectureNotesView({
                 }
                 if (pendingInline.length > 0) {
                   rows.push({ kind: 'trailing', inlineActions: pendingInline });
+                }
+                if (rows.length === 0) {
+                  return (
+                    <p
+                      key="empty"
+                      className="text-[11px] text-gray-400 dark:text-gray-500 py-0.5 leading-relaxed"
+                    >
+                      {t('chat.lectureNotes.noScript')}
+                    </p>
+                  );
                 }
                 return rows.map((row, i) => {
                   if (row.kind === 'discussion') {
