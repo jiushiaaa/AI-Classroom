@@ -36,11 +36,12 @@ import { nanoid } from 'nanoid';
 /** In-session clipboard for slide elements (copy / cut / paste on canvas). */
 let slideElementsClipboard: PPTElement[] | null = null;
 
-type PPTElementKey = keyof PPTElement;
+/** Keys that exist on any member of the PPTElement union (not keyof PPTElement, which is the intersection). */
+type RemovableElementProp = PPTElement extends infer U ? (U extends unknown ? keyof U : never) : never;
 
 interface RemovePropData {
   id: string;
-  propName: PPTElementKey | PPTElementKey[];
+  propName: RemovableElementProp | RemovableElementProp[];
 }
 
 interface UpdateElementData {
@@ -172,7 +173,7 @@ export function useCanvasOperations() {
         draft.canvas.elements.forEach((el) => {
           if (elementIds.includes(el.id)) {
             propNames.forEach((name) => {
-              delete el[name];
+              Reflect.deleteProperty(el as object, name);
             });
           }
         });
