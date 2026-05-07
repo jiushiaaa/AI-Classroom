@@ -35,6 +35,7 @@ import {
   PUBLISHER_MAX_BOOK_BYTES,
   PUBLISHER_MAX_BOOK_MB,
   type PublisherAttachmentEntry,
+  type PublisherKnowledgeChunkPreview,
   runPublisherParseMock,
   inferMockCategories,
   buildMockKnowledgeChunks,
@@ -44,7 +45,10 @@ import {
   type BookLibrarySelection,
 } from '@/components/publisher/book-library-dialog';
 import { ClassroomCard } from '@/components/publisher/classroom-card';
-import { buildDemoAttachmentEntries } from '@/lib/publisher/publisher-demo-attachments';
+import {
+  buildDemoAttachmentsQueuedForParse,
+  type DemoAttachmentQueued,
+} from '@/lib/publisher/publisher-demo-attachments';
 
 const log = createLogger('Home');
 
@@ -234,8 +238,15 @@ function HomePage() {
     return null;
   };
 
-  /** Kicks off mock parse pipeline for a single attachment; updates per-id phase. */
-  const startParseForAttachment = (id: string, file: File) => {
+  /**
+   * Kicks off mock parse pipeline for a single attachment; updates per-id phase.
+   * When `finalChunks` is set (demo seeds), those replace the generic filename-based chunks.
+   */
+  const startParseForAttachment = (
+    id: string,
+    file: File,
+    finalChunks?: PublisherKnowledgeChunkPreview[],
+  ) => {
     parseControllersRef.current.get(id)?.abort();
     const ac = new AbortController();
     parseControllersRef.current.set(id, ac);
@@ -249,7 +260,7 @@ function HomePage() {
           );
         }, ac.signal);
         if (ac.signal.aborted) return;
-        const chunks = buildMockKnowledgeChunks(file.name);
+        const chunks = finalChunks ?? buildMockKnowledgeChunks(file.name);
         setAttachments((prev) =>
           prev.map((a) => (a.id === id ? { ...a, mockChunks: chunks } : a)),
         );
@@ -293,22 +304,29 @@ function HomePage() {
   };
 
   /**
-   * Demo helper — loads 3 pre-parsed sample attachments without having to
-   * drag a real file in. Skips items that would exceed the 5-file cap.
+   * Demo helper — queues curated sample files and runs the same mock parse as
+   * real uploads so the home «附件解析中» strip appears; ends with seed chunks.
    */
   const loadDemoAttachments = () => {
     setError(null);
-    const seeds = buildDemoAttachmentEntries();
+    let queued: DemoAttachmentQueued[] = [];
     setAttachments((prev) => {
       const room = Math.max(0, 5 - prev.length);
-      if (room === 0) return prev;
-      const slice = seeds.slice(0, room).map((s) => ({
-        ...s,
-        detectedCategories: [...s.detectedCategories],
-        mockChunks: s.mockChunks.map((c) => ({ ...c })),
-      }));
-      return [...prev, ...slice];
+      if (room === 0) {
+        queued = [];
+        return prev;
+      }
+      queued = buildDemoAttachmentsQueuedForParse(room);
+      return [...prev, ...queued.map((q) => q.entry)];
     });
+    if (queued.length === 0) return;
+    globalThis.setTimeout(() => {
+      queued.forEach((q, i) => {
+        globalThis.setTimeout(() => {
+          startParseForAttachment(q.entry.id, q.entry.file, q.finalChunks);
+        }, i * 220);
+      });
+    }, 0);
   };
 
   /**
@@ -344,6 +362,11 @@ function HomePage() {
 
   const anyAttachmentParsing = attachments.some(
     (a) => a.phase !== 'idle' && a.phase !== 'ready',
+  );
+
+  const parsingAttachmentCount = useMemo(
+    () => attachments.filter((a) => a.phase !== 'idle' && a.phase !== 'ready').length,
+    [attachments],
   );
 
   /** Lock generation config while at least one attachment is still parsing. */
@@ -440,25 +463,6 @@ function HomePage() {
             )}
           >
             <div className="px-4 pb-2 pt-3 space-y-2">
-              {/* Inline background-parse status — clickable, opens upload hub
-                  on the «我的附件» tab so users can monitor / cancel parses. */}
-              {anyAttachmentParsing && (
-                <button
-                  type="button"
-                  onClick={() => openUploadHub('attachments')}
-                  className="inline-flex items-center gap-1.5 text-[11px] text-violet-700 dark:text-violet-300 hover:underline cursor-pointer"
-                >
-                  <Loader2 className="size-3 animate-spin" />
-                  <span>
-                    {t('home.publisher.parsingInline', {
-                      count: attachments.filter(
-                        (a) => a.phase !== 'idle' && a.phase !== 'ready',
-                      ).length,
-                    })}
-                  </span>
-                </button>
-              )}
-
               {/* Primary textarea — chat-style multi-line input */}
               <textarea
                 ref={requirementTextareaRef}
@@ -474,6 +478,36 @@ function HomePage() {
                 rows={4}
               />
             </div>
+
+            {/* Mini status row: visible while mock parse runs; opens upload hub on «我的附件». */}
+            {anyAttachmentParsing && (
+              <button
+                type="button"
+                onClick={() => openUploadHub('attachments')}
+                className={cn(
+                  'w-full flex items-center gap-3 px-4 py-2.5 text-left border-t border-violet-200/55 dark:border-violet-800/45',
+                  'bg-violet-50/95 dark:bg-violet-950/40',
+                  'hover:bg-violet-100 dark:hover:bg-violet-900/45 transition-colors cursor-pointer',
+                )}
+              >
+                <Loader2
+                  className="size-4 shrink-0 animate-spin text-violet-600 dark:text-violet-300"
+                  aria-hidden
+                />
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[13px] font-semibold text-violet-900 dark:text-violet-100">
+                    {t('home.publisher.parsingMiniTitle')}
+                  </span>
+                  <span className="block text-[11px] text-violet-800/85 dark:text-violet-200/85 mt-0.5">
+                    {t('home.publisher.parsingMiniHint', { count: parsingAttachmentCount })}
+                  </span>
+                </span>
+                <ChevronRight
+                  className="size-4 shrink-0 text-violet-500 dark:text-violet-400"
+                  aria-hidden
+                />
+              </button>
+            )}
 
             {/* ── Bottom toolbar ── */}
             <div className="px-3 pb-3 pt-1 flex items-center gap-1.5 border-t border-border/30">

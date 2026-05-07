@@ -1198,11 +1198,9 @@ function AttachmentsStep({
                         </div>
                       ) : (
                         <div className="flex flex-wrap items-center gap-1 mt-0.5">
-                          {isReady && a.detectedCategories.length > 0 && (
+                          {isReady && (
                             <span className="text-[10px] text-emerald-700 dark:text-emerald-300">
-                              {t('bookLibrary.attachmentReadyHint', {
-                                count: a.mockChunks.length,
-                              })}
+                              {t('bookLibrary.attachmentReadyHint')}
                             </span>
                           )}
                         </div>

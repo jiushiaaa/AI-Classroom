@@ -59,7 +59,7 @@
     "attachmentsAtCapacity": "已达 {{max}} 个上限，请先移除部分附件再继续添加",
     "attachmentsTryDemo": "没有合适文件？载入 3 份演示附件看效果",
     "attachmentsListTitle": "已上传附件 {{count}} / {{max}}",
-    "attachmentReadyHint": "解析完成 · {{count}} 段知识片段已就绪"
+    "attachmentReadyHint": "解析完成"
   },
   "home": {
     "brand": "AI课堂，让每一本图书都拥有专属数字老师",
@@ -174,7 +174,9 @@
       "supplementaryPlaceholder": "可选：如「请侧重第三章实验步骤」「面向高二少拓展」",
       "nonPdfHint": "当前生成管线仅附加 PDF；其他格式可先在此预览解析，进入课堂时请改用 PDF 或仅使用下方文字说明。",
       "defaultRequirement": "基于图书《{{name}}》生成与目录对齐的互动课堂；按生成配置产出课件与互动环节。",
-      "parsingInline": "{{count}} 个文件正在后台解析，点击查看详情"
+      "parsingInline": "{{count}} 个文件正在后台解析，点击查看详情",
+      "parsingMiniTitle": "附件解析中",
+      "parsingMiniHint": "{{count}} 个文件 · 点击打开「我的附件」查看进度"
     }
   },
   "toolbar": {
@@ -398,6 +400,7 @@
     "collapsePersona": "收起人设",
     "autoIntroDefault": "进入课堂时，AI 会根据课程内容自动生成适配的角色。",
     "autoPromptHint": "也可以在下方输入一句提示词，让 AI 立即按你的描述生成角色（最多 5 个）；生成后姓名 / 身份 / 介绍 / 音色都可以再调整。",
+    "autoMoreHint": "可继续在下方输入描述追加角色，或编辑已生成角色的勾选与音色。",
     "autoGenerate": {
       "inputPlaceholder": "用一句话描述你想要的角色，例如：生成一个爱提问的学生（⌘ / Ctrl + Enter 生成）",
       "inputAria": "描述要生成的角色",

@@ -5,12 +5,11 @@
  * pipeline (chip + size + categories + knowledge chunk preview) **without**
  * having to drag a real file in.
  *
- * Each preset returns:
- *   - a fake `File` (a tiny `Blob` wrapped with the right name + MIME) so the
- *     existing `<chip>` / size / `removeAttachment` code paths Just Work;
- *   - a `phase: 'ready'` so the parse animation doesn't have to be re-run;
- *   - hand-curated `detectedCategories` and `mockChunks` matching the file
- *     (better than the generic filename-heuristic output).
+ * Each preset supplies a fake `File`, hand-curated `detectedCategories` and
+ * `mockChunks`. The home «载入演示附件» button uses
+ * `buildDemoAttachmentsQueuedForParse()` so rows start in `uploading` and run
+ * the same mock parse as real uploads (mini status on the home card); instant
+ * `ready` rows are still available via `buildDemoAttachmentEntries()`.
  *
  * Three mixed-scenario presets cover the most common demo flows:
  *
@@ -163,10 +162,35 @@ function buildFakeFile(seed: DemoAttachmentSeed): File {
   });
 }
 
+/** Pair produced for the home «载入演示附件» flow — parse runs, then `finalChunks` replace generic mocks. */
+export interface DemoAttachmentQueued {
+  entry: PublisherAttachmentEntry;
+  finalChunks: PublisherKnowledgeChunkPreview[];
+}
+
+/**
+ * Demo rows that start in `uploading` with empty chunks. Caller should append
+ * `entry` to state, then run the same mock parse as real files and apply
+ * `finalChunks` when the pipeline finishes.
+ */
+export function buildDemoAttachmentsQueuedForParse(maxCount: number): DemoAttachmentQueued[] {
+  const n = Math.max(0, Math.min(maxCount, DEMO_ATTACHMENT_SEEDS.length));
+  return DEMO_ATTACHMENT_SEEDS.slice(0, n).map((seed) => ({
+    entry: {
+      id: `${seed.id}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+      file: buildFakeFile(seed),
+      phase: 'uploading' as PublisherParsePhase,
+      detectedCategories: [...seed.detectedCategories],
+      mockChunks: [],
+    },
+    finalChunks: seed.mockChunks.map((c) => ({ ...c })),
+  }));
+}
+
 /**
  * Materialise all demo seeds as ready-to-mount `PublisherAttachmentEntry`
  * objects. Each entry comes with `phase: 'ready'` so the chip skips the
- * parse animation.
+ * parse animation (tests / callers that do not run `runPublisherParseMock`).
  */
 export function buildDemoAttachmentEntries(): PublisherAttachmentEntry[] {
   return DEMO_ATTACHMENT_SEEDS.map((seed) => ({

@@ -654,21 +654,10 @@ function publisherRoleInitial(
 }
 
 /**
- * Demo-only auto generation panel.
+ * Demo-only auto generation panel (single scroll column).
  *
- * Layout:
- *   ┌── intro card ──────────────────────────────────────┐
- *   │  Shuffle icon + 一句话说明                         │
- *   ├── inline prompt input ─────────────────────────────┤
- *   │  textarea + ↑ submit button                        │
- *   │  3 ~ 5 example chips                               │
- *   ├── generated role list (max 5) ─────────────────────┤
- *   │  per-row card with editable name / identity /      │
- *   │  voice / persona (eye to expand)                   │
- *   └────────────────────────────────────────────────────┘
- *
- * The whole flow is a **front-end demo** — no real LLM call. Generated rows
- * are persisted via `savePublisherCustomRoles` so refresh keeps them.
+ * Empty state: one violet intro card (shuffle + copy) → prompt → example chips
+ * → dashed hint. After roles exist: prompt + chips + list (no duplicate intro).
  */
 interface AutoGenerateRolesPanelProps {
   value: PublisherCustomRoleRow[];
@@ -793,26 +782,54 @@ function AutoGenerateRolesPanel({
   useEffect(() => () => abortRef.current?.abort(), []);
 
   return (
-    <div className="space-y-2.5">
-      {/* ── Inline prompt input ── */}
-      <div className="relative">
+    <div className="space-y-3">
+      {/* Intro — full card when empty; compact strip when roles already exist (localStorage restore) */}
+      {value.length === 0 ? (
+        <div className="rounded-xl border border-violet-200/70 dark:border-violet-800/50 bg-violet-50/55 dark:bg-violet-950/25 px-3.5 py-3 sm:px-4 flex items-start gap-3">
+          <div
+            className="shrink-0 flex size-9 items-center justify-center rounded-full bg-violet-100/90 dark:bg-violet-900/45 ring-1 ring-violet-200/60 dark:ring-violet-700/50"
+            aria-hidden
+          >
+            <Shuffle className="size-[18px] text-violet-600 dark:text-violet-300" />
+          </div>
+          <div className="min-w-0 flex-1 space-y-1 text-left">
+            <p className="text-[12px] text-foreground/90 leading-relaxed font-medium">
+              {t('agentBar.autoIntroDefault')}
+            </p>
+            <p className="text-[10.5px] text-muted-foreground leading-relaxed">
+              {t('agentBar.autoPromptHint')}
+            </p>
+            <p className="text-[10px] text-muted-foreground/75 pt-0.5">
+              {t('agentBar.voiceAutoAssign')}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-start gap-2.5 rounded-xl border border-violet-200/55 dark:border-violet-800/45 bg-violet-50/40 dark:bg-violet-950/20 px-3 py-2.5">
+          <Shuffle className="size-4 shrink-0 text-violet-600 dark:text-violet-300 mt-0.5" aria-hidden />
+          <p className="text-[11px] text-muted-foreground leading-relaxed text-left min-w-0 flex-1">
+            {t('agentBar.autoMoreHint')}
+          </p>
+        </div>
+      )}
+
+      {/* ── Prompt + submit ── */}
+      <div className="relative rounded-xl border border-border/55 bg-background/80 dark:bg-slate-950/40 overflow-hidden shadow-sm">
         <Textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value.slice(0, 200))}
           onKeyDown={(e) => {
-            // Cmd/Ctrl + Enter to submit; plain Enter inserts newline.
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
               e.preventDefault();
               void handleGenerate();
             }
           }}
           placeholder={t('agentBar.autoGenerate.inputPlaceholder')}
-          rows={2}
+          rows={value.length === 0 ? 3 : 2}
           disabled={busy}
           className={cn(
-            'text-[12.5px] min-h-[64px] max-h-[128px] resize-none pr-12 leading-relaxed',
-            'bg-white dark:bg-slate-900 border-violet-200/70 dark:border-violet-800/50',
-            'focus-visible:border-violet-400 focus-visible:ring-violet-400/30',
+            'text-[12.5px] min-h-[72px] max-h-[140px] resize-none pr-12 leading-relaxed border-0 rounded-none shadow-none',
+            'bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0',
           )}
           aria-label={t('agentBar.autoGenerate.inputAria')}
         />
@@ -821,7 +838,7 @@ function AutoGenerateRolesPanel({
           onClick={() => void handleGenerate()}
           disabled={busy || prompt.trim().length < 2 || atCapacity}
           className={cn(
-            'absolute bottom-2 right-2 inline-flex size-8 items-center justify-center rounded-full transition-all shrink-0',
+            'absolute bottom-2.5 right-2.5 inline-flex size-8 items-center justify-center rounded-full transition-all shrink-0',
             'bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white shadow-sm',
             'hover:shadow-md hover:from-violet-600 hover:to-fuchsia-600',
             'disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:hover:from-violet-500 disabled:hover:to-fuchsia-500',
@@ -836,7 +853,7 @@ function AutoGenerateRolesPanel({
         </button>
       </div>
 
-      {/* Example chips — quick fill */}
+      {/* Example chips */}
       {!busy && (
         <div className="flex flex-wrap gap-1.5">
           {examples.map((ex) => (
@@ -846,10 +863,10 @@ function AutoGenerateRolesPanel({
               disabled={atCapacity}
               onClick={() => setPrompt(ex)}
               className={cn(
-                'text-[11px] px-2 py-0.5 rounded-full border border-border/60 text-muted-foreground/85',
-                'hover:bg-violet-50 hover:text-violet-700 hover:border-violet-300/70',
-                'dark:hover:bg-violet-950/30 dark:hover:text-violet-300',
-                'transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-muted-foreground/85 disabled:hover:border-border/60',
+                'text-[11px] px-2.5 py-1 rounded-full border border-violet-200/50 text-violet-800/90 bg-white/80',
+                'dark:border-violet-800/50 dark:text-violet-200 dark:bg-violet-950/20',
+                'hover:bg-violet-50 hover:border-violet-300/80 dark:hover:bg-violet-900/35',
+                'transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
               )}
             >
               {ex}
@@ -860,8 +877,8 @@ function AutoGenerateRolesPanel({
 
       {/* ── Generated role list ── */}
       {value.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border/60 bg-muted/15 px-3 py-4 text-center">
-          <p className="text-[11.5px] text-muted-foreground/75 leading-relaxed">
+        <div className="rounded-xl border border-dashed border-violet-200/50 dark:border-violet-800/40 bg-violet-50/20 dark:bg-violet-950/15 px-3.5 py-4 text-center">
+          <p className="text-[11.5px] text-muted-foreground/80 leading-relaxed">
             {busy ? t('agentBar.autoGenerate.thinking') : t('agentBar.autoGenerate.emptyHint')}
           </p>
         </div>
@@ -1453,30 +1470,10 @@ export function AgentBar() {
               getAgentName={getAgentName}
             />
           ) : (
-            <div className="space-y-3">
-              {/* Auto intro card — compact when there are already generated roles */}
-              {publisherCustomRoles.length === 0 && (
-                <div className="rounded-xl border border-violet-200/70 dark:border-violet-800/50 bg-violet-50/50 dark:bg-violet-950/25 px-4 py-3.5 flex items-start gap-3">
-                  <div className="relative flex items-center justify-center shrink-0 mt-0.5">
-                    <div className="absolute size-8 rounded-full bg-violet-400/10 dark:bg-violet-400/15 animate-ping [animation-duration:3s]" />
-                    <Shuffle className="relative size-4 text-violet-500 dark:text-violet-400" />
-                  </div>
-                  <div className="min-w-0 flex-1 text-left space-y-1">
-                    <p className="text-[12px] text-foreground/85 leading-relaxed">
-                      {t('agentBar.autoIntroDefault')}
-                    </p>
-                    <p className="text-[10.5px] text-muted-foreground/70 leading-relaxed">
-                      {t('agentBar.autoPromptHint')}
-                    </p>
-                  </div>
-                </div>
-              )}
-              {/* Inline prompt + editable role list */}
-              <AutoGenerateRolesPanel
-                value={publisherCustomRoles}
-                onChange={setPublisherCustomRolesPersist}
-              />
-            </div>
+            <AutoGenerateRolesPanel
+              value={publisherCustomRoles}
+              onChange={setPublisherCustomRolesPersist}
+            />
           )}
         </div>
 

@@ -59,7 +59,7 @@
     "attachmentsAtCapacity": "{{max}}-file cap reached. Remove one to add more.",
     "attachmentsTryDemo": "No file at hand? Load 3 demo attachments to see the flow",
     "attachmentsListTitle": "Uploaded attachments {{count}} / {{max}}",
-    "attachmentReadyHint": "Parsed · {{count}} knowledge chunks ready"
+    "attachmentReadyHint": "Parsing complete"
   },
   "home": {
     "brand": "AI Classroom — give every book its own dedicated digital teacher",
@@ -174,7 +174,9 @@
       "supplementaryPlaceholder": "Optional, e.g. “Focus on lab steps in chapter 3”, “Grade 11, less extension”",
       "nonPdfHint": "The current pipeline only attaches PDFs. You can preview parsing here; for generation, use a PDF or rely on the text notes below.",
       "defaultRequirement": "Build an interactive classroom aligned with the book “{{name}}” and its outline; follow generation settings for slides and activities.",
-      "parsingInline": "{{count}} file(s) parsing in the background — click to view"
+      "parsingInline": "{{count}} file(s) parsing in the background — click to view",
+      "parsingMiniTitle": "Parsing attachments",
+      "parsingMiniHint": "{{count}} file(s) · Open the Attachments tab for progress"
     }
   },
   "toolbar": {
@@ -365,6 +367,31 @@
     "readyToLearn": "Ready to learn together?",
     "expandedTitle": "Classroom Role Config",
     "configTooltip": "Click to configure classroom roles",
+    "popoverTitle": "Classroom role setup",
+    "popoverIntro": "Pick the AI teacher, teaching assistant, and student roles for this session, and assign their voices.",
+    "modePreset": "Preset mode",
+    "modeAuto": "Auto-generate",
+    "presetIntro": "Check which preset roles join the classroom; personas are provided by the system (view-only except enable).",
+    "presetEnableAria": "Enable this preset role",
+    "presetCount": "{{count}} / {{total}} preset roles selected",
+    "viewPersona": "View persona",
+    "collapsePersona": "Collapse persona",
+    "autoIntroDefault": "When you enter the classroom, AI will generate suitable roles from the course content.",
+    "autoPromptHint": "You can also type a short prompt below to generate roles immediately (up to 5). Names, identities, intros, and voices can be edited afterward.",
+    "autoMoreHint": "Add more roles with another prompt below, or edit enable / voice on the rows.",
+    "autoGenerate": {
+      "inputPlaceholder": "Describe the roles you want in one sentence, e.g. “a student who loves asking questions” (⌘ / Ctrl + Enter to generate)",
+      "inputAria": "Role generation prompt",
+      "submitAria": "Generate roles",
+      "thinking": "Preparing roles…",
+      "emptyHint": "Enter a description above and AI will generate from it. You can edit name, identity, intro, and voice later; use the checkbox to enable or disable a role.",
+      "listTitle": "{{count}} / {{max}} roles generated",
+      "atCapacity": "Limit reached",
+      "success": "Generated {{count}} {{identity}}(s)",
+      "clampedHint": "Role cap is {{max}}; extra roles were not added",
+      "errorTooShort": "Please enter at least 2 characters",
+      "errorGeneric": "Generation failed — try again later"
+    },
     "voiceLabel": "Voice",
     "voiceLoading": "Loading...",
     "voiceAutoAssign": "Voices will be auto-assigned",
