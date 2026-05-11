@@ -41,7 +41,11 @@
   "home": {
     "slogan": "التعلّم التوليدي في فصل تفاعلي متعدد الوكلاء",
     "greetingWithName": "مرحبًا، {{name}}",
-    "demoCourseClickToast": "هذه دورة تجريبية. أنشئ دورة حقيقية من الأعلى ثم افتح المحرر."
+    "demoCourseClickToast": "هذه دورة تجريبية. أنشئ دورة حقيقية من الأعلى ثم افتح المحرر.",
+    "quickModels": {
+      "yuntiPlusTagline": "أسرع وأوفر — مخططات ومقدمات",
+      "yuntiProTagline": "فهم أقوى — صعوبات وأسئلة عميقة"
+    }
   },
   "toolbar": {
     "pdfParser": "محلل PDF",

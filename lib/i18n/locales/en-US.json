@@ -167,6 +167,10 @@
       "tooLarge": "Image must be under 2MB. Please compress and try again.",
       "badType": "Only JPG, PNG, WebP, or GIF are supported."
     },
+    "quickModels": {
+      "yuntiPlusTagline": "Faster & lower cost — intros & outlines",
+      "yuntiProTagline": "Stronger reasoning — hard topics & deep Q&A"
+    },
     "publisher": {
       "dropHint": "Drag here or click to choose a file",
       "dropTitle": "Upload book / course pack",

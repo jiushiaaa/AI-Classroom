@@ -41,7 +41,11 @@
   "home": {
     "slogan": "Generative Learning in Multi-Agent Interactive Classroom",
     "greetingWithName": "Привет, {{name}}",
-    "demoCourseClickToast": "Это демо-курс. Сначала создайте настоящий курс выше, затем откройте редактор."
+    "demoCourseClickToast": "Это демо-курс. Сначала создайте настоящий курс выше, затем откройте редактор.",
+    "quickModels": {
+      "yuntiPlusTagline": "Быстрее и дешевле — планы и введения",
+      "yuntiProTagline": "Сильнее смысл — сложные темы и ответы"
+    }
   },
   "toolbar": {
     "pdfParser": "Парсер",

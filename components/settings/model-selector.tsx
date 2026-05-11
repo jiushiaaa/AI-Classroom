@@ -28,6 +28,8 @@ interface ModelSelectorProps {
   modelId: string;
   onModelChange: (providerId: ProviderId, modelId: string) => void;
   providersConfig: ProvidersConfig;
+  /** Optional root class (e.g. max height when embedded in a popover). */
+  className?: string;
 }
 
 export function ModelSelector({
@@ -35,6 +37,7 @@ export function ModelSelector({
   modelId,
   onModelChange,
   providersConfig,
+  className,
 }: ModelSelectorProps) {
   const { t } = useI18n();
   const [activeProvider, setActiveProvider] = useState<ProviderId>(providerId);
@@ -199,7 +202,12 @@ export function ModelSelector({
   }
 
   return (
-    <div className="border rounded-lg overflow-hidden flex flex-col h-[420px] relative">
+    <div
+      className={cn(
+        'border rounded-lg overflow-hidden flex flex-col h-[420px] relative',
+        className,
+      )}
+    >
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Left: Provider List */}
         <div className="w-48 border-r bg-muted/30 overflow-y-auto shrink-0">

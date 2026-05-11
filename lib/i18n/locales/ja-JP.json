@@ -41,7 +41,11 @@
   "home": {
     "slogan": "マルチエージェント対話型教室で生成的に学ぶ",
     "greetingWithName": "こんにちは、{{name}}さん",
-    "demoCourseClickToast": "これはデモ用コースです。上で実際のコースを生成してから編集に入ってください。"
+    "demoCourseClickToast": "これはデモ用コースです。上で実際のコースを生成してから編集に入ってください。",
+    "quickModels": {
+      "yuntiPlusTagline": "速く軽め・概要・章導入向き",
+      "yuntiProTagline": "理解・表現が強い・難所・深いQ&A向き"
+    }
   },
   "toolbar": {
     "pdfParser": "パーサー",

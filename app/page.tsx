@@ -45,6 +45,7 @@ import {
   type BookLibrarySelection,
 } from '@/components/publisher/book-library-dialog';
 import { ClassroomCard } from '@/components/publisher/classroom-card';
+import { HomeModelSelectorPopover } from '@/components/home/home-model-selector-popover';
 import { ReferenceBackgroundLibraryDialog } from '@/components/publisher/reference-background-library-dialog';
 import { REFERENCE_BACKGROUND_SESSION_KEY } from '@/lib/constants/reference-background';
 import { loadReferenceBackgroundTemplates } from '@/lib/utils/reference-background-library-storage';
@@ -510,6 +511,11 @@ function HomePage() {
 
             {/* ── Bottom toolbar ── */}
             <div className="px-3 pb-3 pt-1 flex items-center gap-1.5 border-t border-border/30">
+              <HomeModelSelectorPopover />
+              <div
+                className="w-px h-5 self-center bg-border/50 shrink-0 mx-0.5"
+                aria-hidden
+              />
               {/* Unified upload hub — single entry for both books and attachments.
                   Badge sums chapters + attachments so the user sees their total
                   ingested-content count at a glance. */}

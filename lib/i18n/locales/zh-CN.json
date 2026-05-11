@@ -167,6 +167,10 @@
       "tooLarge": "图片需小于 2MB，请压缩后重试",
       "badType": "仅支持 JPG、PNG、WebP、GIF"
     },
+    "quickModels": {
+      "yuntiPlusTagline": "更快更省，适合导读与大纲",
+      "yuntiProTagline": "理解表达更强，适合难点与深度问答"
+    },
     "publisher": {
       "dropHint": "拖拽到此处，或点击选择文件",
       "dropTitle": "上传图书或参考文献",
