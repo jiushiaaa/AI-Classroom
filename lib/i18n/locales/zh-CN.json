@@ -152,6 +152,21 @@
         "humanities": "人文社科"
       }
     },
+    "referenceBg": {
+      "hubTrigger": "幻灯片背景模版",
+      "hubHint": "管理已保存的整页背景图；勾选「本次使用」后，生成课堂时会作为各页幻灯片底图。",
+      "libraryTitle": "背景模版库",
+      "librarySub": "上传即保存，下次直接勾选使用",
+      "uploadAdd": "上传并保存到模版库",
+      "emptyLibrary": "还没有模版，点击上方上传第一张背景图",
+      "useThisRun": "本次生成使用此背景",
+      "deleteTemplate": "从模版库删除",
+      "clearThisRun": "取消本次选用的背景",
+      "savedToLibrary": "已保存到模版库并设为本次使用",
+      "libraryFull": "模版库已满（最多 {{max}} 张），请先删除旧模版",
+      "tooLarge": "图片需小于 2MB，请压缩后重试",
+      "badType": "仅支持 JPG、PNG、WebP、GIF"
+    },
     "publisher": {
       "dropHint": "拖拽到此处，或点击选择文件",
       "dropTitle": "上传图书或参考文献",
@@ -546,6 +561,7 @@
       "image": "图片",
       "video": "视频",
       "table": "表格",
+      "slideBg": "页背景",
       "undo": "撤销",
       "redo": "重做",
       "font": "字体",
@@ -564,6 +580,11 @@
       "subscript": "下标",
       "clearFormat": "清除格式",
       "textShadow": "文字阴影"
+    },
+    "slideCanvasBg": {
+      "pageBgTooltip": "可上传图片，更换本页幻灯片背景。",
+      "fitCover": "填充",
+      "fitContain": "适应"
     },
     "miniToolbar": {
       "toolbarAriaLabel": "文字格式工具栏",

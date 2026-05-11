@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import Link from 'next/link';
-import { ArrowUp, ChevronRight, Loader2, Upload } from 'lucide-react';
+import { ArrowUp, ChevronRight, Loader2, Plus, Upload } from 'lucide-react';
 import { useI18n } from '@/lib/hooks/use-i18n';
 import { createLogger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
@@ -45,6 +45,9 @@ import {
   type BookLibrarySelection,
 } from '@/components/publisher/book-library-dialog';
 import { ClassroomCard } from '@/components/publisher/classroom-card';
+import { ReferenceBackgroundLibraryDialog } from '@/components/publisher/reference-background-library-dialog';
+import { REFERENCE_BACKGROUND_SESSION_KEY } from '@/lib/constants/reference-background';
+import { loadReferenceBackgroundTemplates } from '@/lib/utils/reference-background-library-storage';
 
 const log = createLogger('Home');
 
@@ -111,6 +114,20 @@ function HomePage() {
   const [thumbnails, setThumbnails] = useState<Record<string, Slide>>({});
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const requirementTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const [referenceBgLibOpen, setReferenceBgLibOpen] = useState(false);
+  const [referenceLibCount, setReferenceLibCount] = useState(0);
+  /** Picked template for this run (persisted templates live in localStorage). */
+  const [referenceSession, setReferenceSession] = useState<{ id: string; dataUrl: string } | null>(
+    null,
+  );
+
+  const refreshReferenceLibCount = useCallback(() => {
+    setReferenceLibCount(loadReferenceBackgroundTemplates().length);
+  }, []);
+
+  useEffect(() => {
+    refreshReferenceLibCount();
+  }, [refreshReferenceLibCount]);
 
   /** Multi-file upload state — supports book + multiple supplementary attachments. */
   const [attachments, setAttachments] = useState<AttachmentEntry[]>([]);
@@ -314,6 +331,18 @@ function HomePage() {
     }
 
     setError(null);
+    try {
+      if (referenceSession?.dataUrl) {
+        sessionStorage.setItem(
+          REFERENCE_BACKGROUND_SESSION_KEY,
+          JSON.stringify({ v: 1, dataUrl: referenceSession.dataUrl, templateId: referenceSession.id }),
+        );
+      } else {
+        sessionStorage.removeItem(REFERENCE_BACKGROUND_SESSION_KEY);
+      }
+    } catch {
+      /* sessionStorage unavailable */
+    }
     router.push(`/classroom/${OPENMAIC_DEMO_CLASSROOM_ID}?mode=edit-preview`);
   };
 
@@ -541,6 +570,51 @@ function HomePage() {
                           files: attachments.length,
                         })}
                   </div>
+                </TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <ReferenceBackgroundLibraryDialog
+                  open={referenceBgLibOpen}
+                  onOpenChange={(o) => {
+                    setReferenceBgLibOpen(o);
+                    if (!o) refreshReferenceLibCount();
+                  }}
+                  sessionTemplateId={referenceSession?.id ?? null}
+                  onSessionTemplateChange={(id, dataUrl) => {
+                    if (id && dataUrl) setReferenceSession({ id, dataUrl });
+                    else setReferenceSession(null);
+                  }}
+                  onLibraryMutation={refreshReferenceLibCount}
+                  side="top"
+                  align="start"
+                >
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label={t('home.referenceBg.hubTrigger')}
+                      className={cn(
+                        'relative inline-flex items-center justify-center rounded-full border size-8 shrink-0 transition-all cursor-pointer',
+                        referenceSession
+                          ? 'border-violet-400/70 bg-violet-100 dark:bg-violet-900/35 text-violet-700 dark:text-violet-300'
+                          : 'bg-white border-border/60 text-muted-foreground/70 hover:bg-muted/40 hover:text-foreground',
+                      )}
+                    >
+                      <Plus className="size-3.5" />
+                      {referenceLibCount > 0 && (
+                        <span
+                          className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] font-semibold bg-violet-600 text-white border border-white dark:border-slate-900 shadow-sm tabular-nums"
+                          aria-hidden
+                        >
+                          {referenceLibCount > 99 ? '99+' : referenceLibCount}
+                        </span>
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                </ReferenceBackgroundLibraryDialog>
+                <TooltipContent side="top" sideOffset={4} className="max-w-[280px] text-xs">
+                  <div className="font-medium">{t('home.referenceBg.hubTrigger')}</div>
+                  <div className="opacity-80 mt-0.5">{t('home.referenceBg.hubHint')}</div>
                 </TooltipContent>
               </Tooltip>
 

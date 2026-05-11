@@ -35,6 +35,8 @@ const log = createLogger('Classroom');
 export interface GenerateClassroomInput {
   requirement: string;
   pdfContent?: { text: string; images: string[] };
+  /** Data URL or https URL — every generated `slide` scene uses this as full-page image background. */
+  referenceBackgroundImage?: string;
   enableWebSearch?: boolean;
   enableImageGeneration?: boolean;
   enableVideoGeneration?: boolean;
@@ -362,7 +364,13 @@ export async function generateClassroom(
       totalScenes: outlines.length,
     });
 
-    const content = await generateSceneContent(safeOutline, aiCall, { agents, languageDirective });
+    const content = await generateSceneContent(safeOutline, aiCall, {
+      agents,
+      languageDirective,
+      ...(input.referenceBackgroundImage
+        ? { referenceBackgroundImage: input.referenceBackgroundImage }
+        : {}),
+    });
     if (!content) {
       log.warn(`Skipping scene "${safeOutline.title}" — content generation failed`);
       continue;

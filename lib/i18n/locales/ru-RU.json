@@ -221,6 +221,7 @@
       "image": "Картинка",
       "video": "Видео",
       "table": "Таблица",
+      "slideBg": "Фон",
       "undo": "Отменить",
       "redo": "Вернуть",
       "font": "Шрифт",
@@ -239,6 +240,11 @@
       "subscript": "Подстрочный",
       "clearFormat": "Очистить формат",
       "textShadow": "Тень текста"
+    },
+    "slideCanvasBg": {
+      "pageBgTooltip": "Загрузите изображение, чтобы сменить фон этого слайда.",
+      "fitCover": "Заполнить",
+      "fitContain": "Вписать"
     },
     "miniToolbar": {
       "toolbarAriaLabel": "Панель форматирования текста",

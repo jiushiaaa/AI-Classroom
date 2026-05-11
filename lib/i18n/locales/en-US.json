@@ -152,6 +152,21 @@
         "humanities": "Humanities"
       }
     },
+    "referenceBg": {
+      "hubTrigger": "Slide background templates",
+      "hubHint": "Manage saved full-page backgrounds. Check “Use for this run” to send it as referenceBackgroundImage when generating.",
+      "libraryTitle": "Background template library",
+      "librarySub": "Uploads are saved — pick one next time with a single check",
+      "uploadAdd": "Upload and save to library",
+      "emptyLibrary": "No templates yet. Upload your first background above.",
+      "useThisRun": "Use for this generation",
+      "deleteTemplate": "Remove from library",
+      "clearThisRun": "Clear selection for this run",
+      "savedToLibrary": "Saved to library and selected for this run",
+      "libraryFull": "Library is full (max {{max}}). Delete an old template first.",
+      "tooLarge": "Image must be under 2MB. Please compress and try again.",
+      "badType": "Only JPG, PNG, WebP, or GIF are supported."
+    },
     "publisher": {
       "dropHint": "Drag here or click to choose a file",
       "dropTitle": "Upload book / course pack",
@@ -524,6 +539,7 @@
       "image": "Image",
       "video": "Video",
       "table": "Table",
+      "slideBg": "Page BG",
       "undo": "Undo",
       "redo": "Redo",
       "font": "Font",
@@ -542,6 +558,11 @@
       "subscript": "Subscript",
       "clearFormat": "Clear formatting",
       "textShadow": "Text shadow"
+    },
+    "slideCanvasBg": {
+      "pageBgTooltip": "Upload an image to change this slide’s background.",
+      "fitCover": "Fill",
+      "fitContain": "Fit"
     },
     "miniToolbar": {
       "toolbarAriaLabel": "Text formatting toolbar",

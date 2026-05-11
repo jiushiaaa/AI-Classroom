@@ -221,6 +221,7 @@
       "image": "صورة",
       "video": "فيديو",
       "table": "جدول",
+      "slideBg": "الخلفية",
       "undo": "تراجع",
       "redo": "إعادة",
       "font": "الخط",
@@ -239,6 +240,11 @@
       "subscript": "منخفض",
       "clearFormat": "مسح التنسيق",
       "textShadow": "ظل النص"
+    },
+    "slideCanvasBg": {
+      "pageBgTooltip": "حمّل صورة لتغيير خلفية هذه الشريحة.",
+      "fitCover": "ملء",
+      "fitContain": "ملاءمة"
     },
     "miniToolbar": {
       "toolbarAriaLabel": "شريط أدوات تنسيق النص",

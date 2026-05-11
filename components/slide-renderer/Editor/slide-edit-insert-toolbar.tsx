@@ -1,10 +1,20 @@
 'use client';
 
-import { useCallback } from 'react';
-import { ImageIcon, Redo2, Table2, Type, Undo2, Video } from 'lucide-react';
+import { useCallback, useRef } from 'react';
+import {
+  ImageIcon,
+  LayoutTemplate,
+  Maximize2,
+  Minimize2,
+  Redo2,
+  Table2,
+  Type,
+  Undo2,
+  Video,
+} from 'lucide-react';
 import { useEditModeStore } from '@/lib/store/edit-mode';
 import { useCanvasStore } from '@/lib/store/canvas';
-import { useSnapshotStore } from '@/lib/store';
+import { useSnapshotStore, useStageStore } from '@/lib/store';
 import { useCanvasOperations } from '@/lib/hooks/use-canvas-operations';
 import { useHistorySnapshot } from '@/lib/hooks/use-history-snapshot';
 import { useI18n } from '@/lib/hooks/use-i18n';
@@ -15,6 +25,7 @@ import {
   createSlideTextElement,
   createSlideVideoElement,
 } from '@/lib/utils/slide-element-factories';
+import { readFileAsReferenceBackgroundDataUrl } from '@/lib/utils/reference-background-image';
 import { Separator } from '@/components/ui/separator';
 import {
   Tooltip,
@@ -22,6 +33,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { toast } from 'sonner';
+import type { SlideBackgroundImageSize } from '@/lib/types/slides';
 
 interface InsertBtnProps {
   readonly icon: React.ReactNode;
@@ -93,13 +106,16 @@ function HistoryBtn({ icon, label, disabled, onClick }: HistoryBtnProps) {
 }
 
 /**
- * Insert tools then undo/redo above the slide canvas in edit mode.
+ * Insert tools (text / image / …), optional cover–end slide canvas background,
+ * then undo/redo — single floating strip above the slide canvas in edit mode.
  */
 export function SlideEditInsertToolbar() {
   const { t } = useI18n();
   const isEditing = useEditModeStore.use.isEditing();
   const viewportSize = useCanvasStore.use.viewportSize();
   const viewportRatio = useCanvasStore.use.viewportRatio();
+  const scenes = useStageStore.use.scenes();
+  const currentSceneId = useStageStore.use.currentSceneId();
 
   const snapshotCursor = useSnapshotStore((s) => s.snapshotCursor);
   const snapshotLength = useSnapshotStore((s) => s.snapshotLength);
@@ -108,11 +124,28 @@ export function SlideEditInsertToolbar() {
   const canUndo = snapshotCursor > 0;
   const canRedo = snapshotCursor < snapshotLength - 1;
 
-  const { addElement } = useCanvasOperations();
+  const { addElement, updateBackground } = useCanvasOperations();
   const { addHistorySnapshot } = useHistorySnapshot();
+  const bgFileRef = useRef<HTMLInputElement>(null);
 
   const vw = viewportSize || 1000;
   const vh = vw * (viewportRatio || 0.5625);
+
+  const idx = scenes.findIndex((s) => s.id === currentSceneId);
+  const current = scenes.find((s) => s.id === currentSceneId);
+  const last = scenes.length > 0 ? scenes.length - 1 : 0;
+  const showMasterBg =
+    isEditing &&
+    !!current &&
+    current.type === 'slide' &&
+    current.content.type === 'slide' &&
+    scenes.length > 0 &&
+    (idx === 0 || idx === last);
+
+  const bg = showMasterBg && current?.content.type === 'slide' ? current.content.canvas.background : undefined;
+  const imageSize: SlideBackgroundImageSize =
+    bg?.type === 'image' && bg.image?.size === 'contain' ? 'contain' : 'cover';
+  const bgIsImage = bg?.type === 'image' && !!bg.image?.src;
 
   const insertText = useCallback(() => {
     addElement(createSlideTextElement(vw, vh));
@@ -144,6 +177,38 @@ export function SlideEditInsertToolbar() {
     redo().catch(() => {});
   }, [canRedo, redo]);
 
+  const pickBackgroundFile = useCallback(() => {
+    bgFileRef.current?.click();
+  }, []);
+
+  const onBackgroundFile = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (!file) return;
+      const res = await readFileAsReferenceBackgroundDataUrl(file);
+      if (!res.ok) {
+        toast.error(res.error === 'size' ? t('home.referenceBg.tooLarge') : t('home.referenceBg.badType'));
+        return;
+      }
+      updateBackground({
+        type: 'image',
+        image: { src: res.dataUrl, size: imageSize === 'contain' ? 'contain' : 'cover' },
+      });
+      addHistorySnapshot();
+    },
+    [addHistorySnapshot, imageSize, t, updateBackground],
+  );
+
+  const setBackgroundFit = useCallback(
+    (size: SlideBackgroundImageSize) => {
+      if (bg?.type !== 'image' || !bg.image?.src) return;
+      updateBackground({ type: 'image', image: { ...bg.image, size } });
+      addHistorySnapshot();
+    },
+    [addHistorySnapshot, bg, updateBackground],
+  );
+
   if (!isEditing) return null;
 
   return (
@@ -157,6 +222,13 @@ export function SlideEditInsertToolbar() {
           'shadow-[0_1px_0_rgba(0,0,0,0.04)]',
         )}
       >
+        <input
+          ref={bgFileRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif"
+          className="hidden"
+          onChange={(ev) => void onBackgroundFile(ev)}
+        />
         <div
           className={cn(
             'flex flex-row items-stretch justify-center rounded-2xl px-1.5 py-1',
@@ -164,7 +236,7 @@ export function SlideEditInsertToolbar() {
             'ring-1 ring-inset ring-gray-200/80 dark:ring-gray-700/80',
           )}
         >
-          <div className="flex items-stretch justify-center gap-0.5 sm:gap-1">
+          <div className="flex items-stretch justify-center gap-0.5 sm:gap-1 flex-wrap sm:flex-nowrap">
             <InsertBtn icon={<Type />} label={t('editMode.insertToolbar.text')} onClick={insertText} />
             <InsertBtn
               icon={<ImageIcon />}
@@ -181,6 +253,46 @@ export function SlideEditInsertToolbar() {
               label={t('editMode.insertToolbar.table')}
               onClick={insertTable}
             />
+
+            {showMasterBg ? (
+              <>
+                <Separator
+                  orientation="vertical"
+                  className="mx-0.5 h-auto min-h-[40px] self-center bg-gray-300/80 dark:bg-gray-600/80"
+                />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex">
+                      <InsertBtn
+                        icon={<LayoutTemplate />}
+                        label={t('editMode.insertToolbar.slideBg')}
+                        onClick={pickBackgroundFile}
+                      />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-[280px] text-xs">
+                    {t('editMode.slideCanvasBg.pageBgTooltip')}
+                  </TooltipContent>
+                </Tooltip>
+                {bgIsImage ? (
+                  <>
+                    <HistoryBtn
+                      icon={<Maximize2 strokeWidth={1.75} />}
+                      label={t('editMode.slideCanvasBg.fitCover')}
+                      disabled={false}
+                      onClick={() => setBackgroundFit('cover')}
+                    />
+                    <HistoryBtn
+                      icon={<Minimize2 strokeWidth={1.75} />}
+                      label={t('editMode.slideCanvasBg.fitContain')}
+                      disabled={false}
+                      onClick={() => setBackgroundFit('contain')}
+                    />
+                  </>
+                ) : null}
+              </>
+            ) : null}
+
             <Separator
               orientation="vertical"
               className="mx-0.5 h-auto min-h-[40px] self-center bg-gray-300/80 dark:bg-gray-600/80"

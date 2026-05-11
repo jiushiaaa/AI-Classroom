@@ -40,14 +40,15 @@ export interface GeneratedSlideData {
     [key: string]: unknown;
   }>;
   background?: {
-    type: 'solid' | 'gradient';
+    type: 'solid' | 'gradient' | 'image';
     color?: string;
     gradient?: {
       type: 'linear' | 'radial';
       colors: Array<{ pos: number; color: string }>;
       rotate: number;
     };
-  };
+    image?: { src: string; size?: 'cover' | 'contain' | 'repeat' };
+  } | null;
   remark?: string;
 }
 

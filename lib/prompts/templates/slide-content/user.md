@@ -11,6 +11,9 @@
 
 ## Available Resources
 
+{{#if referenceBackgroundActive}}
+- **Slide background**: The first attached image is the publisher’s fixed full-page background for this slide. Put teaching content only in `elements`; do not recreate the backdrop as a giant image element.
+{{/if}}
 {{#if imageElementEnabled}}
 - **Available Media**: {{assignedImages}}
 {{/if}}

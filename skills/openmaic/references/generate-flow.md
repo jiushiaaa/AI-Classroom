@@ -33,6 +33,7 @@ Request body:
 Only send supported content fields:
 
 - `requirement` (required)
+- optional `referenceBackgroundImage` (string) — full-slide backdrop for every generated **slide** scene: a `data:image/...;base64,...` data URL or an `https://...` image URL. When set, the server applies it as `canvas.background` (image, cover) and passes it as the first vision image during slide content generation. Omit for legacy behavior.
 - optional `pdfContent`
 - optional `language` (`"zh-CN"` | `"en-US"`, defaults to `"zh-CN"`) — any other value silently falls back to `"zh-CN"`
 - optional `enableWebSearch` (boolean) — include web search context in outline generation

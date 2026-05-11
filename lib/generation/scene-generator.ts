@@ -71,6 +71,8 @@ export interface SceneContentOptions {
   agents?: AgentInfo[];
   languageDirective?: string;
   thinkingConfig?: ThinkingConfig;
+  /** Full-slide backdrop (data URL or https). Slide scenes use it as `background.type=image` and vision context. */
+  referenceBackgroundImage?: string;
 }
 
 export interface SceneActionsOptions {
@@ -293,6 +295,7 @@ export async function generateSceneContent(
     agents,
     languageDirective,
     thinkingConfig,
+    referenceBackgroundImage,
   } = options;
 
   // Unified path for interactive scenes (both normal and ultra mode)
@@ -330,6 +333,7 @@ export async function generateSceneContent(
         generatedMediaMapping,
         agents,
         languageDirective,
+        referenceBackgroundImage,
       );
     case 'quiz':
       return generateQuizContent(outline, aiCall, languageDirective);
@@ -606,6 +610,7 @@ async function generateSlideContent(
   generatedMediaMapping?: ImageMapping,
   agents?: AgentInfo[],
   languageDirective?: string,
+  referenceBackgroundImage?: string,
 ): Promise<GeneratedSlideContent | null> {
   // Build assigned images description for the prompt
   let assignedImagesText = '无可用图片，禁止插入任何 image 元素';
@@ -634,6 +639,24 @@ async function generateSlideContent(
     } else {
       assignedImagesText = assignedImages.map((img) => formatImageDescription(img)).join('\n');
     }
+  }
+
+  if (referenceBackgroundImage) {
+    const refNote =
+      "The first vision image is the publisher's chosen full-slide BACKGROUND (not an assignable img_n asset). Do not duplicate it as a full-canvas image element.";
+    if (!assignedImages || assignedImages.length === 0) {
+      assignedImagesText = refNote;
+    } else {
+      assignedImagesText = `${assignedImagesText}\n\n${refNote}`;
+    }
+    const refVision = {
+      id: 'user_reference_slide_background',
+      src: referenceBackgroundImage,
+    };
+    visionImages =
+      visionImages && visionImages.length > 0
+        ? [refVision, ...visionImages].slice(0, MAX_VISION_IMAGES)
+        : [refVision];
   }
 
   const generatedImageEntries = outline.mediaGenerations?.filter((mg) => mg.type === 'image') ?? [];
@@ -691,6 +714,7 @@ async function generateSlideContent(
     generatedImageEnabled,
     generatedVideoEnabled,
     mediaElementEnabled,
+    referenceBackgroundActive: Boolean(referenceBackgroundImage),
   });
 
   if (!prompts) {
@@ -755,13 +779,28 @@ async function generateSlideContent(
 
   // Process background
   let background: SlideBackground | undefined;
-  if (generatedData.background) {
-    if (generatedData.background.type === 'solid' && generatedData.background.color) {
-      background = { type: 'solid', color: generatedData.background.color };
-    } else if (generatedData.background.type === 'gradient' && generatedData.background.gradient) {
+  if (referenceBackgroundImage) {
+    background = {
+      type: 'image',
+      image: { src: referenceBackgroundImage, size: 'cover' },
+    };
+  } else if (generatedData.background && generatedData.background !== null) {
+    const bg = generatedData.background;
+    if (bg.type === 'solid' && bg.color) {
+      background = { type: 'solid', color: bg.color };
+    } else if (bg.type === 'gradient' && bg.gradient) {
       background = {
         type: 'gradient',
-        gradient: generatedData.background.gradient,
+        gradient: bg.gradient,
+      };
+    } else if (bg.type === 'image' && bg.image?.src) {
+      const size = bg.image.size;
+      background = {
+        type: 'image',
+        image: {
+          src: String(bg.image.src),
+          size: size === 'contain' || size === 'repeat' ? size : 'cover',
+        },
       };
     }
   }

@@ -221,6 +221,7 @@
       "image": "画像",
       "video": "動画",
       "table": "表",
+      "slideBg": "背景",
       "undo": "元に戻す",
       "redo": "やり直す",
       "font": "フォント",
@@ -239,6 +240,11 @@
       "subscript": "下付き",
       "clearFormat": "書式をクリア",
       "textShadow": "影付き"
+    },
+    "slideCanvasBg": {
+      "pageBgTooltip": "画像をアップロードして、このスライドの背景を変更できます。",
+      "fitCover": "塗りつぶし",
+      "fitContain": "合わせる"
     },
     "miniToolbar": {
       "toolbarAriaLabel": "テキスト書式ツールバー",

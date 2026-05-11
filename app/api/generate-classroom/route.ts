@@ -16,9 +16,17 @@ export async function POST(req: NextRequest) {
   try {
     const rawBody = (await req.json()) as Partial<GenerateClassroomInput>;
     requirementSnippet = rawBody.requirement?.substring(0, 60);
+    const refBg =
+      typeof rawBody.referenceBackgroundImage === 'string' &&
+      rawBody.referenceBackgroundImage.length > 0 &&
+      rawBody.referenceBackgroundImage.length <= 3_500_000
+        ? rawBody.referenceBackgroundImage
+        : undefined;
+
     const body: GenerateClassroomInput = {
       requirement: rawBody.requirement || '',
       ...(rawBody.pdfContent ? { pdfContent: rawBody.pdfContent } : {}),
+      ...(refBg ? { referenceBackgroundImage: refBg } : {}),
 
       ...(rawBody.enableWebSearch != null ? { enableWebSearch: rawBody.enableWebSearch } : {}),
       ...(rawBody.enableImageGeneration != null
