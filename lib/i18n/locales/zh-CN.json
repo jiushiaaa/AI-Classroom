@@ -1180,7 +1180,7 @@
   "upload": {
     "pdfSizeLimit": "支持 PDF、Word、Markdown、ePub，单文件最高 500MB",
     "generateFailed": "生成课堂失败，请重试",
-    "requirementPlaceholder": "输入你想学的任何内容，例如：\n「用python写一个贪吃蛇游戏」\n「向我讲解傅里叶变换的物理意义」\n「针对我上传的内容，生成对应的知识点讲解」",
+    "requirementPlaceholder": "描述你想学什么，以及希望怎么学：\n可包含：主题 / 学习目标 / 已有基础 / 学习深度 / 输出形式 / 上传材料说明。\n例如：「我想从零学习傅里叶变换，重点讲清物理意义，用生活类比和图示说明，并生成 30 分钟互动课堂。」",
     "requirementRequired": "请等待解析完成，或填写补充说明 / 文字需求",
     "requirementOrBook": "请上传图书课件，或展开「补充说明」输入文字需求",
     "fileTooLarge": "文件过大，请选择小于 {{maxMb}}MB 的课件",
