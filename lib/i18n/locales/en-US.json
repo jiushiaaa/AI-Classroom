@@ -544,6 +544,32 @@
       "video": "Video",
       "table": "Table",
       "slideBg": "Page BG",
+      "textMenu": {
+        "ariaLabel": "Choose text format",
+        "content": "Body",
+        "heading1": "Heading 1",
+        "heading2": "Heading 2",
+        "heading3": "Heading 3",
+        "heading4": "Heading 4",
+        "heading5": "Heading 5",
+        "caption": "Caption"
+      },
+      "tableMenu": {
+        "ariaLabel": "Choose table size",
+        "hint": "Drag to set rows and columns",
+        "selection": "{{rows}} × {{cols}}",
+        "empty": "Select size"
+      },
+      "imageUpload": {
+        "invalidType": "Please choose a valid image file",
+        "tooLarge": "Image must be smaller than 10MB",
+        "readFailed": "Failed to read image, please retry"
+      },
+      "videoUpload": {
+        "invalidType": "Please choose a valid video file",
+        "tooLarge": "Video must be smaller than 100MB",
+        "readFailed": "Failed to read video, please retry"
+      },
       "undo": "Undo",
       "redo": "Redo",
       "font": "Font",

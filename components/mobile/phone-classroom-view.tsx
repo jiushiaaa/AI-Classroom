@@ -80,10 +80,9 @@ interface PhoneClassroomViewProps {
  *   │ TabletControlBar (compact)                   │
  *   └──────────────────────────────────────────────┘
  *
- * Portrait phones don't have room for a 280px inline panel beside the
- * slide, so the side panel switches to overlay mode (full-height sheet
- * sliding in from the right with a dim scrim) and the slide stays
- * centered + width-fit on the underlying stage.
+ * Portrait phones use the same split idea, rotated vertically: slide
+ * stage on top, dialogue window below. The panel stays in the classroom
+ * flow instead of covering the stage with a right-side sheet.
  *
  * The publisher specifically requested:
  *   1. PPT 全屏放在左侧 (landscape) → MobileStage slideAlign='left'.
@@ -133,28 +132,27 @@ export function PhoneClassroomView({
   const { t } = useI18n();
   const isLandscape = orientation === 'landscape';
 
-  // Landscape phones can sit a 280px inline column next to the stage —
-  // open by default. Portrait phones use overlay mode and start closed
-  // so the slide is the first thing the user sees. The parent
+  // Landscape phones can sit a 280px inline column next to the stage.
+  // Portrait phones keep the dialogue window open as the lower half of
+  // the view, so there is no folded overlay state. The parent
   // `DevicePreviewShell` carries `key={device-orientation}` so this
   // component remounts whenever orientation flips, and the useState
-  // initializer below picks up the fresh `isLandscape` automatically.
+  // initializer below resets to the split layout automatically.
   //
   // v1.12.3 — phone collapses 问答 / 成员 / 讲解记录 into one unified
   // surface (see TabletSidePanel `unified` prop), so the tab state that
   // used to live here is no longer needed.
-  const [sidePanelOpen, setSidePanelOpen] = useState<boolean>(isLandscape);
+  const [sidePanelOpen, setSidePanelOpen] = useState<boolean>(true);
   const [sceneDrawerOpen, setSceneDrawerOpen] = useState(false);
 
   // v1.12.1 — Local immersive (fullscreen-within-the-device-frame).
-  // v1.12.4 — Defaults to true so the phone preview opens as slide-only;
   // immersive mode hides the top bar, side panel, and the entire bottom
   // TabletControlBar (not merely its secondary cluster — publishers
   // asked for no AI-teacher strip while fullscreen).
   // We avoid the browser fullscreen API because DevicePreviewShell uses
   // `transform: scale()` and native fullscreen on a scaled child does
   // not produce the intended UX.
-  const [isImmersive, setIsImmersive] = useState(true);
+  const [isImmersive, setIsImmersive] = useState(false);
   const enterImmersive = useCallback(() => {
     setIsImmersive(true);
     // Always close the side panel on entry; reopening the panel mid-
@@ -164,10 +162,9 @@ export function PhoneClassroomView({
   }, []);
   const exitImmersive = useCallback(() => {
     setIsImmersive(false);
-    // Restore the orientation-appropriate side-panel default so the
-    // post-exit state matches the regular mounted layout.
-    setSidePanelOpen(isLandscape);
-  }, [isLandscape]);
+    // Restore split mode after leaving immersive.
+    setSidePanelOpen(true);
+  }, []);
 
   const bridge = useMobileChatBridge({
     chatAreaRef,
@@ -213,8 +210,10 @@ export function PhoneClassroomView({
       {!isImmersive && (
         <TabletTopBar
           title={currentSceneTitle}
-          sidePanelOpen={sidePanelOpen}
-          onToggleSidePanel={() => setSidePanelOpen((s) => !s)}
+          sidePanelOpen={!isLandscape || sidePanelOpen}
+          onToggleSidePanel={() => {
+            if (isLandscape) setSidePanelOpen((s) => !s);
+          }}
           onOpenSceneGrid={() => setSceneDrawerOpen(true)}
           // Override stage.tsx's desktop browser-fullscreen handler
           // with our local immersive toggle. The desktop handler tries
@@ -225,12 +224,22 @@ export function PhoneClassroomView({
         />
       )}
 
-      <div className="flex-1 min-h-0 flex flex-row overflow-hidden">
+      <div
+        className={cn(
+          'flex-1 min-h-0 flex overflow-hidden',
+          isLandscape ? 'flex-row' : 'flex-col',
+        )}
+      >
         {/* Main column: stage + (compact) control bar.
             We keep the column transparent so the stage's white surface
             paints the entire region — see MobileStage's v1.11 doc-block
             for why "stage = slide" reads better than a framed card. */}
-        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+        <div
+          className={cn(
+            'flex min-w-0 flex-col overflow-hidden',
+            isLandscape ? 'flex-1' : 'h-1/2 w-full shrink-0',
+          )}
+        >
           <div className="relative flex-1 min-h-0 overflow-hidden">
             <MobileStage
               currentScene={currentScene}
@@ -259,7 +268,7 @@ export function PhoneClassroomView({
                 the panel is collapsed so the publisher can re-open it
                 without going up to the top bar. Hidden in immersive
                 mode (the chrome we are deliberately stripping). */}
-            {!isImmersive && !sidePanelOpen && (
+            {!isImmersive && isLandscape && !sidePanelOpen && (
               <button
                 type="button"
                 onClick={() => setSidePanelOpen(true)}
@@ -302,27 +311,6 @@ export function PhoneClassroomView({
               onSelect={onSelectScene}
             />
 
-            {/* Portrait: side panel becomes an overlay sheet that
-                slides in over the slide instead of pushing it. Skipped
-                entirely in immersive mode. `unified` collapses the
-                three former tabs (问答 / 成员 / 讲解记录) into one
-                scrollable column — see TabletSidePanel doc-block. */}
-            {!isLandscape && !isImmersive && (
-              <TabletSidePanel
-                open={sidePanelOpen}
-                bridge={bridge}
-                agents={agents}
-                agentsById={agentsById}
-                speakingAgentId={speakingAgentId}
-                liveText={isLiveSession ? speechText : null}
-                thinkingHint={thinkingHint}
-                currentSceneId={currentSceneId}
-                mode="overlay"
-                onClose={() => setSidePanelOpen(false)}
-                width={320}
-                unified
-              />
-            )}
           </div>
 
           {engineState === 'paused' && (
@@ -351,16 +339,11 @@ export function PhoneClassroomView({
           )}
         </div>
 
-        {/* Landscape: side panel sits inline at 280px, pushing the
-            stage column. The slide column gets `slideAlign='left'` so
-            the PPT visually flushes against the device's left edge.
-            Also gated on immersive so the stage column reclaims the
-            full device width. `unified` matches the portrait variant —
-            phone is a single-column experience regardless of which way
-            the device is held. */}
-        {isLandscape && !isImmersive && (
+        {/* Split dialogue panel. Landscape sits inline on the right;
+            portrait sits inline below the stage at half height. */}
+        {!isImmersive && (
           <TabletSidePanel
-            open={sidePanelOpen}
+            open={isLandscape ? sidePanelOpen : true}
             bridge={bridge}
             agents={agents}
             agentsById={agentsById}
@@ -369,7 +352,9 @@ export function PhoneClassroomView({
             thinkingHint={thinkingHint}
             currentSceneId={currentSceneId}
             mode="inline"
+            inlineAxis={isLandscape ? 'horizontal' : 'vertical'}
             width={280}
+            height="50%"
             unified
           />
         )}

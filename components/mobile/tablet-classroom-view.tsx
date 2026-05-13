@@ -13,7 +13,7 @@ import { useI18n } from '@/lib/hooks/use-i18n';
 import { TabletTopBar } from './tablet-top-bar';
 import { MobileStage } from './mobile-stage';
 import { TabletControlBar } from './tablet-control-bar';
-import { TabletSidePanel, type TabletSidePanelTab } from './tablet-side-panel';
+import { TabletSidePanel } from './tablet-side-panel';
 import { MobileSceneDrawer } from './mobile-scene-drawer';
 import { cn } from '@/lib/utils';
 
@@ -65,21 +65,26 @@ interface TabletClassroomViewProps {
  *   ┌──────────────────────────────────────────────┐
  *   │ TabletTopBar (52px)                          │
  *   ├──────────────────────────────┬───────────────┤
- *   │                              │               │
- *   │ MobileStage (light gradient   │ TabletSidePanel│
- *   │   backdrop, slide centered)   │  qa /         │
- *   │                              │  members /    │
- *   │                              │  narration log│
- *   │                              │               │
- *   ├──────────────────────────────┤               │
- *   │ TabletControlBar (~76px)      │               │
+ *   │                              │ Members chips │
+ *   │ MobileStage (light gradient  │ ─────────────│
+ *   │   backdrop, slide centered)  │ Merged stream │
+ *   │                              │  (lecture +   │
+ *   │                              │   Q&A chrono) │
+ *   │                              │ ─────────────│
+ *   ├──────────────────────────────┤ Chat input    │
+ *   │ TabletControlBar (~76px)     │               │
  *   └──────────────────────────────┴───────────────┘
  *
- * The side panel is open by default in landscape (where the extra width
- * makes a 340px column negligible) and closed in portrait. A floating
- * "open panel" button surfaces in the top-right corner of the stage when
- * the panel is hidden so the publisher can re-open it without going up
- * to the top bar.
+ * Landscape uses a left/right split. Portrait uses the same classroom
+ * split rotated vertically: stage on top, dialogue panel below. The
+ * portrait panel stays inline instead of folding into a hidden sheet.
+ *
+ * v1.12.6 — Aligned with PhoneClassroomView: the right-side dialogue
+ * column now uses `TabletSidePanel` in `unified` mode, mirroring the
+ * phone layout (member chips on top, lecture transcript + Q&A merged
+ * chronologically, chat input footer). The previous "问答 / 成员 /
+ * 讲解记录" segmented header was dropped per publisher feedback so the
+ * three device previews share one mental model.
  */
 export function TabletClassroomView({
   orientation,
@@ -101,7 +106,6 @@ export function TabletClassroomView({
   onNextSlide,
   onPlayPause,
   onSelectScene,
-  onTogglePresentation,
   onRetryGeneration,
   whiteboardOpen,
   onToggleWhiteboard,
@@ -116,8 +120,7 @@ export function TabletClassroomView({
 }: TabletClassroomViewProps) {
   const { t } = useI18n();
   const isLandscape = orientation === 'landscape';
-  const [sidePanelOpen, setSidePanelOpen] = useState<boolean>(isLandscape);
-  const [activeSideTab, setActiveSideTab] = useState<TabletSidePanelTab>('qa');
+  const [sidePanelOpen, setSidePanelOpen] = useState<boolean>(true);
   const [sceneDrawerOpen, setSceneDrawerOpen] = useState(false);
 
   // v1.12.1 — Local immersive (fullscreen) toggle. See PhoneClassroomView
@@ -130,8 +133,8 @@ export function TabletClassroomView({
   }, []);
   const exitImmersive = useCallback(() => {
     setIsImmersive(false);
-    setSidePanelOpen(isLandscape);
-  }, [isLandscape]);
+    setSidePanelOpen(true);
+  }, []);
 
   const bridge = useMobileChatBridge({
     chatAreaRef,
@@ -157,9 +160,11 @@ export function TabletClassroomView({
   const speechText = playbackView.sourceText || null;
   const thinkingHint = thinkingState ? humanReadableThinking(thinkingState.stage) : null;
 
+  // v1.12.6 — Side panel is now unified (no narrationLog tab to switch
+  // to); opening the panel is enough since the lecture transcript is
+  // already woven into the merged stream.
   const expandTranscript = useCallback(() => {
     setSidePanelOpen(true);
-    setActiveSideTab('narrationLog');
   }, []);
 
   return (
@@ -167,8 +172,10 @@ export function TabletClassroomView({
       {!isImmersive && (
         <TabletTopBar
           title={currentSceneTitle}
-          sidePanelOpen={sidePanelOpen}
-          onToggleSidePanel={() => setSidePanelOpen((s) => !s)}
+          sidePanelOpen={!isLandscape || sidePanelOpen}
+          onToggleSidePanel={() => {
+            if (isLandscape) setSidePanelOpen((s) => !s);
+          }}
           onOpenSceneGrid={() => setSceneDrawerOpen(true)}
           // Local immersive toggle — see PhoneClassroomView's matching
           // override for the rationale.
@@ -176,12 +183,22 @@ export function TabletClassroomView({
         />
       )}
 
-      <div className="flex-1 min-h-0 flex flex-row overflow-hidden">
+      <div
+        className={cn(
+          'flex-1 min-h-0 flex overflow-hidden',
+          isLandscape ? 'flex-row' : 'flex-col',
+        )}
+      >
         {/* Main column — stage + control bar. The stage component
             paints its own gradient backdrop so the slide visually
             "lifts" off the page; the column itself is a no-op flex
             container with no fallback color underneath. */}
-        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+        <div
+          className={cn(
+            'flex min-w-0 flex-col overflow-hidden',
+            isLandscape ? 'flex-1' : 'h-1/2 w-full shrink-0',
+          )}
+        >
           <div className="relative flex-1 min-h-0 overflow-hidden">
             <MobileStage
               currentScene={currentScene}
@@ -202,7 +219,7 @@ export function TabletClassroomView({
             {/* Floating open-panel button — only when side panel is
                 hidden AND we are not in immersive mode (immersive
                 deliberately strips chrome). */}
-            {!isImmersive && !sidePanelOpen && (
+            {!isImmersive && isLandscape && !sidePanelOpen && (
               <button
                 type="button"
                 onClick={() => setSidePanelOpen(true)}
@@ -266,13 +283,15 @@ export function TabletClassroomView({
           />
         </div>
 
-        {/* Inline side panel — gated on immersive so the stage column
-            reclaims the full device width when fullscreen. */}
+        {/* Inline side panel — landscape sits on the right; portrait
+            sits below the stage at half height. Gated on immersive so
+            the stage reclaims the full device frame when fullscreen.
+            `unified` keeps the iPad layout in lockstep with the phone
+            preview: member chips on top, lecture + Q&A merged below,
+            chat input footer. */}
         {!isImmersive && (
           <TabletSidePanel
-            open={sidePanelOpen}
-            activeTab={activeSideTab}
-            onChangeTab={setActiveSideTab}
+            open={isLandscape ? sidePanelOpen : true}
             bridge={bridge}
             agents={agents}
             agentsById={agentsById}
@@ -280,6 +299,9 @@ export function TabletClassroomView({
             liveText={isLiveSession ? speechText : null}
             thinkingHint={thinkingHint}
             currentSceneId={currentSceneId}
+            inlineAxis={isLandscape ? 'horizontal' : 'vertical'}
+            height="50%"
+            unified
           />
         )}
       </div>

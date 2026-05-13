@@ -566,6 +566,32 @@
       "video": "视频",
       "table": "表格",
       "slideBg": "页背景",
+      "textMenu": {
+        "ariaLabel": "选择文本格式",
+        "content": "正文",
+        "heading1": "标题 1",
+        "heading2": "标题 2",
+        "heading3": "标题 3",
+        "heading4": "标题 4",
+        "heading5": "标题 5",
+        "caption": "标注"
+      },
+      "tableMenu": {
+        "ariaLabel": "选择表格行列",
+        "hint": "拖动鼠标选择行列数",
+        "selection": "{{rows}} 行 × {{cols}} 列",
+        "empty": "选择行列"
+      },
+      "imageUpload": {
+        "invalidType": "请选择有效的图片文件",
+        "tooLarge": "图片大小不能超过 10MB",
+        "readFailed": "读取图片失败，请重试"
+      },
+      "videoUpload": {
+        "invalidType": "请选择有效的视频文件",
+        "tooLarge": "视频大小不能超过 100MB",
+        "readFailed": "读取视频失败，请重试"
+      },
       "undo": "撤销",
       "redo": "重做",
       "font": "字体",
@@ -1261,8 +1287,8 @@
     "selectedAgents": "选中的智能体",
     "required": "必选",
     "agentNames": {
-      "default-1": "云梯教师",
-      "default-2": "云梯助教",
+      "default-1": "AI教师",
+      "default-2": "AI助教",
       "default-3": "李华",
       "default-4": "韩梅梅",
       "default-5": "王小明",

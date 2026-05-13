@@ -39,20 +39,23 @@ interface TabletSidePanelProps {
 
   /**
    * `'inline'` (default) → the panel sits inline as a flex column —
-   * pushes the main stage column. Used by iPad and phone landscape
-   * where there is enough horizontal room for a 320–340px column.
+   * pushes the main stage column. In landscape it consumes width; in
+   * portrait it can consume height so the stage and dialogue split
+   * vertically.
    *
    * `'overlay'` → the panel floats over the stage as an absolutely
-   * positioned right-anchored sheet with a dim scrim behind it. Used
-   * by phone portrait where the device is too narrow to allow inline
-   * splitting; opening the panel pulls it over the slide instead of
-   * shrinking the slide.
+   * positioned right-anchored sheet with a dim scrim behind it. Kept as
+   * a reusable fallback for narrow custom surfaces; the current phone /
+   * iPad preview uses inline vertical splitting in portrait.
    */
   readonly mode?: 'inline' | 'overlay';
+  readonly inlineAxis?: 'horizontal' | 'vertical';
   /** Used in overlay mode to dismiss the panel by tapping the scrim. */
   readonly onClose?: () => void;
   /** Override the default 340px panel width (used by phone landscape). */
   readonly width?: number;
+  /** Override the default inline height when `inlineAxis="vertical"`. */
+  readonly height?: number | string;
 
   /**
    * When true, the panel renders a single unified column instead of the
@@ -117,14 +120,17 @@ export function TabletSidePanel({
   thinkingHint,
   currentSceneId,
   mode = 'inline',
+  inlineAxis = 'horizontal',
   onClose,
   width,
+  height,
   unified = false,
   className,
 }: TabletSidePanelProps) {
   const { t } = useI18n();
 
   const panelWidth = width ?? PANEL_WIDTH_OPEN;
+  const panelHeight = height ?? PANEL_WIDTH_OPEN;
 
   // ── Tab header (only rendered in tab mode — unified layout collapses
   //    the three sections into one scroll column with no top tabs). ──
@@ -197,9 +203,9 @@ export function TabletSidePanel({
     </div>
   );
 
-  // Overlay mode: fixed right-anchored sheet with scrim. Used by phone
-  // portrait where there's no room to inline a 320px column without
-  // killing the slide.
+  // Overlay mode: fixed right-anchored sheet with scrim. Kept for
+  // custom narrow surfaces; mobile classroom portrait now uses inline
+  // vertical splitting instead.
   if (mode === 'overlay') {
     return (
       <AnimatePresence initial={false}>
@@ -237,7 +243,33 @@ export function TabletSidePanel({
     );
   }
 
-  // Inline mode (default): flex column that animates width.
+  // Inline mode (default): flex column that animates width in landscape
+  // and height in portrait.
+  if (inlineAxis === 'vertical') {
+    return (
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.aside
+            key="tablet-side-panel-vertical"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: panelHeight, opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
+            style={{ height: panelHeight }}
+            className={cn(
+              'shrink-0 w-full flex flex-col bg-white dark:bg-gray-950 border-t border-gray-100 dark:border-gray-800 overflow-hidden',
+              className,
+            )}
+            aria-label="Auxiliary panel"
+          >
+            {tabHeader}
+            {activeContent}
+          </motion.aside>
+        )}
+      </AnimatePresence>
+    );
+  }
+
   return (
     <AnimatePresence initial={false}>
       {open && (

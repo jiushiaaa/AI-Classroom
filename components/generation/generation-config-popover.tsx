@@ -58,6 +58,12 @@ interface GenerationItemDef {
   defaultValue: number;
   min: number;
   max: number;
+  /**
+   * How many configured units can fit into one page budget slot.
+   * Example: 5 quiz questions can be shown on one page, so their quantity
+   * should not consume 5 total pages in the planner.
+   */
+  unitsPerPage: number;
   /** Stepper increment when bumping a single value. */
   step: number;
   activeColor: string;
@@ -67,45 +73,50 @@ const ITEMS: GenerationItemDef[] = [
   {
     id: 'explanationPpt',
     icon: BookOpen,
-    defaultValue: 6,
-    min: 1,
+    defaultValue: 8,
+    min: 0,
     max: 50,
+    unitsPerPage: 1,
     step: 1,
     activeColor: 'text-violet-600 dark:text-violet-300 bg-violet-100 dark:bg-violet-900/30',
   },
   {
     id: 'testQuestions',
     icon: CircleHelp,
-    defaultValue: 10,
-    min: 1,
-    max: 50,
+    defaultValue: 5,
+    min: 0,
+    max: 30,
+    unitsPerPage: 5,
     step: 1,
     activeColor: 'text-amber-600 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/30',
   },
   {
     id: 'simulation',
     icon: FlaskConical,
-    defaultValue: 2,
-    min: 1,
+    defaultValue: 1,
+    min: 0,
     max: 10,
+    unitsPerPage: 1,
     step: 1,
     activeColor: 'text-cyan-600 dark:text-cyan-300 bg-cyan-100 dark:bg-cyan-900/30',
   },
   {
     id: 'gameAnimation',
     icon: Gamepad2,
-    defaultValue: 3,
-    min: 1,
-    max: 20,
+    defaultValue: 1,
+    min: 0,
+    max: 10,
+    unitsPerPage: 1,
     step: 1,
     activeColor: 'text-emerald-600 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/30',
   },
   {
     id: 'onlineCoding',
     icon: Code,
-    defaultValue: 2,
-    min: 1,
-    max: 20,
+    defaultValue: 1,
+    min: 0,
+    max: 10,
+    unitsPerPage: 1,
     step: 1,
     activeColor: 'text-rose-600 dark:text-rose-300 bg-rose-100 dark:bg-rose-900/30',
   },
@@ -113,17 +124,19 @@ const ITEMS: GenerationItemDef[] = [
     id: 'projectChallenge',
     icon: Target,
     defaultValue: 1,
-    min: 1,
-    max: 5,
+    min: 0,
+    max: 10,
+    unitsPerPage: 1,
     step: 1,
     activeColor: 'text-indigo-600 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/30',
   },
   {
     id: 'mindMap',
     icon: Brain,
-    defaultValue: 2,
-    min: 1,
+    defaultValue: 1,
+    min: 0,
     max: 10,
+    unitsPerPage: 1,
     step: 1,
     activeColor: 'text-sky-600 dark:text-sky-300 bg-sky-100 dark:bg-sky-900/30',
   },
@@ -144,14 +157,24 @@ export interface GenerationConfigState {
   items: Record<GenerationItemId, GenerationSlot>;
 }
 
-const TOTAL_PAGES_DEFAULT = 30;
-const TOTAL_PAGES_MIN = 5;
-const TOTAL_PAGES_MAX = 100;
-const TOTAL_PAGES_STEP = 5;
+const TOTAL_PAGES_DEFAULT = 20;
+const TOTAL_PAGES_MIN = 1;
+const TOTAL_PAGES_MAX = 50;
+const TOTAL_PAGES_STEP = 1;
 
 function clampInt(value: unknown, min: number, max: number, fallback: number): number {
   const n = typeof value === 'number' && Number.isFinite(value) ? value : fallback;
   return Math.max(min, Math.min(max, Math.round(n)));
+}
+
+function estimatePagesForItem(item: GenerationItemDef, value: number): number {
+  if (value <= 0) return 0;
+  return Math.ceil(value / item.unitsPerPage);
+}
+
+function maxUnitsForPageBudget(item: GenerationItemDef, pageBudget: number): number {
+  if (pageBudget <= 0) return 0;
+  return Math.min(item.max, pageBudget * item.unitsPerPage);
 }
 
 function getDefaultConfig(): GenerationConfigState {
@@ -255,7 +278,7 @@ function computeSummary(config: GenerationConfigState): SummaryInfo {
   for (const item of ITEMS) {
     const slot = config.items[item.id];
     if (slot.mode === 'custom') {
-      used += slot.value;
+      used += estimatePagesForItem(item, slot.value);
       customCount += 1;
     } else {
       autoCount += 1;
@@ -296,6 +319,7 @@ interface SteppedRowProps {
   defaultValue: number;
   onChange: (next: GenerationSlot) => void;
   emphasis?: boolean;
+  disableIncrement?: boolean;
   /** Hide the leading icon block — used by the "total pages" row to keep the
    *  header visually clean (the row is already differentiated by `emphasis`). */
   hideIcon?: boolean;
@@ -314,6 +338,7 @@ function StepperRow({
   defaultValue,
   onChange,
   emphasis = false,
+  disableIncrement = false,
   hideIcon = false,
 }: Readonly<SteppedRowProps>) {
   const { t } = useI18n();
@@ -326,14 +351,12 @@ function StepperRow({
   };
 
   const handleMinus = () => {
-    if (isAuto) return;
-    const next = slot.value - step;
-    if (next < min) {
-      // Already at the minimum custom value: revert to auto.
-      setAuto();
-    } else {
-      setCustom(next);
+    if (isAuto) {
+      setCustom(Math.max(min, defaultValue - step));
+      return;
     }
+    const next = slot.value - step;
+    setCustom(next);
   };
 
   const handlePlus = () => {
@@ -341,7 +364,7 @@ function StepperRow({
       setCustom(Math.max(min, defaultValue));
       return;
     }
-    if (slot.value >= max) return;
+    if (slot.value >= max || disableIncrement) return;
     setCustom(slot.value + step);
   };
 
@@ -399,7 +422,7 @@ function StepperRow({
         <button
           type="button"
           onClick={handleMinus}
-          disabled={isAuto}
+          disabled={!isAuto && slot.value <= min}
           className="size-7 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/70 disabled:opacity-25 disabled:cursor-not-allowed"
           aria-label="−"
         >
@@ -435,7 +458,7 @@ function StepperRow({
         <button
           type="button"
           onClick={handlePlus}
-          disabled={!isAuto && slot.value >= max}
+          disabled={(!isAuto && slot.value >= max) || disableIncrement}
           className={cn(
             'size-7 rounded-full flex items-center justify-center transition-colors',
             'disabled:opacity-25 disabled:cursor-not-allowed',
@@ -457,7 +480,7 @@ function triggerClass(locked: boolean, totalAuto: boolean, customCount: number) 
     return 'opacity-45 cursor-not-allowed border-border/50 text-muted-foreground';
   }
   if (totalAuto && customCount === 0) {
-    return 'cursor-pointer bg-violet-100 dark:bg-violet-900/30 text-violet-800 dark:text-violet-200 border-violet-500/80 shadow-[0_0_12px_rgba(124,58,237,0.2)]';
+    return 'cursor-pointer bg-white dark:bg-slate-900 text-muted-foreground border-border/60 hover:bg-muted/40 hover:text-foreground';
   }
   return 'cursor-pointer bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border-violet-400/70 shadow-[0_0_12px_rgba(124,58,237,0.25)]';
 }
@@ -557,10 +580,33 @@ export function GenerationConfigPopover({ locked = false }: Readonly<{ locked?: 
   const setTotalSlot = (slot: GenerationSlot) =>
     persist({ ...config, totalPages: { ...slot, value: clampInt(slot.value, TOTAL_PAGES_MIN, TOTAL_PAGES_MAX, TOTAL_PAGES_DEFAULT) } });
 
-  const setItemSlot = (id: GenerationItemId, slot: GenerationSlot) =>
-    persist({ ...config, items: { ...config.items, [id]: slot } });
-
   const summary = useMemo(() => computeSummary(config), [config]);
+  const getCustomUsedExcept = (id: GenerationItemId) =>
+    ITEMS.reduce((sum, item) => {
+      if (item.id === id) return sum;
+      const current = config.items[item.id];
+      return current.mode === 'custom'
+        ? sum + estimatePagesForItem(item, current.value)
+        : sum;
+    }, 0);
+
+  const setItemSlot = (id: GenerationItemId, slot: GenerationSlot) => {
+    const item = ITEMS.find((candidate) => candidate.id === id);
+    if (!item) return;
+
+    let nextSlot = slot;
+    if (slot.mode === 'custom') {
+      let value = clampInt(slot.value, item.min, item.max, item.defaultValue);
+      if (config.totalPages.mode === 'custom') {
+        const remainingBudget = Math.max(0, config.totalPages.value - getCustomUsedExcept(id));
+        value = Math.min(value, maxUnitsForPageBudget(item, remainingBudget));
+      }
+      nextSlot = { mode: 'custom', value };
+    }
+
+    persist({ ...config, items: { ...config.items, [id]: nextSlot } });
+  };
+
   const totalUnit = t('toolbar.generationConfig.totalPagesUnit');
   const totalAuto = config.totalPages.mode === 'auto';
   const hasCustomGenerationConfig =
@@ -670,6 +716,16 @@ export function GenerationConfigPopover({ locked = false }: Readonly<{ locked?: 
               const name = t(nameKey);
               const desc = t(descKey);
               const unit = t(unitKey);
+              const slot = config.items[item.id];
+              const remainingBudget =
+                config.totalPages.mode === 'custom'
+                  ? config.totalPages.value - getCustomUsedExcept(item.id)
+                  : Number.POSITIVE_INFINITY;
+              const disableIncrement =
+                config.totalPages.mode === 'custom'
+                && (slot.mode === 'custom'
+                  ? estimatePagesForItem(item, slot.value + item.step) > remainingBudget
+                  : remainingBudget <= 0);
               return (
                 <StepperRow
                   key={item.id}
@@ -678,12 +734,13 @@ export function GenerationConfigPopover({ locked = false }: Readonly<{ locked?: 
                   name={name}
                   desc={desc}
                   unit={unit}
-                  slot={config.items[item.id]}
+                  slot={slot}
                   min={item.min}
                   max={item.max}
                   step={item.step}
                   defaultValue={item.defaultValue}
                   onChange={(slot) => setItemSlot(item.id, slot)}
+                  disableIncrement={disableIncrement}
                 />
               );
             })}
