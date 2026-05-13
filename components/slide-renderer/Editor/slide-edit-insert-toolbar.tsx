@@ -2,7 +2,6 @@
 
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
-  ChevronDown,
   Heading1,
   Heading2,
   Heading3,
@@ -54,7 +53,6 @@ const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 interface InsertBtnVisualProps {
   readonly icon: React.ReactNode;
   readonly label: string;
-  readonly showCaret?: boolean;
   readonly active?: boolean;
 }
 
@@ -68,18 +66,17 @@ const insertBtnClass = cn(
   '[&_svg]:size-[18px] text-gray-500 group-hover:text-violet-600 dark:text-gray-400 dark:group-hover:text-violet-400',
 );
 
-function InsertBtnLabel({ icon, label, showCaret, active }: InsertBtnVisualProps) {
+function InsertBtnLabel({ icon, label, active }: InsertBtnVisualProps) {
   return (
     <>
       <span className="flex items-center justify-center">{icon}</span>
       <span
         className={cn(
-          'inline-flex items-center gap-0.5 leading-none tracking-tight',
+          'leading-none tracking-tight',
           active && 'text-violet-600 dark:text-violet-400',
         )}
       >
         {label}
-        {showCaret ? <ChevronDown className="!size-3 opacity-60" strokeWidth={2} /> : null}
       </span>
     </>
   );
@@ -94,7 +91,6 @@ interface InsertBtnProps extends InsertBtnVisualProps {
 function InsertBtn({
   icon,
   label,
-  showCaret,
   active,
   onClick,
   ariaHasPopup,
@@ -111,7 +107,7 @@ function InsertBtn({
       onClick={onClick}
       className={cn(insertBtnClass, active && 'bg-white dark:bg-gray-800/90 ring-1 ring-violet-200/70')}
     >
-      <InsertBtnLabel icon={icon} label={label} showCaret={showCaret} active={active} />
+      <InsertBtnLabel icon={icon} label={label} active={active} />
     </button>
   );
 }
@@ -444,7 +440,6 @@ export function SlideEditInsertToolbar() {
                   <InsertBtnLabel
                     icon={<Type />}
                     label={t('editMode.insertToolbar.text')}
-                    showCaret
                     active={textMenuOpen}
                   />
                 </button>
@@ -516,7 +511,6 @@ export function SlideEditInsertToolbar() {
                   <InsertBtnLabel
                     icon={<Table2 />}
                     label={t('editMode.insertToolbar.table')}
-                    showCaret
                     active={tableMenuOpen}
                   />
                 </button>
