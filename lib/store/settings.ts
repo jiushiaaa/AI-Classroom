@@ -202,6 +202,16 @@ export interface SettingsState {
   chatAreaCollapsed: boolean;
   chatAreaWidth: number;
 
+  /**
+   * Publisher toggle for real-time Q&A interactions in the classroom.
+   * When false, the classroom hides:
+   *   • the chat / discussion side tab,
+   *   • the round-table participants column + voice/text input,
+   *   • the agent-bar auto-generate mode + every non-teacher preset.
+   * Default: true (interactions enabled).
+   */
+  realtimeQAEnabled: boolean;
+
   // Actions
   setModel: (providerId: ProviderId, modelId: string) => void;
   setThinkingConfig: (
@@ -231,6 +241,8 @@ export interface SettingsState {
   setSidebarCollapsed: (collapsed: boolean) => void;
   setChatAreaCollapsed: (collapsed: boolean) => void;
   setChatAreaWidth: (width: number) => void;
+
+  setRealtimeQAEnabled: (enabled: boolean) => void;
 
   // Audio actions
   setTTSProvider: (providerId: TTSProviderId) => void;
@@ -712,6 +724,10 @@ export const useSettingsStore = create<SettingsState>()(
         chatAreaCollapsed: true,
         chatAreaWidth: 320,
 
+        // Real-time Q&A interactions on by default; publishers can flip this
+        // off from the toolbar generation-config popover.
+        realtimeQAEnabled: true,
+
         // Audio settings (use defaults)
         ...defaultAudioConfig,
 
@@ -822,6 +838,8 @@ export const useSettingsStore = create<SettingsState>()(
         setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
         setChatAreaCollapsed: (collapsed) => set({ chatAreaCollapsed: collapsed }),
         setChatAreaWidth: (width) => set({ chatAreaWidth: width }),
+
+        setRealtimeQAEnabled: (enabled) => set({ realtimeQAEnabled: enabled }),
 
         // Audio actions
         setTTSProvider: (providerId) =>
@@ -1617,6 +1635,10 @@ export const useSettingsStore = create<SettingsState>()(
 
         if ((state as Record<string, unknown>).presetAgentOverrides === undefined) {
           (state as Record<string, unknown>).presetAgentOverrides = {};
+        }
+
+        if ((state as Record<string, unknown>).realtimeQAEnabled === undefined) {
+          (state as Record<string, unknown>).realtimeQAEnabled = true;
         }
 
         if ((state as Record<string, unknown>).thinkingConfigs === undefined) {

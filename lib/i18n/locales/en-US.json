@@ -263,6 +263,13 @@
       "statusMismatch": "{{used}}{{unit}} configured ≠ {{total}}{{unit}} total — adjust",
       "selectedCount": "{{count}} selected",
       "apply": "Apply",
+      "realtimeQA": {
+        "label": "Real-time Q&A",
+        "descEnabled": "Keep classroom interaction: ask the AI teacher and join roundtable discussions.",
+        "descDisabled": "Lecture-only mode: keep the AI teacher's narration; hide chat, peers, and inputs.",
+        "tipDisable": "Click to disable real-time Q&A (lecture-only)",
+        "tipEnable": "Click to enable real-time Q&A (full interaction)"
+      },
       "items": {
         "explanationPpt": {
           "name": "Lecture slides",
@@ -414,7 +421,9 @@
     "modePreset": "Preset mode",
     "modeAuto": "Auto-generate",
     "presetIntro": "Check which preset roles join the classroom. You can edit each role’s display name and persona (leave blank to restore defaults) and pick voices.",
+    "presetIntroTeacherOnly": "Real-time Q&A is off, so this session is taught by the AI teacher only. You can still adjust their display name, persona, and voice.",
     "presetRolesHeading": "Participating classroom roles",
+    "presetRolesHeadingTeacherOnly": "AI teacher",
     "presetEnableAria": "Enable this preset role",
     "presetRoleNameAria": "Preset role display name",
     "presetEditNameAria": "Edit display name",

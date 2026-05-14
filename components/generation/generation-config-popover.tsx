@@ -13,6 +13,7 @@ import {
   Brain,
   Minus,
   Plus,
+  MessagesSquare,
   SlidersHorizontal,
   X,
 } from 'lucide-react';
@@ -26,6 +27,7 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/hooks/use-i18n';
+import { useSettingsStore } from '@/lib/store/settings';
 
 const STORAGE_KEY = 'pubGenerationConfig';
 
@@ -621,10 +623,86 @@ function StatusLine({ summary, totalUnit, totalValue }: Readonly<StatusLineProps
   }
 }
 
+interface RealtimeQARowProps {
+  enabled: boolean;
+  onChange: (enabled: boolean) => void;
+}
+
+/**
+ * iOS-style switch row gating real-time Q&A interactions across the
+ * publisher classroom + mobile previews. Lives inside the generation-
+ * config popover so all "what can students do" toggles sit together.
+ */
+function RealtimeQARow({ enabled, onChange }: Readonly<RealtimeQARowProps>) {
+  const { t } = useI18n();
+  return (
+    <div
+      className={cn(
+        'rounded-xl border px-3 py-2.5 flex items-center gap-2.5 transition-colors',
+        enabled
+          ? 'border-emerald-300/70 dark:border-emerald-700/55 bg-emerald-50/55 dark:bg-emerald-950/25'
+          : 'border-border/55 bg-muted/20',
+      )}
+    >
+      <div
+        className={cn(
+          'shrink-0 size-8 rounded-lg flex items-center justify-center transition-colors',
+          enabled
+            ? 'bg-emerald-100/80 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
+            : 'bg-muted/50 text-muted-foreground',
+        )}
+      >
+        <MessagesSquare className="size-4" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[13px] font-semibold text-foreground leading-snug">
+          {t('toolbar.generationConfig.realtimeQA.label')}
+        </p>
+        <p className="text-[11px] text-muted-foreground leading-relaxed">
+          {enabled
+            ? t('toolbar.generationConfig.realtimeQA.descEnabled')
+            : t('toolbar.generationConfig.realtimeQA.descDisabled')}
+        </p>
+      </div>
+      <Tooltip delayDuration={400}>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={enabled}
+            onClick={() => onChange(!enabled)}
+            className={cn(
+              'relative inline-flex shrink-0 h-6 w-11 items-center rounded-full transition-colors cursor-pointer',
+              enabled
+                ? 'bg-emerald-500 dark:bg-emerald-500'
+                : 'bg-muted-foreground/30 dark:bg-slate-700',
+            )}
+            aria-label={t('toolbar.generationConfig.realtimeQA.label')}
+          >
+            <span
+              className={cn(
+                'inline-block size-5 transform rounded-full bg-white shadow transition-transform',
+                enabled ? 'translate-x-[1.375rem]' : 'translate-x-0.5',
+              )}
+            />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="text-[11px] max-w-[240px]">
+          {enabled
+            ? t('toolbar.generationConfig.realtimeQA.tipDisable')
+            : t('toolbar.generationConfig.realtimeQA.tipEnable')}
+        </TooltipContent>
+      </Tooltip>
+    </div>
+  );
+}
+
 export function GenerationConfigPopover({ locked = false }: Readonly<{ locked?: boolean }>) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [config, setConfig] = useState<GenerationConfigState>(() => getDefaultConfig());
+  const realtimeQAEnabled = useSettingsStore((s) => s.realtimeQAEnabled);
+  const setRealtimeQAEnabled = useSettingsStore((s) => s.setRealtimeQAEnabled);
 
   /* eslint-disable react-hooks/set-state-in-effect -- Hydration from localStorage */
   useEffect(() => {
@@ -757,8 +835,15 @@ export function GenerationConfigPopover({ locked = false }: Readonly<{ locked?: 
           </p>
         </div>
 
-        {/* ── Body: total pages + 7 item rows ── */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
+        {/* ── Body: realtime QA toggle + total pages + 7 item rows ── */}
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-3">
+          {/* Real-time Q&A toggle — gates the whole interactive surface
+              (chat tab, agent dock, voice/text input, mobile preview QA). */}
+          <RealtimeQARow
+            enabled={realtimeQAEnabled}
+            onChange={setRealtimeQAEnabled}
+          />
+
           <div className="rounded-xl border border-border/50 bg-white dark:bg-slate-900/40 divide-y divide-border/40 overflow-hidden">
             {/* Total pages — emphasised first row, no leading icon to keep
                 the header visually clean. */}

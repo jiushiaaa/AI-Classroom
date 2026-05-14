@@ -1058,6 +1058,12 @@ interface PresetRolesPanelProps {
   ) => void;
   /** When false, inline name editors close (popover dismissed). */
   popoverOpen: boolean;
+  /**
+   * When true, hide every non-teacher preset row so only the AI teacher
+   * remains. Used when real-time Q&A is disabled, since assistants and
+   * students can no longer participate in classroom interactions.
+   */
+  teacherOnly?: boolean;
 }
 
 function PresetRolesPanel({
@@ -1080,6 +1086,7 @@ function PresetRolesPanel({
   presetAgentOverrides,
   patchPresetAgentOverride,
   popoverOpen,
+  teacherOnly = false,
 }: Readonly<PresetRolesPanelProps>) {
   const { t } = useI18n();
 
@@ -1134,10 +1141,14 @@ function PresetRolesPanel({
   return (
     <div className="space-y-2">
       <p className="text-[11px] text-muted-foreground/75 leading-relaxed">
-        {t('agentBar.presetIntro')}
+        {teacherOnly
+          ? t('agentBar.presetIntroTeacherOnly')
+          : t('agentBar.presetIntro')}
       </p>
       <h3 className="text-[12px] font-semibold text-foreground/90">
-        {t('agentBar.presetRolesHeading')}
+        {teacherOnly
+          ? t('agentBar.presetRolesHeadingTeacherOnly')
+          : t('agentBar.presetRolesHeading')}
       </h3>
       <div className="space-y-1.5">
         {teacherAgent && teacherDisplayLabel && (
@@ -1270,7 +1281,7 @@ function PresetRolesPanel({
             )}
           </div>
         )}
-        {presets.map((agent, idx) => {
+        {!teacherOnly && presets.map((agent, idx) => {
           const isSelected = selectedAgentIds.includes(agent.id);
           const isExpanded = expandedIds.has(agent.id);
           const baselinePersona = personaText(agent);
@@ -1444,12 +1455,14 @@ function PresetRolesPanel({
           );
         })}
       </div>
-      <p className="text-[10.5px] text-muted-foreground/60 text-center pt-0.5">
-        {t('agentBar.presetCount', {
-          count: enabledCount,
-          total: presets.length,
-        })}
-      </p>
+      {!teacherOnly && (
+        <p className="text-[10.5px] text-muted-foreground/60 text-center pt-0.5">
+          {t('agentBar.presetCount', {
+            count: enabledCount,
+            total: presets.length,
+          })}
+        </p>
+      )}
     </div>
   );
 }
@@ -1477,6 +1490,7 @@ export function AgentBar() {
   const setTeacherPersonaSupplement = useSettingsStore((s) => s.setTeacherPersonaSupplement);
   const presetAgentOverrides = useSettingsStore((s) => s.presetAgentOverrides);
   const patchPresetAgentOverride = useSettingsStore((s) => s.patchPresetAgentOverride);
+  const realtimeQAEnabled = useSettingsStore((s) => s.realtimeQAEnabled);
 
   const [publisherCustomRoles, setPublisherCustomRoles] = useState<PublisherCustomRoleRow[]>([]);
   const [teacherNameEdit, setTeacherNameEdit] = useState(false);
@@ -1627,41 +1641,49 @@ export function AgentBar() {
           </p>
         </div>
 
-        {/* ── Mode tabs ── */}
-        <div className="px-4 pt-3 shrink-0">
-          <div className="flex rounded-xl bg-muted/45 p-1 gap-1">
-            <button
-              type="button"
-              onClick={() => handleModeChange('custom')}
-              className={cn(
-                'flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 px-2 text-[12px] font-medium transition-all',
-                agentMode === 'custom'
-                  ? 'bg-white dark:bg-slate-900 text-violet-700 dark:text-violet-300 shadow-sm ring-1 ring-border/40'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              <Users className="size-3.5 shrink-0 opacity-80" />
-              {t('agentBar.modePreset')}
-            </button>
-            <button
-              type="button"
-              onClick={() => handleModeChange('auto')}
-              className={cn(
-                'flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 px-2 text-[12px] font-medium transition-all',
-                agentMode === 'auto'
-                  ? 'bg-white dark:bg-slate-900 text-violet-700 dark:text-violet-300 shadow-sm ring-1 ring-border/40'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              <Sparkles className="size-3.5 shrink-0 opacity-80" />
-              {t('agentBar.modeAuto')}
-            </button>
+        {/* ── Mode tabs ──
+            Hidden entirely when real-time Q&A is disabled — the only
+            useful surface is the AI teacher row, so we collapse the mode
+            switcher and force the preset panel below. */}
+        {realtimeQAEnabled && (
+          <div className="px-4 pt-3 shrink-0">
+            <div className="flex rounded-xl bg-muted/45 p-1 gap-1">
+              <button
+                type="button"
+                onClick={() => handleModeChange('custom')}
+                className={cn(
+                  'flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 px-2 text-[12px] font-medium transition-all',
+                  agentMode === 'custom'
+                    ? 'bg-white dark:bg-slate-900 text-violet-700 dark:text-violet-300 shadow-sm ring-1 ring-border/40'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                <Users className="size-3.5 shrink-0 opacity-80" />
+                {t('agentBar.modePreset')}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleModeChange('auto')}
+                className={cn(
+                  'flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 px-2 text-[12px] font-medium transition-all',
+                  agentMode === 'auto'
+                    ? 'bg-white dark:bg-slate-900 text-violet-700 dark:text-violet-300 shadow-sm ring-1 ring-border/40'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                <Sparkles className="size-3.5 shrink-0 opacity-80" />
+                {t('agentBar.modeAuto')}
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* ── Body ── */}
+        {/* ── Body ──
+            When real-time Q&A is off, always render PresetRolesPanel and
+            tell it to hide non-teacher rows so the publisher sees only
+            the AI teacher (the only role that still matters). */}
         <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
-          {agentMode === 'custom' ? (
+          {!realtimeQAEnabled || agentMode === 'custom' ? (
             <PresetRolesPanel
               agents={agents}
               teacherAgent={teacherAgent}
@@ -1682,6 +1704,7 @@ export function AgentBar() {
               presetAgentOverrides={presetAgentOverrides}
               patchPresetAgentOverride={patchPresetAgentOverride}
               popoverOpen={open}
+              teacherOnly={!realtimeQAEnabled}
             />
           ) : (
             <AutoGenerateRolesPanel
@@ -1691,8 +1714,14 @@ export function AgentBar() {
           )}
         </div>
 
-        {/* ── Footer: Max turns ── */}
-        <div className="flex items-center gap-2 border-t border-border/50 px-4 py-2.5 shrink-0 bg-muted/20">
+        {/* ── Footer: Max turns ──
+            "对话轮数" only matters with real-time Q&A on; hide when off. */}
+        <div
+          className={cn(
+            'flex items-center gap-2 border-t border-border/50 px-4 py-2.5 shrink-0 bg-muted/20',
+            !realtimeQAEnabled && 'hidden',
+          )}
+        >
           <MessageSquare className="size-3.5 text-muted-foreground/60 shrink-0" />
           <span className="text-[12px] text-muted-foreground/85 flex-1">
             {t('settings.maxTurns')}

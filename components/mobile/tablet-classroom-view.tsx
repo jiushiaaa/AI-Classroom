@@ -9,6 +9,7 @@ import type { PlaybackView } from '@/lib/playback';
 import type { AgentConfig } from '@/lib/orchestration/registry/types';
 import { useMobileChatBridge } from '@/lib/hooks/use-mobile-chat-bridge';
 import { useI18n } from '@/lib/hooks/use-i18n';
+import { useSettingsStore } from '@/lib/store/settings';
 
 import { TabletTopBar } from './tablet-top-bar';
 import { MobileStage } from './mobile-stage';
@@ -131,6 +132,9 @@ export function TabletClassroomView({
 }: TabletClassroomViewProps) {
   const { t } = useI18n();
   const isLandscape = orientation === 'landscape';
+  // Real-time Q&A gate — when disabled the iPad preview drops the
+  // right-side dialogue column the same way the phone preview does.
+  const realtimeQAEnabled = useSettingsStore((s) => s.realtimeQAEnabled);
   const [sidePanelOpen, setSidePanelOpen] = useState<boolean>(true);
   const [sceneDrawerOpen, setSceneDrawerOpen] = useState(false);
 
@@ -178,13 +182,25 @@ export function TabletClassroomView({
     setSidePanelOpen(true);
   }, []);
 
+  // Stage column sizing — landscape always flexes, portrait splits with
+  // the side panel when QA is on but reclaims the full frame when off.
+  let stageColumnSizeClass: string;
+  if (isLandscape) {
+    stageColumnSizeClass = 'flex-1';
+  } else if (realtimeQAEnabled) {
+    stageColumnSizeClass = 'h-1/2 w-full shrink-0';
+  } else {
+    stageColumnSizeClass = 'flex-1 w-full';
+  }
+
   return (
     <div className="relative w-full h-full flex flex-col bg-white dark:bg-gray-950 overflow-hidden">
       {!isImmersive && (
         <TabletTopBar
           title={currentSceneTitle}
-          sidePanelOpen={!isLandscape || sidePanelOpen}
+          sidePanelOpen={realtimeQAEnabled && (!isLandscape || sidePanelOpen)}
           onToggleSidePanel={() => {
+            if (!realtimeQAEnabled) return;
             if (isLandscape) setSidePanelOpen((s) => !s);
           }}
           onOpenSceneGrid={() => setSceneDrawerOpen(true)}
@@ -204,12 +220,7 @@ export function TabletClassroomView({
             paints its own gradient backdrop so the slide visually
             "lifts" off the page; the column itself is a no-op flex
             container with no fallback color underneath. */}
-        <div
-          className={cn(
-            'flex min-w-0 flex-col overflow-hidden',
-            isLandscape ? 'flex-1' : 'h-1/2 w-full shrink-0',
-          )}
-        >
+        <div className={cn('flex min-w-0 flex-col overflow-hidden', stageColumnSizeClass)}>
           <div className="relative flex-1 min-h-0 overflow-hidden">
             <MobileStage
               currentScene={currentScene}
@@ -229,8 +240,9 @@ export function TabletClassroomView({
 
             {/* Floating open-panel button — only when side panel is
                 hidden AND we are not in immersive mode (immersive
-                deliberately strips chrome). */}
-            {!isImmersive && isLandscape && !sidePanelOpen && (
+                deliberately strips chrome) AND QA is enabled (so a
+                panel actually exists to re-open). */}
+            {!isImmersive && realtimeQAEnabled && isLandscape && !sidePanelOpen && (
               <button
                 type="button"
                 onClick={() => setSidePanelOpen(true)}
@@ -302,10 +314,12 @@ export function TabletClassroomView({
         {/* Inline side panel — landscape sits on the right; portrait
             sits below the stage at half height. Gated on immersive so
             the stage reclaims the full device frame when fullscreen.
+            Also gated on `realtimeQAEnabled` — when the publisher
+            disables QA the entire dialogue column collapses.
             `unified` keeps the iPad layout in lockstep with the phone
             preview: member chips on top, lecture + Q&A merged below,
             chat input footer. */}
-        {!isImmersive && (
+        {!isImmersive && realtimeQAEnabled && (
           <TabletSidePanel
             open={isLandscape ? sidePanelOpen : true}
             bridge={bridge}

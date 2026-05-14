@@ -511,6 +511,14 @@ function HomePage() {
 
             {/* ── Bottom toolbar ── */}
             <div className="px-3 pb-3 pt-1 flex items-center gap-1.5 border-t border-border/30">
+              {/* Generation config sits leftmost so the publisher confirms
+                  classroom scope (incl. real-time Q&A) before everything
+                  else. */}
+              <GenerationConfigPopover locked={generationConfigLocked} />
+              <div
+                className="w-px h-5 self-center bg-border/50 shrink-0 mx-0.5"
+                aria-hidden
+              />
               <HomeModelSelectorPopover />
               <div
                 className="w-px h-5 self-center bg-border/50 shrink-0 mx-0.5"
@@ -625,8 +633,6 @@ function HomePage() {
               </Tooltip>
 
               <AgentBar />
-
-              <GenerationConfigPopover locked={generationConfigLocked} />
 
               <div className="flex-1" />
 

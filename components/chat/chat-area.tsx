@@ -1,6 +1,14 @@
 'use client';
 
-import { useImperativeHandle, forwardRef, useRef, useCallback, useState, useMemo } from 'react';
+import {
+  useImperativeHandle,
+  forwardRef,
+  useRef,
+  useCallback,
+  useState,
+  useMemo,
+  useEffect,
+} from 'react';
 import { toast } from 'sonner';
 import type { SessionType, LectureNoteEntry } from '@/lib/types/chat';
 import type { DiscussionRequest } from '@/components/roundtable';
@@ -9,6 +17,7 @@ import { extractSlidePlainText } from '@/lib/utils/extract-slide-plain-text';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/hooks/use-i18n';
 import { useStageStore } from '@/lib/store';
+import { useSettingsStore } from '@/lib/store/settings';
 import { PanelRightClose, BookOpen, MessageSquare, Volume2, Sparkles } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useChatSessions } from './use-chat-sessions';
@@ -102,6 +111,7 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
     const { t } = useI18n();
     const scenes = useStageStore((s) => s.scenes);
     const updateScene = useStageStore((s) => s.updateScene);
+    const realtimeQAEnabled = useSettingsStore((s) => s.realtimeQAEnabled);
     const {
       sessions,
       activeSessionType,
@@ -136,6 +146,16 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
     });
 
     const [activeTab, setActiveTab] = useState<'lecture' | 'chat'>('lecture');
+
+    // Force-back to the lecture tab whenever the publisher disables real-time
+    // Q&A — the chat tab is hidden in that mode and would otherwise leave the
+    // panel showing an empty selection.
+    useEffect(() => {
+      if (!realtimeQAEnabled && activeTab === 'chat') {
+        setActiveTab('lecture');
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to QA toggle
+    }, [realtimeQAEnabled]);
     // The "样式" tab used to live here; it now opens as a right-side drawer
     // in the slide editor (see SlideStyleDrawer + useEditModeStore.stylePanelOpen).
     // Reading isEditing here purely so we can suppress edit-mode-only chrome
@@ -292,9 +312,16 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
       [endSession, onStopSession],
     );
 
-    const switchToTab = useCallback((tab: 'lecture' | 'chat') => {
-      setActiveTab(tab);
-    }, []);
+    const switchToTab = useCallback(
+      (tab: 'lecture' | 'chat') => {
+        // Imperative callers (e.g. mobile bridge) may try to surface the chat
+        // tab when a new QA bubble arrives. If the publisher disabled QA,
+        // ignore the switch and stay on lecture notes.
+        if (tab === 'chat' && !realtimeQAEnabled) return;
+        setActiveTab(tab);
+      },
+      [realtimeQAEnabled],
+    );
 
     useImperativeHandle(ref, () => ({
       createSession,
@@ -378,24 +405,29 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
             onValueChange={(v) => setActiveTab(v as 'lecture' | 'chat')}
             className="flex flex-col h-full gap-0"
           >
-            {/* Tab header row */}
+            {/* Tab header row.
+                When real-time Q&A is disabled, the chat / discussion tab
+                is suppressed entirely so the panel reads as a focused
+                lecture-notes surface. */}
             <div className="h-10 flex items-center gap-1 shrink-0 mt-3 mb-1 px-3">
               <TabsList variant="line" className="h-full flex-1 w-0">
                 <TabsTrigger value="lecture" className="text-xs gap-1 flex-1">
                   <BookOpen className="w-3.5 h-3.5" />
                   {t('chat.tabs.lecture')}
                 </TabsTrigger>
-                <TabsTrigger value="chat" className="text-xs gap-1 flex-1 relative">
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  {t('chat.tabs.chat')}
-                  {/* Amber pulse dot when there's an active chat session and user is on Notes tab */}
-                  {hasActiveChatSession && activeTab === 'lecture' && (
-                    <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
-                    </span>
-                  )}
-                </TabsTrigger>
+                {realtimeQAEnabled && (
+                  <TabsTrigger value="chat" className="text-xs gap-1 flex-1 relative">
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    {t('chat.tabs.chat')}
+                    {/* Amber pulse dot when there's an active chat session and user is on Notes tab */}
+                    {hasActiveChatSession && activeTab === 'lecture' && (
+                      <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                      </span>
+                    )}
+                  </TabsTrigger>
+                )}
               </TabsList>
 
               {onCollapseChange && (
@@ -419,7 +451,8 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
               />
             </TabsContent>
 
-            {/* Chat Tab */}
+            {/* Chat Tab — gated by real-time Q&A toggle */}
+            {realtimeQAEnabled && (
             <TabsContent value="chat" className="flex-1 overflow-hidden flex flex-col">
               <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 space-y-2 scrollbar-hide">
                 {chatSessions.length === 0 ? (
@@ -449,6 +482,7 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
                 )}
               </div>
             </TabsContent>
+            )}
           </Tabs>
         </div>
       </div>

@@ -23,6 +23,10 @@ import { useAudioRecorder } from '@/lib/hooks/use-audio-recorder';
 import { useI18n } from '@/lib/hooks/use-i18n';
 import { toast } from 'sonner';
 import { useSettingsStore, PLAYBACK_SPEEDS } from '@/lib/store/settings';
+// `realtimeQAEnabled` (publisher generation config) gates ALL interactive
+// chat surfaces — when disabled the classroom should behave like a passive
+// lecture: hide companion avatars, voice/text input, the "your turn" cue,
+// and any proactive discussion / QA popovers.
 import { ProactiveCard } from '@/components/chat/proactive-card';
 import { PresentationSpeechOverlay } from '@/components/roundtable/presentation-speech-overlay';
 import { AvatarDisplay } from '@/components/ui/avatar-display';
@@ -202,6 +206,8 @@ export function Roundtable({
   const setAutoPlayLecture = useSettingsStore((s) => s.setAutoPlayLecture);
   const playbackSpeed = useSettingsStore((s) => s.playbackSpeed);
   const setPlaybackSpeed = useSettingsStore((s) => s.setPlaybackSpeed);
+  // Publisher-controlled gate for all interactive Q&A surfaces.
+  const realtimeQAEnabled = useSettingsStore((s) => s.realtimeQAEnabled);
   const [isInputOpen, setIsInputOpen] = useState(false);
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
@@ -480,6 +486,19 @@ export function Roundtable({
   ]);
 
   const isPresentationInteractionActive = isInputOpen || isVoiceOpen || isRecording || isProcessing;
+
+  // If the publisher disables real-time Q&A while the user already has an
+  // input/voice panel open, force them shut so the lecture surface returns
+  // to a clean read-only state.
+  useEffect(() => {
+    if (realtimeQAEnabled) return;
+    if (isInputOpen) setIsInputOpen(false);
+    if (isVoiceOpen) {
+      setIsVoiceOpen(false);
+      if (isRecording || isProcessing) cancelRecording();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: react only to QA toggle
+  }, [realtimeQAEnabled]);
 
   useEffect(() => {
     onPresentationInteractionChange?.(isPresentationInteractionActive);
@@ -781,9 +800,9 @@ export function Roundtable({
           className="fixed bottom-14 left-0 z-[50] flex flex-col items-center justify-center gap-3 pointer-events-none transition-[right] duration-300"
           style={{ right: chatCollapsed === false ? (chatAreaWidth ?? 320) : 0 }}
         >
-          {/* Input panel */}
+          {/* Input panel — hidden entirely when QA is disabled. */}
           <AnimatePresence>
-            {isInputOpen && (
+            {realtimeQAEnabled && isInputOpen && (
               <motion.div
                 key="presentation-input-stage"
                 initial={{ opacity: 0, scale: 0.95, y: 15, filter: 'blur(4px)' }}
@@ -830,9 +849,9 @@ export function Roundtable({
             )}
           </AnimatePresence>
 
-          {/* Voice panel */}
+          {/* Voice panel — hidden entirely when QA is disabled. */}
           <AnimatePresence>
-            {isVoiceOpen && (
+            {realtimeQAEnabled && isVoiceOpen && (
               <motion.div
                 key="presentation-voice-stage"
                 initial={{ opacity: 0, scale: 0.9, y: 20, filter: 'blur(4px)' }}
@@ -867,9 +886,10 @@ export function Roundtable({
             )}
           </AnimatePresence>
 
-          {/* "Your turn" cue prompt — clickable, opens input panel */}
+          {/* "Your turn" cue prompt — clickable, opens input panel.
+              Hidden entirely when real-time Q&A is disabled. */}
           <AnimatePresence>
-            {isCueUser && !bubbleRole && !thinkingState && !isInputOpen && !isVoiceOpen && (
+            {realtimeQAEnabled && isCueUser && !bubbleRole && !thinkingState && !isInputOpen && !isVoiceOpen && (
               <motion.div
                 key="presentation-cue-user"
                 initial={{ opacity: 0, scale: 0.92, y: 8 }}
@@ -1253,9 +1273,9 @@ export function Roundtable({
                 </HoverCardContent>
               </HoverCard>
 
-              {/* ProactiveCard from teacher avatar */}
+              {/* ProactiveCard from teacher avatar — only relevant when QA on. */}
               <AnimatePresence>
-                {discussionRequest && discussionRequest.agentId === teacherParticipant?.id && (
+                {realtimeQAEnabled && discussionRequest && discussionRequest.agentId === teacherParticipant?.id && (
                   <ProactiveCard
                     action={discussionRequest}
                     mode={engineMode === 'paused' ? 'paused' : 'playback'}
@@ -1311,9 +1331,9 @@ export function Roundtable({
             }}
             className="relative w-full h-full rounded-[2.5rem] bg-gradient-to-b from-white/40 to-white/80 dark:from-gray-800/40 dark:to-gray-800/80 backdrop-blur-xl border border-white/50 dark:border-gray-700/50 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.05),inset_0_1px_0_0_rgba(255,255,255,0.9)] dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] flex flex-col justify-center px-6 overflow-hidden group transition-all duration-700 cursor-default"
           >
-            {/* Text input box */}
+            {/* Text input box — hidden when QA disabled. */}
             <AnimatePresence>
-              {isInputOpen && (
+              {realtimeQAEnabled && isInputOpen && (
                 <motion.div
                   key="input-stage"
                   initial={{
@@ -1365,8 +1385,8 @@ export function Roundtable({
                 </motion.div>
               )}
 
-              {/* Audio recording status */}
-              {isVoiceOpen && (
+              {/* Audio recording status — hidden when QA disabled. */}
+              {realtimeQAEnabled && isVoiceOpen && (
                 <motion.div
                   key="voice-stage"
                   initial={{
@@ -1453,9 +1473,11 @@ export function Roundtable({
               )}
             </AnimatePresence>
 
-            {/* Cue user: centered indicator when waiting for user input */}
+            {/* Cue user: centered indicator when waiting for user input.
+                Suppressed entirely when real-time Q&A is disabled — there's
+                no input surface to invoke. */}
             <AnimatePresence>
-              {isCueUser && !bubbleRole && !thinkingState && !isInputOpen && !isVoiceOpen && (
+              {realtimeQAEnabled && isCueUser && !bubbleRole && !thinkingState && !isInputOpen && !isVoiceOpen && (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.85 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -1841,7 +1863,11 @@ export function Roundtable({
           </div>
         </div>
 
-        {/* Right: Participants area */}
+        {/* Right: Participants area.
+            When real-time Q&A is disabled the entire column (companion
+            avatars + voice/text input dock) collapses so only the teacher
+            lecture bubble remains. */}
+        {realtimeQAEnabled && (
         <div
           className={cn(
             'w-[140px] shrink-0 flex flex-col py-3 border-l border-gray-100/50 dark:border-gray-700/50 bg-gray-50/30 dark:bg-gray-900/30 overflow-visible transition-opacity duration-300',
@@ -2164,6 +2190,7 @@ export function Roundtable({
             </div>
           </div>
         </div>
+        )}
       </div>
       {/* close interaction row */}
     </div>

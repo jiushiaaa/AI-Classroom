@@ -9,6 +9,7 @@ import type { PlaybackView } from '@/lib/playback';
 import type { AgentConfig } from '@/lib/orchestration/registry/types';
 import { useMobileChatBridge } from '@/lib/hooks/use-mobile-chat-bridge';
 import { useI18n } from '@/lib/hooks/use-i18n';
+import { useSettingsStore } from '@/lib/store/settings';
 
 import { TabletTopBar } from './tablet-top-bar';
 import { MobileStage } from './mobile-stage';
@@ -146,6 +147,10 @@ export function PhoneClassroomView({
 }: PhoneClassroomViewProps) {
   const { t } = useI18n();
   const isLandscape = orientation === 'landscape';
+  // When real-time Q&A is off the entire right-side dialogue surface
+  // collapses — phone preview matches desktop behaviour and gives the
+  // lecture stage the full device frame.
+  const realtimeQAEnabled = useSettingsStore((s) => s.realtimeQAEnabled);
 
   // Landscape phones can sit a 280px inline column next to the stage.
   // Portrait phones keep the dialogue window open as the lower half of
@@ -222,6 +227,17 @@ export function PhoneClassroomView({
     setSidePanelOpen(true);
   }, []);
 
+  // Stage column sizing — landscape always flexes, portrait splits with
+  // the side panel when QA is on but reclaims the full frame when off.
+  let stageColumnSizeClass: string;
+  if (isLandscape) {
+    stageColumnSizeClass = 'flex-1';
+  } else if (realtimeQAEnabled) {
+    stageColumnSizeClass = 'h-1/2 w-full shrink-0';
+  } else {
+    stageColumnSizeClass = 'flex-1 w-full';
+  }
+
   return (
     <div
       data-orientation={orientation}
@@ -235,8 +251,12 @@ export function PhoneClassroomView({
       {!isImmersive && (
         <TabletTopBar
           title={currentSceneTitle}
-          sidePanelOpen={!isLandscape || sidePanelOpen}
+          // When QA is disabled there is no side panel, so the toggle
+          // button is meaningless — report the panel as closed and
+          // ignore the toggle handler.
+          sidePanelOpen={realtimeQAEnabled && (!isLandscape || sidePanelOpen)}
           onToggleSidePanel={() => {
+            if (!realtimeQAEnabled) return;
             if (isLandscape) setSidePanelOpen((s) => !s);
           }}
           onOpenSceneGrid={() => setSceneDrawerOpen(true)}
@@ -259,12 +279,7 @@ export function PhoneClassroomView({
             We keep the column transparent so the stage's white surface
             paints the entire region — see MobileStage's v1.11 doc-block
             for why "stage = slide" reads better than a framed card. */}
-        <div
-          className={cn(
-            'flex min-w-0 flex-col overflow-hidden',
-            isLandscape ? 'flex-1' : 'h-1/2 w-full shrink-0',
-          )}
-        >
+        <div className={cn('flex min-w-0 flex-col overflow-hidden', stageColumnSizeClass)}>
           <div className="relative flex-1 min-h-0 overflow-hidden">
             <MobileStage
               currentScene={currentScene}
@@ -292,8 +307,9 @@ export function PhoneClassroomView({
             {/* Floating "open panel" affordance — surfaces only when
                 the panel is collapsed so the publisher can re-open it
                 without going up to the top bar. Hidden in immersive
-                mode (the chrome we are deliberately stripping). */}
-            {!isImmersive && isLandscape && !sidePanelOpen && (
+                mode (the chrome we are deliberately stripping) AND
+                when real-time Q&A is disabled (no panel to open). */}
+            {!isImmersive && realtimeQAEnabled && isLandscape && !sidePanelOpen && (
               <button
                 type="button"
                 onClick={() => setSidePanelOpen(true)}
@@ -392,8 +408,10 @@ export function PhoneClassroomView({
         </div>
 
         {/* Split dialogue panel. Landscape sits inline on the right;
-            portrait sits inline below the stage at half height. */}
-        {!isImmersive && (
+            portrait sits inline below the stage at half height.
+            Hidden entirely when real-time Q&A is disabled — the panel's
+            primary affordance is the dialogue surface. */}
+        {!isImmersive && realtimeQAEnabled && (
           <TabletSidePanel
             open={isLandscape ? sidePanelOpen : true}
             bridge={bridge}
