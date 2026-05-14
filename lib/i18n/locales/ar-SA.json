@@ -549,6 +549,7 @@
   },
   "classroomComplete": {
     "title": "اكتملت الدورة",
+    "studyDurationLine": "مدة التعلم: {{duration}}",
     "trailLabels": {
       "slide": "صفحات",
       "quiz": "اختبارات",

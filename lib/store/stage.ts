@@ -75,6 +75,8 @@ interface StageState {
 
   // Actions
   setStage: (stage: Stage) => void;
+  /** Shallow-merge fields onto the current stage (no-op if no stage). */
+  patchStage: (partial: Partial<Stage>) => void;
   setScenes: (scenes: Scene[]) => void;
   addScene: (scene: Scene) => void;
   /**
@@ -158,6 +160,13 @@ const useStageStoreBase = create<StageState>()((set, get) => ({
       sceneClipboard: null,
       generationEpoch: s.generationEpoch + 1,
     }));
+    debouncedSave();
+  },
+
+  patchStage: (partial) => {
+    const cur = get().stage;
+    if (!cur) return;
+    set({ stage: { ...cur, ...partial, updatedAt: Date.now() } });
     debouncedSave();
   },
 

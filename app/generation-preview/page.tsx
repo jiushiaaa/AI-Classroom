@@ -508,6 +508,39 @@ function GenerationPreviewContent() {
         await new Promise((resolve) => setTimeout(resolve, 800));
       }
 
+      const resolvedLanguageDirective =
+        languageDirective ||
+        stage.languageDirective ||
+        currentSession.languageDirective ||
+        'Teach in the language that matches the user requirement.';
+      languageDirective = resolvedLanguageDirective;
+      stage.languageDirective = resolvedLanguageDirective;
+
+      const outlineTitlesForShort = (outlines ?? []).map((o) => o.title);
+      const completionShortTitlePromise = (async (): Promise<string | undefined> => {
+        try {
+          const shortTitleResp = await fetch('/api/generate/classroom-short-title', {
+            method: 'POST',
+            headers: getApiHeaders(),
+            body: JSON.stringify(
+              withThinkingConfig({
+                rawTitle: stage.name,
+                sceneTitles: outlineTitlesForShort,
+                languageDirective: resolvedLanguageDirective,
+              }),
+            ),
+            signal,
+          });
+          if (!shortTitleResp.ok) return undefined;
+          const stJson = (await shortTitleResp.json()) as { success?: boolean; shortTitle?: string };
+          if (!stJson.success || !stJson.shortTitle?.trim()) return undefined;
+          return stJson.shortTitle.trim();
+        } catch (err) {
+          log.warn('[Generation] completion short title failed:', err);
+          return undefined;
+        }
+      })();
+
       // ── Agent generation (after outlines — uses languageDirective + outlines) ──
       const settings = useSettingsStore.getState();
       let agents: Array<{
@@ -692,6 +725,9 @@ function GenerationPreviewContent() {
       if (!outlines || outlines.length === 0) {
         throw new Error(t('generation.outlineEmptyResponse'));
       }
+
+      const completionShort = await completionShortTitlePromise;
+      if (completionShort) stage.completionTitleShort = completionShort;
 
       // Store stage and outlines
       const store = useStageStore.getState();

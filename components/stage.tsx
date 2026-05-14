@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { useStageStore } from '@/lib/store';
 import { PENDING_SCENE_ID } from '@/lib/store/stage';
+import { ensureStudySessionStarted } from '@/lib/utils/study-session';
 import { useCanvasStore } from '@/lib/store/canvas';
 import { useSettingsStore, PLAYBACK_SPEEDS } from '@/lib/store/settings';
 import { usePreviewDeviceStore } from '@/lib/store/preview-device';
@@ -65,6 +66,7 @@ export function Stage({
     outlines,
   } = useStageStore();
   const failedOutlines = useStageStore.use.failedOutlines();
+  const stage = useStageStore((s) => s.stage);
 
   const currentScene = getCurrentScene();
 
@@ -118,6 +120,14 @@ export function Stage({
       webCollapsePrefsRef.current = null;
     }
   }, [isPreviewMode, setSidebarCollapsed, setChatAreaCollapsed]);
+
+  // Start per-tab study timer on first real scene view in playback (completion page duration).
+  useEffect(() => {
+    const id = stage?.id;
+    if (!id || mode !== 'playback') return;
+    if (!currentSceneId || currentSceneId === PENDING_SCENE_ID) return;
+    ensureStudySessionStarted(id);
+  }, [mode, currentSceneId, stage?.id]);
 
   // PlaybackEngine state
   const [engineMode, setEngineMode] = useState<EngineMode>('idle');

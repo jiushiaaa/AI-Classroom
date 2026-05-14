@@ -9,6 +9,11 @@ import { useStageStore } from '@/lib/store';
 import type { Scene, SceneType } from '@/lib/types/stage';
 import { summarizeScenes } from '@/lib/classroom/complete-summary';
 import { readAnswersForSummary } from '@/lib/quiz/persistence';
+import { heuristicShortTitle } from '@/lib/generation/classroom-short-title';
+import { getStudySessionElapsedMs } from '@/lib/utils/study-session';
+import { formatStudyDurationMs } from '@/lib/utils/format-study-duration';
+import { getGenerateRequestHeaders } from '@/lib/utils/generate-request-headers';
+import { getCurrentModelConfig } from '@/lib/utils/model-config';
 
 const SCENE_TYPE_ICONS: Record<SceneType, typeof FileText> = {
   slide: FileText,
@@ -302,10 +307,13 @@ function QuizRing({ pct, delay = 0 }: { pct: number; delay?: number }) {
 
 interface ClassroomCompletePageProps {
   readonly scenes: Scene[];
-  readonly title: string;
+  /** Short AI/heuristic title (≤10 graphemes). */
+  readonly mainHeading: string;
+  /** Optional second line, e.g. localized study duration. */
+  readonly studyDurationLine?: string;
 }
 
-export function ClassroomCompletePage({ scenes, title }: ClassroomCompletePageProps) {
+export function ClassroomCompletePage({ scenes, mainHeading, studyDurationLine }: ClassroomCompletePageProps) {
   const { t, locale } = useI18n();
   const prefersReducedMotion = useReducedMotion();
 
@@ -419,8 +427,11 @@ export function ClassroomCompletePage({ scenes, title }: ClassroomCompletePagePr
             className="text-center space-y-1.5"
           >
             <h2 className="text-3xl md:text-4xl font-black leading-tight bg-gradient-to-br from-amber-700 via-orange-600 to-amber-800 dark:from-amber-200 dark:via-orange-200 dark:to-amber-300 bg-clip-text text-transparent">
-              {title || t('classroomComplete.title')}
+              {mainHeading || t('classroomComplete.title')}
             </h2>
+            {studyDurationLine ? (
+              <p className="text-sm font-medium text-amber-800/90 dark:text-amber-200/90">{studyDurationLine}</p>
+            ) : null}
             <p className="text-sm text-gray-500 dark:text-gray-400">{dateLabel}</p>
           </motion.div>
 
@@ -497,7 +508,62 @@ export function ClassroomCompletePage({ scenes, title }: ClassroomCompletePagePr
 }
 
 export function ClassroomCompletePageConnected() {
+  const { t, locale } = useI18n();
   const stage = useStageStore((s) => s.stage);
   const scenes = useStageStore((s) => s.scenes);
-  return <ClassroomCompletePage scenes={scenes} title={stage?.name ?? ''} />;
+  const patchStage = useStageStore((s) => s.patchStage);
+  const [localShort, setLocalShort] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!stage?.id || stage.completionTitleShort) return;
+    const raw = stage.name?.trim();
+    if (!raw) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const mc = getCurrentModelConfig();
+        const res = await fetch('/api/generate/classroom-short-title', {
+          method: 'POST',
+          headers: getGenerateRequestHeaders(),
+          body: JSON.stringify({
+            rawTitle: raw,
+            sceneTitles: scenes.slice(0, 8).map((s) => s.title),
+            languageDirective: stage.languageDirective,
+            ...(mc.thinkingConfig ? { thinkingConfig: mc.thinkingConfig } : {}),
+          }),
+        });
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as { success?: boolean; shortTitle?: string };
+        if (cancelled || !data.success || !data.shortTitle?.trim()) return;
+        const s = data.shortTitle.trim();
+        setLocalShort(s);
+        patchStage({ completionTitleShort: s });
+      } catch {
+        /* keep heuristic title */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [stage?.id, stage?.completionTitleShort, stage?.name, stage?.languageDirective, scenes, patchStage]);
+
+  const short =
+    stage?.completionTitleShort?.trim() ||
+    localShort?.trim() ||
+    heuristicShortTitle(stage?.name ?? '');
+  const elapsed = getStudySessionElapsedMs(stage?.id ?? '');
+  const studyDurationLine =
+    elapsed > 0
+      ? t('classroomComplete.studyDurationLine', {
+          duration: formatStudyDurationMs(elapsed, locale),
+        })
+      : undefined;
+
+  return (
+    <ClassroomCompletePage
+      scenes={scenes}
+      mainHeading={short}
+      studyDurationLine={studyDurationLine}
+    />
+  );
 }

@@ -549,6 +549,7 @@
   },
   "classroomComplete": {
     "title": "コース完了",
+    "studyDurationLine": "学習時間 {{duration}}",
     "trailLabels": {
       "slide": "ページ",
       "quiz": "クイズ",

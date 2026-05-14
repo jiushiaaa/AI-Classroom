@@ -41,6 +41,8 @@ export interface Snapshot {
 export interface StageRecord {
   id: string; // Primary key
   name: string;
+  /** ≤10 graphemes; completion screen display */
+  completionTitleShort?: string;
   description?: string;
   createdAt: number; // timestamp
   updatedAt: number; // timestamp

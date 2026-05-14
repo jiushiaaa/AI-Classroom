@@ -39,11 +39,11 @@ export default function ClassroomDetailPage() {
   const loadClassroom = useCallback(async () => {
     try {
       if (classroomId === OPENMAIC_DEMO_CLASSROOM_ID) {
-        const { stage, scenes } = buildOpenmaicDemoClassroom();
+        const { stage, scenes, outlines } = buildOpenmaicDemoClassroom();
         useStageStore.getState().clearStore();
         useStageStore.getState().setStage(stage);
         useStageStore.getState().setScenes(scenes);
-        useStageStore.getState().setOutlines([]);
+        useStageStore.getState().setOutlines(outlines);
         useStageStore.setState({ generatingOutlines: [] });
       } else {
         await loadFromStorage(classroomId);

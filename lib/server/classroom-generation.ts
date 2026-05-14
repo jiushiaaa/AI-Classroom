@@ -11,8 +11,7 @@ import {
   generateSceneActions,
   generateSceneContent,
 } from '@/lib/generation/scene-generator';
-import type { AICallFn } from '@/lib/generation/pipeline-types';
-import type { AgentInfo } from '@/lib/generation/pipeline-types';
+import type { AICallFn, AgentInfo } from '@/lib/generation/pipeline-types';
 import { getDefaultAgents } from '@/lib/orchestration/registry/store';
 import { createLogger } from '@/lib/logger';
 import { isProviderKeyRequired } from '@/lib/ai/providers';
@@ -29,6 +28,11 @@ import {
 import type { UserRequirements } from '@/lib/types/generation';
 import type { Scene, Stage } from '@/lib/types/stage';
 import { AGENT_COLOR_PALETTE, AGENT_DEFAULT_AVATARS } from '@/lib/constants/agent-defaults';
+import {
+  buildShortTitleMessages,
+  heuristicShortTitle,
+  parseShortTitleJson,
+} from '@/lib/generation/classroom-short-title';
 
 const log = createLogger('Classroom');
 
@@ -156,6 +160,20 @@ Return a JSON object with this exact structure:
     role: a.role,
     persona: a.persona,
   }));
+}
+
+async function generateCompletionShortTitleWithAiCall(
+  aiCall: AICallFn,
+  input: { rawTitle: string; sceneTitles: string[]; languageDirective: string },
+): Promise<string> {
+  const { system, user } = buildShortTitleMessages(input);
+  try {
+    const response = await aiCall(system, user);
+    return parseShortTitleJson(response) || heuristicShortTitle(input.rawTitle);
+  } catch (e) {
+    log.warn('Completion short title LLM failed, using heuristic:', e);
+    return heuristicShortTitle(input.rawTitle);
+  }
 }
 
 export async function generateClassroom(
@@ -318,9 +336,17 @@ export async function generateClassroom(
   }
 
   const stageId = nanoid(10);
+  const rawStageName = outlines[0]?.title || requirement.slice(0, 50);
+  const completionTitleShort = await generateCompletionShortTitleWithAiCall(aiCall, {
+    rawTitle: rawStageName,
+    sceneTitles: outlines.map((o) => o.title),
+    languageDirective,
+  });
+
   const stage: Stage = {
     id: stageId,
-    name: outlines[0]?.title || requirement.slice(0, 50),
+    name: rawStageName,
+    completionTitleShort,
     description: undefined,
     languageDirective,
     style: 'interactive',

@@ -31,6 +31,11 @@ export type Whiteboard = Omit<Slide, 'theme' | 'turningMode' | 'sectionTag' | 't
 export interface Stage {
   id: string;
   name: string;
+  /**
+   * AI-polished title (≤10 graphemes) for the course-completion screen.
+   * Optional; when absent the client may generate once and persist.
+   */
+  completionTitleShort?: string;
   description?: string;
   createdAt: number;
   updatedAt: number;

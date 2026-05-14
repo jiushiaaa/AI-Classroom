@@ -43,6 +43,7 @@ export async function saveStageData(stageId: string, data: StageStoreData): Prom
     await db.stages.put({
       id: stageId,
       name: data.stage.name || 'Untitled Stage',
+      completionTitleShort: data.stage.completionTitleShort,
       description: data.stage.description,
       createdAt: data.stage.createdAt || now,
       updatedAt: now,

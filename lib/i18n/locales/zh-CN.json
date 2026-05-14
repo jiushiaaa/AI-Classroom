@@ -973,6 +973,7 @@
   },
   "classroomComplete": {
     "title": "课程完成",
+    "studyDurationLine": "学习时长 {{duration}}",
     "trailLabels": {
       "slide": "页",
       "quiz": "小测",

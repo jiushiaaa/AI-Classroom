@@ -961,6 +961,7 @@
   },
   "classroomComplete": {
     "title": "Course complete",
+    "studyDurationLine": "Study time: {{duration}}",
     "trailLabels": {
       "slide": "pages",
       "quiz": "quizzes",

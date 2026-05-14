@@ -1,3 +1,4 @@
+import type { SceneOutline } from '@/lib/types/generation';
 import type { Scene, SlideContent, Stage } from '@/lib/types/stage';
 import type { Slide, SlideTheme, PPTElement } from '@/lib/types/slides';
 import type { Action } from '@/lib/types/action';
@@ -1045,11 +1046,13 @@ function buildClosingScene(stageId: string, now: number): Scene {
         }),
         textElement({
           id: 'demo-next-cta',
-          content: '<p style="text-align:center;color:#7c3aed">感谢体验，期待与你共建 AI 课堂 ✨</p>',
+          content:
+            '<p style="text-align:center;color:#7c3aed">感谢体验，期待与你共建 AI 课堂 ✨</p>' +
+            '<p style="text-align:center;font-size:13px;color:#64748b;margin-top:10px">提示：左侧大纲最下方可进入「课程完成」总结页。</p>',
           left: 60,
-          top: 470,
+          top: 448,
           width: 880,
-          height: 36,
+          height: 72,
           defaultColor: '#7c3aed',
         }),
       ]),
@@ -1066,14 +1069,32 @@ function buildClosingScene(stageId: string, now: number): Scene {
 
 /* ─────────────────────────── Public builder ─────────────────────────── */
 
+/** 与演示场景一一对应的大纲占位，用于开启「课程完成」页（与真实课堂 outlines.length === scenes.length 一致） */
+function demoOutlinesForScenes(scenes: Scene[]): SceneOutline[] {
+  return scenes.map((scene) => ({
+    id: `demo-outline-${scene.id}`,
+    type: scene.type,
+    title: scene.title,
+    description: '内置演示：与左侧页一一对应的大纲占位项。',
+    keyPoints: ['能力演示', '可编辑', '无待生成任务'],
+    order: scene.order,
+  }));
+}
+
 /** 内存注入用：多页幻灯片场景，无待生成大纲，覆盖文字 / 图片 / 图表 / 形状 / 视频 / 公式 / 代码 / 测验 / 互动 / PBL */
-export function buildOpenmaicDemoClassroom(): { stage: Stage; scenes: Scene[] } {
+export function buildOpenmaicDemoClassroom(): {
+  stage: Stage;
+  scenes: Scene[];
+  outlines: SceneOutline[];
+} {
   const now = Date.now();
   const stageId = OPENMAIC_DEMO_CLASSROOM_ID;
 
   const stage: Stage = {
     id: stageId,
     name: '演示 · AI 课堂',
+    /** 课程完成页主标题展示用（≤10 字） */
+    completionTitleShort: 'AI课堂演示',
     description: '内置示例：覆盖文字、图片、图表、视频、形状、公式、代码、测验、互动模拟、项目协作的完整能力演示。',
     createdAt: now,
     updatedAt: now,
@@ -1098,5 +1119,7 @@ export function buildOpenmaicDemoClassroom(): { stage: Stage; scenes: Scene[] } 
     buildClosingScene(stageId, now),
   ];
 
-  return { stage, scenes };
+  const outlines = demoOutlinesForScenes(scenes);
+
+  return { stage, scenes, outlines };
 }
