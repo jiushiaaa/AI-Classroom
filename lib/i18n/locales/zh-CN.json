@@ -595,7 +595,7 @@
         "readFailed": "读取视频失败，请重试"
       },
       "undo": "撤销",
-      "redo": "重做",
+      "redo": "恢复",
       "font": "字体",
       "fontSize": "字号",
       "bold": "加粗",
