@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   Sparkles,
@@ -346,6 +346,26 @@ function StepperRow({
   const isAuto = slot.mode === 'auto';
   /** Leaving "auto": start configurable quantity at 1 (clamped), not row `defaultValue`. */
   const leaveAutoValue = clampInt(1, min, max, min);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const focusInputAfterCustomRef = useRef(false);
+  const [inputFocused, setInputFocused] = useState(false);
+  const [editStr, setEditStr] = useState(String(slot.value));
+
+  useEffect(() => {
+    if (!inputFocused) setEditStr(String(slot.value));
+  }, [slot.value, inputFocused]);
+
+  useEffect(() => {
+    if (!isAuto && focusInputAfterCustomRef.current) {
+      focusInputAfterCustomRef.current = false;
+      queueMicrotask(() => {
+        const el = inputRef.current;
+        if (!el) return;
+        el.focus();
+        el.select();
+      });
+    }
+  }, [isAuto]);
 
   const setAuto = () => onChange({ mode: 'auto', value: slot.value });
   const setCustom = (n: number) => {
@@ -353,38 +373,58 @@ function StepperRow({
     onChange({ mode: 'custom', value: v });
   };
 
-  const handleMinus = () => {
-    if (isAuto) {
-      setCustom(leaveAutoValue);
+  const enterCustomFromAuto = () => {
+    focusInputAfterCustomRef.current = true;
+    setCustom(leaveAutoValue);
+  };
+
+  const commitEditStr = () => {
+    const trimmed = editStr.trim();
+    if (trimmed === '') {
+      setEditStr(String(slot.value));
       return;
     }
-    const next = slot.value - step;
-    setCustom(next);
+    const n = Number.parseInt(trimmed, 10);
+    if (!Number.isFinite(n)) {
+      setEditStr(String(slot.value));
+      return;
+    }
+    setCustom(n);
+  };
+
+  const handleMinus = () => {
+    if (isAuto) {
+      enterCustomFromAuto();
+      return;
+    }
+    if (slot.value <= min) {
+      setAuto();
+      return;
+    }
+    setCustom(slot.value - step);
   };
 
   const handlePlus = () => {
     if (isAuto) {
-      setCustom(leaveAutoValue);
+      enterCustomFromAuto();
       return;
     }
-    if (slot.value >= max || disableIncrement) return;
+    if (slot.value >= max) {
+      setAuto();
+      return;
+    }
+    if (disableIncrement) return;
     setCustom(slot.value + step);
   };
 
-  const toggleMode = () => {
-    if (isAuto) {
-      setCustom(leaveAutoValue);
-    } else {
-      setAuto();
-    }
-  };
-
   const valueButtonClass = cn(
-    'min-w-[3.4rem] text-center text-[12px] font-semibold tabular-nums px-1.5 py-0.5 rounded-md transition-colors cursor-pointer',
+    'min-w-[4rem] text-center text-[12px] font-semibold tabular-nums px-1.5 py-0.5 rounded-md transition-colors',
     isAuto
-      ? 'text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-900/30 hover:bg-violet-100 dark:hover:bg-violet-900/50'
-      : 'text-foreground/90 hover:bg-muted/70',
+      ? 'text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-900/30 hover:bg-violet-100 dark:hover:bg-violet-900/50 cursor-pointer'
+      : 'text-foreground/90 bg-transparent cursor-text',
   );
+
+  const plusDisabled = !isAuto && slot.value < max && disableIncrement;
 
   return (
     <div
@@ -425,43 +465,70 @@ function StepperRow({
         <button
           type="button"
           onClick={handleMinus}
-          disabled={!isAuto && slot.value <= min}
-          className="size-7 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/70 disabled:opacity-25 disabled:cursor-not-allowed"
+          className="size-7 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/70"
           aria-label="−"
         >
           <Minus className="size-3.5" />
         </button>
 
-        <Tooltip delayDuration={400}>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              onClick={toggleMode}
-              className={valueButtonClass}
-            >
-              {isAuto ? (
-                t('toolbar.generationConfig.autoLabel')
-              ) : (
-                <>
-                  {slot.value}
-                  <span className="font-normal text-muted-foreground/80 text-[11px]">
-                    {unit}
-                  </span>
-                </>
-              )}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="text-[11px]">
-            {isAuto
-              ? t('toolbar.generationConfig.tipSetCustom')
-              : t('toolbar.generationConfig.tipSetAuto')}
-          </TooltipContent>
-        </Tooltip>
+        {isAuto ? (
+          <Tooltip delayDuration={400}>
+            <TooltipTrigger asChild>
+              <button type="button" onClick={enterCustomFromAuto} className={valueButtonClass}>
+                {t('toolbar.generationConfig.autoLabel')}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-[11px] max-w-[240px]">
+              {t('toolbar.generationConfig.tipSetCustom')}
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          <Tooltip delayDuration={400}>
+            <TooltipTrigger asChild>
+              <div
+                className={cn(
+                  valueButtonClass,
+                  'inline-flex items-baseline justify-center gap-0.5 ring-0 hover:bg-muted/50',
+                )}
+              >
+                <input
+                  ref={inputRef}
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  aria-label={t('toolbar.generationConfig.quantityLabel')}
+                  value={editStr}
+                  onChange={(e) => setEditStr(e.target.value)}
+                  onFocus={() => setInputFocused(true)}
+                  onBlur={() => {
+                    setInputFocused(false);
+                    commitEditStr();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      (e.target as HTMLInputElement).blur();
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setEditStr(String(slot.value));
+                      (e.target as HTMLInputElement).blur();
+                    }
+                  }}
+                  className="w-9 min-w-0 bg-transparent p-0 text-center text-[12px] font-semibold tabular-nums text-foreground outline-none border-0 rounded"
+                />
+                <span className="font-normal text-muted-foreground/80 text-[11px] shrink-0">{unit}</span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-[11px] max-w-[260px]">
+              {t('toolbar.generationConfig.tipCustomValueInput', { min, max })}
+            </TooltipContent>
+          </Tooltip>
+        )}
 
         <button
           type="button"
           onClick={handlePlus}
-          disabled={(!isAuto && slot.value >= max) || disableIncrement}
+          disabled={plusDisabled}
           className={cn(
             'size-7 rounded-full flex items-center justify-center transition-colors',
             'disabled:opacity-25 disabled:cursor-not-allowed',
