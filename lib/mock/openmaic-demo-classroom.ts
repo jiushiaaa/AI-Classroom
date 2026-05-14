@@ -64,6 +64,18 @@ function textElement(opts: {
 
 /* ─────────────────────────── Speech ─────────────────────────── */
 
+/**
+ * Build `speech` actions (text-only). Used by the bundled demo classroom.
+ *
+ * **Playback chain** (see `PlaybackEngine` + `lib/utils/audio-player.ts`):
+ * - There is no `audioId` / `audioUrl`, so `AudioPlayer.play` does not mount HTML5 audio.
+ * - The engine then uses **browser-native TTS** (when enabled in settings) or an
+ *   **estimated reading timer** — the bottom “progress” UI cannot reflect a real
+ *   media timeline unless you add pre-generated audio or URLs to these actions.
+ *
+ * The first welcome line *「欢迎来到云梯 AI 课堂的演示页面。」* is simply `sentences[0]`
+ * in `buildWelcomeScene` → `demo-speech-welcome-1`.
+ */
 function speechActions(sceneKey: string, sentences: string[]): Action[] {
   return sentences.map((text, i) => ({
     id: `demo-speech-${sceneKey}-${i + 1}`,

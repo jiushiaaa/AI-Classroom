@@ -32,6 +32,7 @@ import { DEFAULT_TEACHER_AVATAR, DEFAULT_USER_AVATAR } from '@/components/roundt
 import type { DiscussionAction } from '@/lib/types/action';
 import type { EngineMode, PlaybackView } from '@/lib/playback';
 import type { Participant } from '@/lib/types/roundtable';
+import { LectureAudioSeekBar, computeLectureSeekStripVisibility, type LectureAudioProgress } from '@/components/playback/lecture-audio-seek-bar';
 
 export interface DiscussionRequest {
   topic: string;
@@ -96,6 +97,11 @@ interface RoundtableProps {
    * mode, whiteboard toggle). Matches mobile / iPad preview in Stage.
    */
   readonly readOnly?: boolean;
+  /** Built-in OpenMAIC demo classroom (`/classroom/openmaic-demo-classroom`). */
+  readonly isOpenmaicDemoClassroom?: boolean;
+  /** Pre-generated / URL lecture TTS clip progress (HTML audio only). */
+  readonly lectureAudioProgress?: LectureAudioProgress | null;
+  readonly onLectureAudioSeek?: (ratio: number) => void;
 }
 
 const VOICE_WAVE_BARS = [
@@ -147,7 +153,7 @@ export function Roundtable({
   speakingAgentId,
   audioIndicatorState,
   audioAgentId,
-  speechProgress: _speechProgress,
+  speechProgress,
   showEndFlash,
   endFlashSessionType = 'discussion',
   thinkingState,
@@ -180,6 +186,9 @@ export function Roundtable({
   onPresentationInteractionChange,
   fullscreenContainerRef,
   readOnly = false,
+  isOpenmaicDemoClassroom = false,
+  lectureAudioProgress,
+  onLectureAudioSeek,
 }: RoundtableProps) {
   const { t } = useI18n();
   const ttsMuted = useSettingsStore((s) => s.ttsMuted);
@@ -619,6 +628,24 @@ export function Roundtable({
     isVoiceOpen ||
     isRecording ||
     isProcessing;
+  const lectureSeekBlocked = !!(isTopicPending || engineMode === 'live');
+
+  const engineStateForSeek: 'idle' | 'playing' | 'paused' =
+    engineMode === 'playing' || engineMode === 'live'
+      ? 'playing'
+      : engineMode === 'paused'
+        ? 'paused'
+        : 'idle';
+
+  const { showHtmlAudioSeek, showDemoTranscriptProgress } = computeLectureSeekStripVisibility({
+    lectureAudioProgress,
+    onLectureAudioSeek,
+    lectureSeekBlocked,
+    isOpenmaicDemoClassroom,
+    engineState: engineStateForSeek,
+    speechProgress,
+  });
+
   const toolbar = (
     <CanvasToolbar
       className="shrink-0 h-8 px-3 border-b border-gray-100/40 dark:border-gray-700/30"
@@ -695,7 +722,28 @@ export function Roundtable({
           )}
           style={{ right: chatCollapsed === false ? (chatAreaWidth ?? 320) : 0 }}
         >
-          <div className="mb-3 px-2 py-1 rounded-full bg-white/70 dark:bg-black/60 backdrop-blur-xl border border-gray-200/60 dark:border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.08)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.4)] pointer-events-auto">
+          <div className="mb-3 px-2 py-1 rounded-full bg-white/70 dark:bg-black/60 backdrop-blur-xl border border-gray-200/60 dark:border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.08)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.4)] pointer-events-auto flex flex-col items-stretch gap-1 min-w-0 max-w-[min(100vw-2rem,560px)]">
+            {(showHtmlAudioSeek || showDemoTranscriptProgress) && (
+              <div className="px-1 pb-1 pt-0 border-b border-gray-200/50 dark:border-white/10">
+                <LectureAudioSeekBar
+                  progress={
+                    showHtmlAudioSeek
+                      ? lectureAudioProgress!
+                      : {
+                          currentMs: (speechProgress ?? 0) * 60000,
+                          durationMs: 60000,
+                        }
+                  }
+                  onSeek={onLectureAudioSeek ?? (() => {})}
+                  smoothFollow={!!showDemoTranscriptProgress}
+                  aria-label={
+                    showHtmlAudioSeek
+                      ? t('roundtable.lectureSeekBar')
+                      : t('roundtable.demoRevealProgress')
+                  }
+                />
+              </div>
+            )}
             {toolbar}
           </div>
         </div>
@@ -1074,6 +1122,27 @@ export function Roundtable({
           isPresenting && !controlsVisible && 'opacity-0 pointer-events-none',
         )}
       >
+        {(showHtmlAudioSeek || showDemoTranscriptProgress) && (
+          <div className="px-3 pt-0 pb-1.5 border-b border-gray-100/40 dark:border-gray-700/30 shrink-0">
+            <LectureAudioSeekBar
+              progress={
+                showHtmlAudioSeek
+                  ? lectureAudioProgress!
+                  : {
+                      currentMs: (speechProgress ?? 0) * 60000,
+                      durationMs: 60000,
+                    }
+              }
+              onSeek={onLectureAudioSeek ?? (() => {})}
+              smoothFollow={!!showDemoTranscriptProgress}
+              aria-label={
+                showHtmlAudioSeek
+                  ? t('roundtable.lectureSeekBar')
+                  : t('roundtable.demoRevealProgress')
+              }
+            />
+          </div>
+        )}
         {toolbar}
       </div>
       {/* ── Interaction area — three-column layout ── */}

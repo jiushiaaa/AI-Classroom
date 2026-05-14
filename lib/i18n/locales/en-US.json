@@ -1036,6 +1036,8 @@
     "autoPlay": "Auto-play",
     "autoPlayOff": "Stop auto-play",
     "speed": "Speed",
+    "lectureSeekBar": "Narration playback position",
+    "demoRevealProgress": "Demo transcript reveal progress",
     "voiceInput": "Voice input",
     "voiceInputDisabled": "Voice input disabled",
     "textInput": "Text input",

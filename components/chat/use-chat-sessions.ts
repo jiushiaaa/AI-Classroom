@@ -1517,6 +1517,13 @@ export function useChatSessions(options: UseChatSessionsOptions = {}) {
     if (buf) buf.resume();
   }, []);
 
+  /** Seek character reveal within the current lecture speech segment (0–1). */
+  const seekLectureSpeechReveal = useCallback((sessionId: string, ratio: number) => {
+    const buf = buffersRef.current.get(sessionId);
+    if (!buf || buf.disposed) return;
+    buf.seekCurrentTextRatio(ratio);
+  }, []);
+
   /** Pause the active live (QA/Discussion) buffer and set sticky intent. Returns true if paused. */
   const pauseActiveLiveBuffer = useCallback((): boolean => {
     const active = sessionsRef.current.find(
@@ -1563,6 +1570,7 @@ export function useChatSessions(options: UseChatSessionsOptions = {}) {
     getLectureMessageId,
     pauseBuffer,
     resumeBuffer,
+    seekLectureSpeechReveal,
     pauseActiveLiveBuffer,
     resumeActiveLiveBuffer,
   };

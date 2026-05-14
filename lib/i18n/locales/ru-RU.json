@@ -624,6 +624,8 @@
     "autoPlay": "Автовоспр.",
     "autoPlayOff": "Остановить",
     "speed": "Скорость",
+    "lectureSeekBar": "Позиция воспроизведения лекции",
+    "demoRevealProgress": "Демо · прогресс показа текста",
     "voiceInput": "Голосовой ввод",
     "voiceInputDisabled": "Голосовой ввод отключён",
     "textInput": "Текстовый ввод",

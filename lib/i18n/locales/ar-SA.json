@@ -624,6 +624,8 @@
     "autoPlay": "تشغيل تلقائي",
     "autoPlayOff": "إيقاف التشغيل التلقائي",
     "speed": "السرعة",
+    "lectureSeekBar": "موضع تشغيل الشرح",
+    "demoRevealProgress": "تقدم عرض النص التجريبي",
     "voiceInput": "إدخال صوتي",
     "voiceInputDisabled": "الإدخال الصوتي معطّل",
     "textInput": "إدخال نصي",

@@ -12,6 +12,7 @@ import { useI18n } from '@/lib/hooks/use-i18n';
 import { cn } from '@/lib/utils';
 import type { AgentConfig } from '@/lib/orchestration/registry/types';
 import { AgentAvatar } from './agent-avatar';
+import { LectureAudioSeekBar, computeLectureSeekStripVisibility, type LectureAudioProgress } from '@/components/playback/lecture-audio-seek-bar';
 
 interface TabletControlBarProps {
   readonly speakingAgent: AgentConfig | null;
@@ -76,6 +77,13 @@ interface TabletControlBarProps {
    */
   readonly isImmersive?: boolean;
   readonly className?: string;
+  readonly lectureAudioProgress?: LectureAudioProgress | null;
+  readonly onLectureAudioSeek?: (ratio: number) => void;
+  /** When true, hide lecture seek (live discussion / topic pending). Not tied to sidebar streaming. */
+  readonly lectureSeekBlocked?: boolean;
+  /** StreamBuffer reveal 0–1 — drives demo transcript bar when `isOpenmaicDemoClassroom`. */
+  readonly speechProgress?: number | null;
+  readonly isOpenmaicDemoClassroom?: boolean;
 }
 
 /**
@@ -283,6 +291,11 @@ export function TabletControlBar({
   hideCenterPlayback = false,
   isImmersive = false,
   className,
+  lectureAudioProgress,
+  onLectureAudioSeek,
+  lectureSeekBlocked = false,
+  speechProgress,
+  isOpenmaicDemoClassroom = false,
 }: TabletControlBarProps) {
   const { t } = useI18n();
   const agent = speakingAgent ?? teacherAgent;
@@ -326,18 +339,49 @@ export function TabletControlBar({
   const showCenterPlayback = !hideCenterPlayback;
   const showPrimaryCluster = showPagerButtons || showCenterPlayback;
 
+  const { showHtmlAudioSeek, showDemoTranscriptProgress } = computeLectureSeekStripVisibility({
+    lectureAudioProgress,
+    onLectureAudioSeek,
+    lectureSeekBlocked,
+    isOpenmaicDemoClassroom,
+    engineState,
+    speechProgress,
+  });
+  const showSeekStrip = showHtmlAudioSeek || showDemoTranscriptProgress;
+
   return (
     <div
       className={cn(
         'shrink-0 w-full bg-white/90 dark:bg-gray-950/90 backdrop-blur-xl',
         'border-t border-gray-200 dark:border-gray-800',
-        'flex items-center',
-        padding,
+        'flex flex-col',
         className,
       )}
       role="status"
       aria-live="polite"
     >
+      {showSeekStrip && (
+        <div className="px-2.5 pt-1.5 pb-1 w-full border-b border-gray-200/70 dark:border-gray-800/70 shrink-0">
+          <LectureAudioSeekBar
+            progress={
+              showHtmlAudioSeek
+                ? lectureAudioProgress!
+                : {
+                    currentMs: (speechProgress ?? 0) * 60000,
+                    durationMs: 60000,
+                  }
+            }
+            onSeek={onLectureAudioSeek!}
+            smoothFollow={showDemoTranscriptProgress}
+            aria-label={
+              showHtmlAudioSeek
+                ? t('roundtable.lectureSeekBar')
+                : t('roundtable.demoRevealProgress')
+            }
+          />
+        </div>
+      )}
+      <div className={cn('flex items-center w-full', padding)}>
       <AgentAvatar
         avatar={agent?.avatar}
         alt={agent?.name}
@@ -497,6 +541,7 @@ export function TabletControlBar({
           <span>{scenesCount}</span>
         </span>
       )}
+      </div>
     </div>
   );
 }

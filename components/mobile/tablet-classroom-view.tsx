@@ -16,6 +16,7 @@ import { TabletControlBar } from './tablet-control-bar';
 import { TabletSidePanel } from './tablet-side-panel';
 import { MobileSceneDrawer } from './mobile-scene-drawer';
 import { cn } from '@/lib/utils';
+import type { LectureAudioProgress } from '@/components/playback/lecture-audio-seek-bar';
 
 interface TabletClassroomViewProps {
   readonly orientation: PreviewOrientation;
@@ -55,6 +56,11 @@ interface TabletClassroomViewProps {
   readonly thinkingState: { stage: string; agentId?: string } | null;
 
   readonly agents: ReadonlyArray<AgentConfig>;
+  readonly lectureAudioProgress?: LectureAudioProgress | null;
+  readonly onLectureAudioSeek?: (ratio: number) => void;
+  readonly lectureSeekBlocked?: boolean;
+  readonly speechProgress?: number | null;
+  readonly isOpenmaicDemoClassroom?: boolean;
 }
 
 /**
@@ -117,6 +123,11 @@ export function TabletClassroomView({
   speakingAgentId,
   thinkingState,
   agents,
+  lectureAudioProgress,
+  onLectureAudioSeek,
+  lectureSeekBlocked,
+  speechProgress,
+  isOpenmaicDemoClassroom,
 }: TabletClassroomViewProps) {
   const { t } = useI18n();
   const isLandscape = orientation === 'landscape';
@@ -280,6 +291,11 @@ export function TabletClassroomView({
             whiteboardOpen={whiteboardOpen}
             onToggleWhiteboard={onToggleWhiteboard}
             isImmersive={isImmersive}
+            lectureAudioProgress={lectureAudioProgress}
+            onLectureAudioSeek={onLectureAudioSeek}
+            lectureSeekBlocked={lectureSeekBlocked}
+            speechProgress={speechProgress}
+            isOpenmaicDemoClassroom={isOpenmaicDemoClassroom}
           />
         </div>
 

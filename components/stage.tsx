@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { useStageStore } from '@/lib/store';
 import { PENDING_SCENE_ID } from '@/lib/store/stage';
+import { isOpenmaicDemoClassroomId } from '@/lib/mock/openmaic-demo-classroom';
 import { ensureStudySessionStarted } from '@/lib/utils/study-session';
 import { useCanvasStore } from '@/lib/store/canvas';
 import { useSettingsStore, PLAYBACK_SPEEDS } from '@/lib/store/settings';
@@ -67,6 +68,7 @@ export function Stage({
   } = useStageStore();
   const failedOutlines = useStageStore.use.failedOutlines();
   const stage = useStageStore((s) => s.stage);
+  const isOpenmaicDemoClassroom = isOpenmaicDemoClassroomId(stage?.id ?? '');
 
   const currentScene = getCurrentScene();
 
@@ -135,6 +137,10 @@ export function Stage({
   const [lectureSpeech, setLectureSpeech] = useState<string | null>(null); // From PlaybackEngine (lecture)
   const [liveSpeech, setLiveSpeech] = useState<string | null>(null); // From buffer (discussion/QA)
   const [speechProgress, setSpeechProgress] = useState<number | null>(null); // StreamBuffer reveal progress (0–1)
+  const [lectureAudioProgress, setLectureAudioProgress] = useState<{
+    currentMs: number;
+    durationMs: number;
+  } | null>(null);
   const [discussionTrigger, setDiscussionTrigger] = useState<TriggerEvent | null>(null);
 
   // Speaking agent tracking (Issue 2)
@@ -236,6 +242,8 @@ export function Stage({
 
   const engineRef = useRef<PlaybackEngine | null>(null);
   const audioPlayerRef = useRef(createAudioPlayer());
+  const engineModeRef = useRef(engineMode);
+  const topicPendingRef = useRef(isTopicPending);
   const chatAreaRef = useRef<ChatAreaRef>(null);
   const lectureSessionIdRef = useRef<string | null>(null);
   const lectureActionCounterRef = useRef(0);
@@ -708,6 +716,49 @@ export function Stage({
   useEffect(() => {
     audioPlayerRef.current.setPlaybackRate(playbackSpeed);
   }, [playbackSpeed]);
+
+  useEffect(() => {
+    engineModeRef.current = engineMode;
+    topicPendingRef.current = isTopicPending;
+  }, [engineMode, isTopicPending]);
+
+  const handleLectureAudioSeek = useCallback((ratio: number) => {
+    const ap = audioPlayerRef.current;
+    if (ap.hasActiveAudio()) {
+      ap.seekToRatio(ratio);
+      return;
+    }
+    const sid = lectureSessionIdRef.current;
+    if (sid) {
+      chatAreaRef.current?.seekLectureSpeechReveal(sid, ratio);
+    }
+  }, []);
+
+  useEffect(() => {
+    const ap = audioPlayerRef.current;
+    const onTick = () => {
+      // `chatIsStreaming` is also true while lecture notes stream to the
+      // sidebar — that must NOT hide HTML-audio seek (it made the bar
+      // never appear during normal playback).
+      if (engineModeRef.current === 'live' || topicPendingRef.current) {
+        setLectureAudioProgress(null);
+        return;
+      }
+      if (!ap.hasActiveAudio()) {
+        setLectureAudioProgress(null);
+        return;
+      }
+      const d = ap.getDuration();
+      const c = ap.getCurrentTime();
+      if (d > 0 && Number.isFinite(d)) {
+        setLectureAudioProgress({ currentMs: c, durationMs: d });
+      } else {
+        setLectureAudioProgress(null);
+      }
+    };
+    ap.setOnMediaProgress(onTick);
+    return () => ap.setOnMediaProgress(null);
+  }, []);
 
   /**
    * Handle discussion SSE — POST /api/chat and push events to engine
@@ -1286,6 +1337,9 @@ export function Stage({
               onPresentationInteractionChange={setIsPresentationInteractionActive}
               fullscreenContainerRef={stageRef}
               readOnly={isPreviewMode}
+              isOpenmaicDemoClassroom={isOpenmaicDemoClassroom}
+              lectureAudioProgress={lectureAudioProgress}
+              onLectureAudioSeek={handleLectureAudioSeek}
             />
           </div>
         )}
@@ -1475,6 +1529,11 @@ export function Stage({
       speakingAgentId,
       thinkingState,
       agents: mobileAgents,
+      lectureAudioProgress,
+      onLectureAudioSeek: handleLectureAudioSeek,
+      lectureSeekBlocked: isTopicPending || engineMode === 'live',
+      speechProgress,
+      isOpenmaicDemoClassroom,
     };
 
     return (

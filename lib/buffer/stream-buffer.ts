@@ -326,6 +326,64 @@ export class StreamBuffer {
   }
 
   /**
+   * Jump within the **current** queued `text` item to `ratio` (0–1 of character count).
+   * Updates the same callbacks as the tick loop (`onTextReveal`, `onLiveSpeech`, `onSpeechProgress`).
+   * If the cursor lands at the end of a **sealed** segment, advances the queue like a normal tick.
+   *
+   * No-op when not positioned on a text item. Returns whether the seek was applied.
+   */
+  seekCurrentTextRatio(ratio: number): boolean {
+    if (this._disposed) return false;
+    const item = this.items[this.readIndex];
+    if (!item || item.kind !== 'text') return false;
+
+    const r = Math.min(1, Math.max(0, ratio));
+    const len = item.text.length;
+    this.charCursor = len === 0 ? 0 : Math.min(len, Math.round(r * len));
+
+    // User scrubbed — abandon mid-segment dwell / TTS hold from a previous position.
+    this._dwellTicksRemaining = 0;
+    this._holdingForTTS = false;
+    this._holdSegmentSnapshot = -1;
+
+    const revealed = item.text.slice(0, this.charCursor);
+    const fullyRevealed = this.charCursor >= len;
+    const isComplete = fullyRevealed && item.sealed;
+
+    this.cb.onTextReveal(item.messageId, item.partId, revealed, isComplete);
+    this.currentSegmentText = revealed;
+    this.cb.onLiveSpeech(this.currentSegmentText, this.currentAgentId);
+    this.cb.onSpeechProgress(len > 0 ? this.charCursor / len : 1);
+
+    if (!isComplete) return true;
+
+    this.readIndex++;
+    this.charCursor = 0;
+
+    if (this.postTextDelayTicks > 0) {
+      this._dwellTicksRemaining = this.postTextDelayTicks;
+      if (this.cb.shouldHoldAfterReveal) {
+        this._holdingForTTS = true;
+        const snap = this.cb.shouldHoldAfterReveal();
+        this._holdSegmentSnapshot = typeof snap === 'object' ? snap.segmentDone : -1;
+      }
+      return true;
+    }
+
+    {
+      const result = this.cb.shouldHoldAfterReveal?.();
+      if (result) {
+        this._holdingForTTS = true;
+        this._holdSegmentSnapshot = typeof result === 'object' ? result.segmentDone : -1;
+        return true;
+      }
+    }
+
+    this.advanceNonText();
+    return true;
+  }
+
+  /**
    * Flush: instantly reveal everything remaining.
    * Used when restoring persisted sessions or force-completing.
    */

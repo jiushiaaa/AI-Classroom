@@ -1048,6 +1048,8 @@
     "autoPlay": "自动播放",
     "autoPlayOff": "关闭自动播放",
     "speed": "倍速",
+    "lectureSeekBar": "讲解播放进度",
+    "demoRevealProgress": "演示 · 讲稿显示进度",
     "voiceInput": "语音输入",
     "voiceInputDisabled": "语音输入已禁用",
     "textInput": "文字输入",

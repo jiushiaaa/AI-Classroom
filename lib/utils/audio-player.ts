@@ -17,6 +17,9 @@ const log = createLogger('AudioPlayer');
 export class AudioPlayer {
   private audio: HTMLAudioElement | null = null;
   private onEndedCallback: (() => void) | null = null;
+  /** Fired on `timeupdate` / `loadedmetadata` while an element is active */
+  private onMediaProgressCallback: (() => void) | null = null;
+  private mediaProgressHandler: (() => void) | null = null;
   private muted: boolean = false;
   private volume: number = 1;
   private playbackRate: number = 1;
@@ -41,6 +44,7 @@ export class AudioPlayer {
         this.audio.addEventListener('ended', () => {
           this.onEndedCallback?.();
         });
+        this.attachMediaProgressListeners();
         await this.audio.play();
         this.audio.playbackRate = this.playbackRate;
         return true;
@@ -76,6 +80,8 @@ export class AudioPlayer {
         this.onEndedCallback?.();
       });
 
+      this.attachMediaProgressListeners();
+
       // Play
       await this.audio.play();
       // Re-apply after play() — some browsers reset during load
@@ -101,6 +107,7 @@ export class AudioPlayer {
    */
   public stop(): void {
     if (this.audio) {
+      this.detachMediaProgressListeners();
       this.audio.pause();
       this.audio.currentTime = 0;
       this.audio = null;
@@ -152,6 +159,46 @@ export class AudioPlayer {
   }
 
   /**
+   * Seek within the active clip (0–1). No-op without loaded HTML audio.
+   */
+  public seekToRatio(ratio: number): void {
+    if (!this.audio) return;
+    const d = this.audio.duration;
+    if (!Number.isFinite(d) || d <= 0) return;
+    const r = Math.min(1, Math.max(0, ratio));
+    const target = r >= 1 ? Math.max(0, d - 0.04) : r * d;
+    this.audio.currentTime = target;
+  }
+
+  /**
+   * Subscribe to coarse progress updates while an `HTMLAudioElement` is mounted.
+   * Detaches automatically when `stop()` runs or a new `play()` replaces the element.
+   */
+  public setOnMediaProgress(callback: (() => void) | null): void {
+    this.onMediaProgressCallback = callback;
+    this.detachMediaProgressListeners();
+    this.attachMediaProgressListeners();
+  }
+
+  private attachMediaProgressListeners(): void {
+    if (!this.audio || !this.onMediaProgressCallback) return;
+    this.detachMediaProgressListeners();
+    this.mediaProgressHandler = () => {
+      this.onMediaProgressCallback?.();
+    };
+    this.audio.addEventListener('timeupdate', this.mediaProgressHandler);
+    this.audio.addEventListener('loadedmetadata', this.mediaProgressHandler);
+  }
+
+  private detachMediaProgressListeners(): void {
+    if (this.audio && this.mediaProgressHandler) {
+      this.audio.removeEventListener('timeupdate', this.mediaProgressHandler);
+      this.audio.removeEventListener('loadedmetadata', this.mediaProgressHandler);
+    }
+    this.mediaProgressHandler = null;
+  }
+
+  /**
    * Set playback ended callback
    */
   public onEnded(callback: () => void): void {
@@ -194,6 +241,7 @@ export class AudioPlayer {
   public destroy(): void {
     this.stop();
     this.onEndedCallback = null;
+    this.onMediaProgressCallback = null;
   }
 }
 

@@ -64,6 +64,8 @@ export interface ChatAreaRef {
   getLectureMessageId: (sessionId: string) => string | null;
   pauseBuffer: (sessionId: string) => void;
   resumeBuffer: (sessionId: string) => void;
+  /** Scrub the typewriter position within the current lecture speech (0–1). */
+  seekLectureSpeechReveal: (sessionId: string, ratio: number) => void;
   pauseActiveLiveBuffer: () => boolean;
   resumeActiveLiveBuffer: () => void;
   switchToTab: (tab: 'lecture' | 'chat') => void;
@@ -118,6 +120,7 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
       getLectureMessageId,
       pauseBuffer,
       resumeBuffer,
+      seekLectureSpeechReveal,
       pauseActiveLiveBuffer,
       resumeActiveLiveBuffer,
     } = useChatSessions({
@@ -308,6 +311,7 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
       getLectureMessageId,
       pauseBuffer,
       resumeBuffer,
+      seekLectureSpeechReveal,
       pauseActiveLiveBuffer,
       resumeActiveLiveBuffer,
       switchToTab,

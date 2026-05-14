@@ -16,6 +16,11 @@ import { TabletControlBar } from './tablet-control-bar';
 import { TabletSidePanel } from './tablet-side-panel';
 import { MobileSceneDrawer } from './mobile-scene-drawer';
 import { cn } from '@/lib/utils';
+import {
+  LectureAudioSeekBar,
+  computeLectureSeekStripVisibility,
+  type LectureAudioProgress,
+} from '@/components/playback/lecture-audio-seek-bar';
 
 interface PhoneClassroomViewProps {
   readonly orientation: PreviewOrientation;
@@ -55,6 +60,11 @@ interface PhoneClassroomViewProps {
   readonly thinkingState: { stage: string; agentId?: string } | null;
 
   readonly agents: ReadonlyArray<AgentConfig>;
+  readonly lectureAudioProgress?: LectureAudioProgress | null;
+  readonly onLectureAudioSeek?: (ratio: number) => void;
+  readonly lectureSeekBlocked?: boolean;
+  readonly speechProgress?: number | null;
+  readonly isOpenmaicDemoClassroom?: boolean;
 }
 
 /**
@@ -128,6 +138,11 @@ export function PhoneClassroomView({
   speakingAgentId,
   thinkingState,
   agents,
+  lectureAudioProgress,
+  onLectureAudioSeek,
+  lectureSeekBlocked,
+  speechProgress,
+  isOpenmaicDemoClassroom,
 }: PhoneClassroomViewProps) {
   const { t } = useI18n();
   const isLandscape = orientation === 'landscape';
@@ -189,6 +204,16 @@ export function PhoneClassroomView({
 
   const speechText = playbackView.sourceText || null;
   const thinkingHint = thinkingState ? humanReadableThinking(thinkingState.stage) : null;
+
+  const { showHtmlAudioSeek, showDemoTranscriptProgress } = computeLectureSeekStripVisibility({
+    lectureAudioProgress,
+    onLectureAudioSeek,
+    lectureSeekBlocked,
+    isOpenmaicDemoClassroom,
+    engineState,
+    speechProgress,
+  });
+  const showSeekStrip = showHtmlAudioSeek || showDemoTranscriptProgress;
 
   // v1.12.3 — with the unified phone panel there's no separate
   // "讲解记录" tab to switch to, so opening the panel is enough; the
@@ -313,6 +338,28 @@ export function PhoneClassroomView({
 
           </div>
 
+          {engineState === 'playing' && showSeekStrip && onLectureAudioSeek && (
+            <div className="shrink-0 px-2.5 py-1.5 w-full border-t border-gray-200/70 dark:border-gray-800/70 bg-white/90 dark:bg-gray-950/90 backdrop-blur-xl">
+              <LectureAudioSeekBar
+                progress={
+                  showHtmlAudioSeek
+                    ? lectureAudioProgress!
+                    : {
+                        currentMs: (speechProgress ?? 0) * 60000,
+                        durationMs: 60000,
+                      }
+                }
+                onSeek={onLectureAudioSeek}
+                smoothFollow={showDemoTranscriptProgress}
+                aria-label={
+                  showHtmlAudioSeek
+                    ? t('roundtable.lectureSeekBar')
+                    : t('roundtable.demoRevealProgress')
+                }
+              />
+            </div>
+          )}
+
           {engineState === 'paused' && (
             <TabletControlBar
               speakingAgent={speakingAgent}
@@ -335,6 +382,11 @@ export function PhoneClassroomView({
               compact
               hideSlidePager
               isImmersive={isImmersive}
+              lectureAudioProgress={lectureAudioProgress}
+              onLectureAudioSeek={onLectureAudioSeek}
+              lectureSeekBlocked={lectureSeekBlocked}
+              speechProgress={speechProgress}
+              isOpenmaicDemoClassroom={isOpenmaicDemoClassroom}
             />
           )}
         </div>
