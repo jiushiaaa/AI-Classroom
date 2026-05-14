@@ -18,6 +18,7 @@ import {
   ClipboardPaste,
   Sparkles,
   FilePlus2,
+  Loader2,
 } from 'lucide-react';
 import { VisuallyHidden } from 'radix-ui';
 import { cn } from '@/lib/utils';
@@ -318,6 +319,7 @@ export function SceneSidebar({
             const isInteractive = scene.type === 'interactive';
             const slideContent = isSlide ? (scene.content as SlideContent) : null;
             const interactiveContent = isInteractive ? (scene.content as InteractiveContent) : null;
+            const aiPending = (scene.aiCommands ?? []).some((c) => c.status === 'pending');
             const isDragging = draggingIndex === index;
             // Render the drop-line BELOW each tile (covers all gaps except the
             // very first one), and only render it ABOVE the first tile so we
@@ -555,6 +557,19 @@ export function SceneSidebar({
                         </span>
                       </div>
                     )}
+
+                    {aiPending ? (
+                      <div
+                        className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-1.5 bg-purple-100/55 dark:bg-purple-950/45 backdrop-blur-[2px] pointer-events-none"
+                        role="status"
+                        aria-live="polite"
+                      >
+                        <Loader2 className="w-5 h-5 text-purple-600 dark:text-purple-300 animate-spin" />
+                        <span className="text-[9px] font-semibold text-purple-700 dark:text-purple-200 px-1.5 text-center leading-tight">
+                          {t('aiModify.statusPending')}
+                        </span>
+                      </div>
+                    ) : null}
 
                     {isSlide && (
                       <div

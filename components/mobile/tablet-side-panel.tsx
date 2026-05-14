@@ -590,7 +590,7 @@ function QARow({
   const agent = meta?.agentId ? agentsById[meta.agentId] : undefined;
   const senderName = isUser
     ? (meta?.senderName ?? youLabel)
-    : (agent?.name ?? meta?.senderName ?? '');
+    : (meta?.senderName?.trim() || agent?.name || '');
   const senderAvatar = isUser
     ? (meta?.senderAvatar ?? '🙂')
     : (agent?.avatar ?? '🤖');

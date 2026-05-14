@@ -5,7 +5,6 @@ import { AnimatePresence } from 'motion/react';
 import type { PBLContent } from '@/lib/types/stage';
 import type { PBLProjectConfig } from '@/lib/pbl/types';
 import { useStageStore } from '@/lib/store/stage';
-import { useEditModeStore } from '@/lib/store/edit-mode';
 import { PBLRoleSelection } from './pbl/role-selection';
 import { PBLWorkspace } from './pbl/workspace';
 import { AILoadingOverlay } from './ai-loading-overlay';
@@ -19,7 +18,6 @@ interface PBLRendererProps {
 
 export function PBLRenderer({ content, mode: _mode, sceneId }: PBLRendererProps) {
   const { t } = useI18n();
-  const isEditing = useEditModeStore.use.isEditing();
   // Prefer scene-level aiCommands (canonical) and fall back to legacy
   // content-level for previously persisted classroom JSON.
   const sceneAiCommands = useStageStore(
@@ -138,7 +136,7 @@ export function PBLRenderer({ content, mode: _mode, sceneId }: PBLRendererProps)
     <div className="group relative w-full h-full">
       {body}
       <AnimatePresence>
-        {isEditing && pendingCommand ? (
+        {pendingCommand ? (
           <AILoadingOverlay key="overlay" instruction={pendingCommand.instruction} />
         ) : null}
       </AnimatePresence>

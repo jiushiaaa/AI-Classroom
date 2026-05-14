@@ -257,7 +257,7 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
           const updated: SpeechAction = {
             ...(a as SpeechAction),
             text: generated,
-            userEditedAt: Date.now(),
+            userEditedAt: undefined,
             audioId: undefined,
             audioUrl: undefined,
           };

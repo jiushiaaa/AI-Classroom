@@ -104,6 +104,29 @@ export function LectureNotesView({
     }
   }, [currentSceneId]);
 
+  /** After unlocking a card’s script edit, show the field as active: focus first line. */
+  useEffect(() => {
+    if (!editingSceneId || !containerRef.current) return;
+    const card = containerRef.current.querySelector(`[data-scene-id="${editingSceneId}"]`);
+    const firstEditable = card?.querySelector('span[contenteditable="true"]');
+    if (!(firstEditable instanceof HTMLElement)) return;
+    const run = () => {
+      firstEditable.focus();
+      const sel = globalThis.getSelection();
+      if (!sel) return;
+      try {
+        const range = document.createRange();
+        range.selectNodeContents(firstEditable);
+        range.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      } catch {
+        /* ignore selection errors in edge browsers */
+      }
+    };
+    requestAnimationFrame(run);
+  }, [editingSceneId]);
+
   const handleNoteCardClick = (sceneId: string, e: ReactMouseEvent<HTMLDivElement>) => {
     if (!onSelectScene) return;
     const raw = e.target;
@@ -414,16 +437,8 @@ export function LectureNotesView({
           <DialogHeader>
             <DialogTitle>{t('chat.lectureNotes.aiOptimizeDialogTitle')}</DialogTitle>
             <DialogDescription asChild>
-              <div className="space-y-2 text-muted-foreground text-sm leading-relaxed">
-                <p>{t('chat.lectureNotes.aiOptimizeDialogIntro')}</p>
-                <p>{t('chat.lectureNotes.aiOptimizeDialogBlankHint')}</p>
-                {aiOptimizeTarget ? (
-                  <p className="text-xs text-muted-foreground/90">
-                    {t('chat.lectureNotes.aiOptimizeDialogSlideContext', {
-                      title: aiOptimizeTarget.sceneTitle,
-                    })}
-                  </p>
-                ) : null}
+              <div className="text-muted-foreground text-sm leading-relaxed">
+                <p>{t('chat.lectureNotes.aiOptimizeDialogDescription')}</p>
               </div>
             </DialogDescription>
           </DialogHeader>
@@ -624,8 +639,7 @@ function EditableSpeech({
     <p
       className={cn(
         'group/speech text-[12px] leading-[1.8] text-gray-700 dark:text-gray-300 relative',
-        editable &&
-          '-mx-1 px-1 py-0.5 rounded-md transition-colors hover:bg-gray-100/60 dark:hover:bg-gray-800/40',
+        editable && '-mx-1 px-1 py-0.5 rounded-md transition-colors',
       )}
     >
       {/* Inline action icons */}
@@ -659,10 +673,12 @@ function EditableSpeech({
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
           className={cn(
-            'outline-none rounded px-0.5 cursor-text whitespace-pre-wrap',
-            isEditing
-              ? 'bg-purple-50 dark:bg-purple-900/30 ring-1 ring-purple-300/70 dark:ring-purple-600/50 shadow-sm'
-              : 'hover:bg-purple-50/60 dark:hover:bg-purple-900/20',
+            'outline-none cursor-text whitespace-pre-wrap rounded-md px-1.5 py-0.5 transition-colors duration-150',
+            'inline-block max-w-full align-top',
+            /* 解锁可编：极淡底 + 细灰紫边，避免换行「每行一个粗框」 */
+            'border border-violet-200/35 dark:border-violet-800/25 bg-violet-50/25 dark:bg-violet-950/15',
+            isEditing &&
+              'border-violet-300/55 dark:border-violet-600/35 bg-white/95 dark:bg-zinc-900/45',
           )}
         >
           {text}

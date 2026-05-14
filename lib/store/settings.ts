@@ -191,6 +191,11 @@ export interface SettingsState {
   teacherCustomDisplayName: string;
   /** Appended to the teacher system persona when non-empty */
   teacherPersonaSupplement: string;
+  /**
+   * Optional display name / full persona overrides for built-in preset agents
+   * (default-2..default-6) in 预设模式. Empty trimmed fields are not stored.
+   */
+  presetAgentOverrides: Record<string, { name?: string; persona?: string }>;
 
   // Layout preferences (persisted via localStorage)
   sidebarCollapsed: boolean;
@@ -217,6 +222,10 @@ export interface SettingsState {
   setAutoAgentCount: (count: number) => void;
   setTeacherCustomDisplayName: (name: string) => void;
   setTeacherPersonaSupplement: (text: string) => void;
+  patchPresetAgentOverride: (
+    agentId: string,
+    patch: Partial<{ name: string | undefined; persona: string | undefined }>,
+  ) => void;
 
   // Layout actions
   setSidebarCollapsed: (collapsed: boolean) => void;
@@ -690,6 +699,7 @@ export const useSettingsStore = create<SettingsState>()(
         autoAgentCount: 3,
         teacherCustomDisplayName: '',
         teacherPersonaSupplement: '',
+        presetAgentOverrides: {},
 
         // Playback controls
         ttsMuted: false,
@@ -780,6 +790,33 @@ export const useSettingsStore = create<SettingsState>()(
         setAutoAgentCount: (count) => set({ autoAgentCount: count }),
         setTeacherCustomDisplayName: (name) => set({ teacherCustomDisplayName: name }),
         setTeacherPersonaSupplement: (text) => set({ teacherPersonaSupplement: text }),
+
+        patchPresetAgentOverride: (agentId, patch) =>
+          set((state) => {
+            const prev = state.presetAgentOverrides[agentId] || {};
+            const nextEntry: { name?: string; persona?: string } = { ...prev };
+            if ('name' in patch) {
+              if (patch.name === undefined || String(patch.name).trim() === '') {
+                delete nextEntry.name;
+              } else {
+                nextEntry.name = String(patch.name).trim();
+              }
+            }
+            if ('persona' in patch) {
+              if (patch.persona === undefined) {
+                delete nextEntry.persona;
+              } else {
+                nextEntry.persona = patch.persona;
+              }
+            }
+            const next = { ...state.presetAgentOverrides };
+            if (Object.keys(nextEntry).length === 0) {
+              delete next[agentId];
+            } else {
+              next[agentId] = nextEntry;
+            }
+            return { presetAgentOverrides: next };
+          }),
 
         // Layout actions
         setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
@@ -1444,7 +1481,7 @@ export const useSettingsStore = create<SettingsState>()(
     },
     {
       name: 'settings-storage',
-      version: 2,
+      version: 3,
       // Migrate persisted state
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<SettingsState>;
@@ -1576,6 +1613,10 @@ export const useSettingsStore = create<SettingsState>()(
         }
         if ((state as Record<string, unknown>).teacherPersonaSupplement === undefined) {
           (state as Record<string, unknown>).teacherPersonaSupplement = '';
+        }
+
+        if ((state as Record<string, unknown>).presetAgentOverrides === undefined) {
+          (state as Record<string, unknown>).presetAgentOverrides = {};
         }
 
         if ((state as Record<string, unknown>).thinkingConfigs === undefined) {

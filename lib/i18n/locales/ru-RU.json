@@ -127,11 +127,9 @@
       "ttsSyncedBadgeTitle": "Сценарий изменён — при следующем воспроизведении будет использован новый TTS",
       "aiMockInstructionAppend": "\n\n[Учтено ваше указание] {{instructions}}",
       "aiOptimizeDialogTitle": "Оптимизация текста ИИ",
-      "aiOptimizeDialogIntro": "Поле ниже необязательно: опишите, как изменить заметки или формулировки преподавателя (тон, структура, уровень терминов и т. д.).",
-      "aiOptimizeDialogBlankHint": "Если оставить пустым, текст будет сгенерирован или доработан по текущему слайду и правкам на этой странице.",
-      "aiOptimizeDialogSlideContext": "Страница: {{title}}",
+      "aiOptimizeDialogDescription": "По желанию: опишите правки. Пустое поле — авто по слайду и сценарию.",
       "aiOptimizeDialogLabel": "Пожелания (необязательно)",
-      "aiOptimizeDialogPlaceholder": "Например: дружелюбнее; вопрос в начале; проще объяснить термины…",
+      "aiOptimizeDialogPlaceholder": "Например: дружелюбнее, вопрос в начале, проще термины",
       "aiOptimizeDialogSubmit": "Сгенерировать"
     },
     "badge": {
@@ -388,6 +386,8 @@
     "undo": "Отменить",
     "overlayTitle": "AI настраивает компонент…",
     "toastApplied": "Правка AI применена",
+    "toastAutoApplied": "Оптимизация AI применена, включён режим редактирования — сохраните или откатите на панели.",
+    "slideAiMark": "Доработано AI",
     "toastPreviewReady": "Предпросмотр AI готов",
     "toastPreviewDescription": "Проверьте результат и нажмите «Применить».",
     "toastUndone": "Правка AI отменена",

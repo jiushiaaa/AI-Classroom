@@ -11,6 +11,10 @@ import { cn } from '@/lib/utils';
 import { useStageStore } from '@/lib/store/stage';
 import { useSettingsStore } from '@/lib/store/settings';
 import { useAgentRegistry } from '@/lib/orchestration/registry/store';
+import {
+  mergeBuiltinPresetAgentForChatRequest,
+  mergeTeacherAgentConfigForChatRequest,
+} from '@/lib/orchestration/teacher-request-override';
 import { getAvailableProvidersWithVoices } from '@/lib/audio/voice-resolver';
 import { getVoxCPMProviderOptions, useVoxCPMVoiceProfiles } from '@/lib/audio/voxcpm-voices';
 import { useI18n } from '@/lib/hooks/use-i18n';
@@ -654,8 +658,25 @@ function GenerationPreviewContent() {
           const a = registry.getAgent(id);
           return a && !a.isGenerated;
         });
+        const presetOv = settings.presetAgentOverrides ?? {};
+        const teacherBase = registry.getAgent('default-1');
+        const teacherResolved =
+          teacherBase &&
+          mergeTeacherAgentConfigForChatRequest(
+            teacherBase,
+            settings.teacherCustomDisplayName,
+            settings.teacherPersonaSupplement,
+          );
         agents = presetAgentIds
-          .map((id) => registry.getAgent(id))
+          .map((id) => {
+            const base = registry.getAgent(id);
+            if (!base) return null;
+            if (id === 'default-1') {
+              return teacherResolved ?? base;
+            }
+            const row = presetOv[id];
+            return mergeBuiltinPresetAgentForChatRequest(base, row?.name, row?.persona) ?? base;
+          })
           .filter(Boolean)
           .map((a) => ({
             id: a!.id,

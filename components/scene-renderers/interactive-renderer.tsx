@@ -5,7 +5,6 @@ import { AnimatePresence } from 'motion/react';
 import type { InteractiveContent } from '@/lib/types/stage';
 import { useWidgetIframeStore } from '@/lib/store/widget-iframe';
 import { useStageStore } from '@/lib/store/stage';
-import { useEditModeStore } from '@/lib/store/edit-mode';
 import { patchHtmlForIframe } from '@/lib/utils/iframe';
 import { AILoadingOverlay } from './ai-loading-overlay';
 
@@ -15,7 +14,6 @@ interface InteractiveRendererProps {
 }
 
 export function InteractiveRenderer({ content, sceneId }: InteractiveRendererProps) {
-  const isEditing = useEditModeStore.use.isEditing();
   // Prefer scene-level aiCommands (canonical) and fall back to legacy
   // content-level for previously persisted classroom JSON.
   const sceneAiCommands = useStageStore(
@@ -61,7 +59,7 @@ export function InteractiveRenderer({ content, sceneId }: InteractiveRendererPro
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
       />
       <AnimatePresence>
-        {isEditing && pendingCommand ? (
+        {pendingCommand ? (
           <AILoadingOverlay key="overlay" instruction={pendingCommand.instruction} />
         ) : null}
       </AnimatePresence>

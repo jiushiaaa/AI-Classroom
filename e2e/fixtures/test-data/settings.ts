@@ -13,6 +13,6 @@ export function createSettingsStorage(overrides: Record<string, unknown> = {}) {
       autoConfigApplied: true,
       ...overrides,
     },
-    version: 2,
+    version: 3,
   });
 }

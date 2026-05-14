@@ -171,12 +171,20 @@ export function Stage({
   // the publisher cycles speed or toggles auto-play in preview mode.
   const previewPlaybackSpeed = useSettingsStore((s) => s.playbackSpeed);
   const previewAutoPlayLecture = useSettingsStore((s) => s.autoPlayLecture);
+  const teacherCustomDisplayName = useSettingsStore((s) => s.teacherCustomDisplayName);
+  const presetAgentOverrides = useSettingsStore((s) => s.presetAgentOverrides);
 
   // Generate participants from selected agents
-  const participants = useMemo(
-    () => agentsToParticipants(selectedAgentIds, t),
-    [selectedAgentIds, t],
-  );
+  const participants = useMemo(() => {
+    const displayNameById: Record<string, string> = {};
+    const tn = teacherCustomDisplayName.trim();
+    if (tn) displayNameById['default-1'] = tn;
+    for (const [id, row] of Object.entries(presetAgentOverrides ?? {})) {
+      const n = row?.name?.trim();
+      if (n) displayNameById[id] = n;
+    }
+    return agentsToParticipants(selectedAgentIds, t, { displayNameById });
+  }, [selectedAgentIds, t, presetAgentOverrides, teacherCustomDisplayName]);
 
   // Resolved AgentConfig array for hooks that need full agent objects
   // Subscribe to the agents record so voiceConfig changes trigger re-resolution

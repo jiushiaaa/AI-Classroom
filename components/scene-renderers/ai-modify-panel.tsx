@@ -3,50 +3,31 @@
 /**
  * AIModifyPanel
  * -------------
- * Draggable floating panel for issuing natural-language modification
- * instructions to ANY scene (slide / quiz / interactive / PBL).
+ * Natural-language AI tuning for any scene (slide / quiz / interactive / PBL).
  *
- * The actual scene content is *not* edited — the demo records the publisher's
- * instructions on the scene's `aiCommands` list (scene-level, shared across
- * all entry points) and after a 2 s "thinking" delay enters a `previewing`
- * state. The publisher then explicitly
- *   - applies the change (status → 'applied', kept in history), or
- *   - discards it (command removed from history)
- *
- * This explicit confirm gate matches the PRD's "对比确认" flow and lets us
- * surface a prominent purple "preview" banner inside the panel.
- *
- * Layout (intentionally minimal — the publisher just types what they want):
- *  ┌───────────────────────────────┐
- *  │ ✨ {sceneTitle}              ✕ │  ← header + drag handle
- *  ├───────────────────────────────┤
- *  │ 🔮 preview banner (apply/undo)│  (only when ≥1 previewing command)
- *  │ ✓  optimization summary       │  (only when ≥1 applied command)
- *  ├───────────────────────────────┤
- *  │ Textarea                       │
- *  │                       [Send →] │
- *  └───────────────────────────────┘
+ * Flow: publisher sends an instruction → `pending` (loading overlays on the
+ * stage + sidebar thumbnail) → after a short delay the mock “AI” applies
+ * changes in one step (`applied`), syncs the first speech line in Notes,
+ * lightly marks slide text when applicable, closes this panel, and enters
+ * global slide edit mode so the publisher can keep or discard via the normal
+ * edit-mode save / revert controls.
  */
 
 import { useCallback, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import {
-  Sparkles,
-  X,
-  Send,
-  Loader2,
-  CheckCircle2,
-  GripHorizontal,
-  Wand2,
-  Undo2,
-  Check,
-} from 'lucide-react';
+import { Sparkles, X, Send, Loader2, CheckCircle2, GripHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 import type { AICommand } from '@/lib/types/ai-command';
 import type { Scene, SceneType } from '@/lib/types/stage';
+import type { PPTTextElement } from '@/lib/types/slides';
 import { useStageStore } from '@/lib/store/stage';
+import { useEditModeStore } from '@/lib/store/edit-mode';
 import { useI18n } from '@/lib/hooks/use-i18n';
 import { Button } from '@/components/ui/button';
+import { extractSlidePlainText } from '@/lib/utils/extract-slide-plain-text';
+import type { SpeechAction } from '@/lib/types/action';
+
+const SLIDE_AI_MARKER = '<!--openmaic-ai-tuned-->';
 
 interface AIModifyPanelProps {
   readonly sceneId: string;
@@ -75,11 +56,6 @@ const MOCK_SUMMARY_KEYS = [
 
 const APPLY_DELAY_MS = 2000;
 
-/**
- * Resolve the canonical aiCommands array for a scene, with back-compat for
- * scenes whose history was previously stored on `content.aiCommands`
- * (interactive / PBL only). Scene-level wins when present.
- */
 function resolveAiCommands(scene: Scene | undefined): AICommand[] {
   if (!scene) return [];
   if (scene.aiCommands) return scene.aiCommands;
@@ -106,29 +82,18 @@ export function AIModifyPanel({
     [commands],
   );
 
-  const previewing = sortedCommands.find((c) => c.status === 'previewing');
   const isPending = sortedCommands.some((c) => c.status === 'pending');
-  const isSending = isPending || !!previewing;
   const appliedCount = commands.filter((c) => c.status === 'applied').length;
 
   const sceneType: SceneType = scene?.type ?? 'slide';
   const sceneTitle = scene?.title ?? '';
   const placeholderKey = PLACEHOLDER_BY_TYPE[sceneType];
 
-  /**
-   * Persist commands back to the scene. Always writes to scene-level. Also
-   * mirrors into `content.aiCommands` for interactive / PBL scenes so the
-   * legacy `AILoadingOverlay` (which still reads from content) keeps working
-   * during the migration window.
-   */
   const writeCommands = useCallback(
     (next: AICommand[]) => {
       const current = useStageStore.getState().scenes.find((s) => s.id === sceneId);
       if (!current) return;
       const patch: Partial<Scene> = { aiCommands: next };
-      // Mirror to legacy `content.aiCommands` for interactive / PBL scenes
-      // so the existing AILoadingOverlay (which still reads from content)
-      // keeps working alongside the unified scene-level history.
       if (current.content.type === 'interactive' || current.content.type === 'pbl') {
         patch.content = { ...current.content, aiCommands: next };
       }
@@ -142,10 +107,91 @@ export function AIModifyPanel({
     return resolveAiCommands(current);
   }, [sceneId]);
 
+  const finalizeCommand = useCallback(
+    (cmdId: string, instruction: string) => {
+      const trimmed = instruction.trim();
+      const current = useStageStore.getState().scenes.find((s) => s.id === sceneId);
+      if (!current) return;
+
+      const summaryKey = MOCK_SUMMARY_KEYS[Math.floor(Math.random() * MOCK_SUMMARY_KEYS.length)];
+      const summary = t(summaryKey, { instruction: trimmed.slice(0, 28) });
+
+      const prevCmds = resolveAiCommands(current);
+      const nextCmds = prevCmds.map((c) =>
+        c.id === cmdId ? { ...c, status: 'applied' as const, summary } : c,
+      );
+
+      const updates: Partial<Scene> = {
+        aiCommands: nextCmds,
+        updatedAt: Date.now(),
+      };
+
+      if (current.content.type === 'interactive' || current.content.type === 'pbl') {
+        updates.content = { ...current.content, aiCommands: nextCmds };
+      }
+
+      if (current.actions?.length) {
+        const speechIdx = current.actions.findIndex((a) => a.type === 'speech');
+        if (speechIdx >= 0) {
+          const excerpt =
+            current.type === 'slide' && current.content.type === 'slide'
+              ? extractSlidePlainText(current.content)
+              : '';
+          let generated = t('chat.lectureNotes.aiMockScriptBody', {
+            title: current.title,
+            excerpt: excerpt || t('chat.lectureNotes.aiMockNoExcerpt'),
+          });
+          generated += t('chat.lectureNotes.aiMockInstructionAppend', {
+            instructions: trimmed,
+          });
+          updates.actions = current.actions.map((a, i) => {
+            if (i !== speechIdx || a.type !== 'speech') return a;
+            const sa = a as SpeechAction;
+            return {
+              ...sa,
+              text: generated,
+              userEditedAt: undefined,
+              audioId: undefined,
+              audioUrl: undefined,
+            };
+          });
+        }
+      }
+
+      if (current.type === 'slide' && current.content.type === 'slide') {
+        const canvas = current.content.canvas;
+        const elements = [...(canvas.elements ?? [])];
+        const ti = elements.findIndex((e) => e.type === 'text');
+        if (ti >= 0) {
+          const el = elements[ti];
+          if (el.type === 'text') {
+            const te = el as PPTTextElement;
+            const markHtml = `<p><span style="font-size:11px;color:#6d28d9;font-weight:600;">${t('aiModify.slideAiMark')}</span></p>`;
+            const newContent = te.content.includes(SLIDE_AI_MARKER)
+              ? te.content
+              : `${te.content}${SLIDE_AI_MARKER}${markHtml}`;
+            elements[ti] = { ...te, content: newContent };
+            updates.content = {
+              ...current.content,
+              canvas: { ...canvas, elements },
+            };
+          }
+        }
+      }
+
+      updateScene(sceneId, updates);
+      useStageStore.getState().setCurrentSceneId(sceneId);
+      useEditModeStore.getState().setEditing(true);
+      onClose();
+      toast.success(t('aiModify.toastAutoApplied'));
+    },
+    [sceneId, t, updateScene, onClose],
+  );
+
   const send = useCallback(
     (instruction: string) => {
       const trimmed = instruction.trim();
-      if (!trimmed || isSending) return;
+      if (!trimmed || isPending) return;
 
       const id = `aicmd-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const pending: AICommand = {
@@ -159,44 +205,15 @@ export function AIModifyPanel({
       setDraft('');
 
       setTimeout(() => {
-        const summaryKey = MOCK_SUMMARY_KEYS[Math.floor(Math.random() * MOCK_SUMMARY_KEYS.length)];
-        const next = readCurrentCommands().map((cmd) =>
-          cmd.id === id
-            ? {
-                ...cmd,
-                status: 'previewing' as const,
-                summary: t(summaryKey, { instruction: trimmed.slice(0, 28) }),
-              }
-            : cmd,
-        );
-        writeCommands(next);
-        toast.message(t('aiModify.toastPreviewReady'), {
-          description: t('aiModify.toastPreviewDescription'),
-        });
+        finalizeCommand(id, trimmed);
       }, APPLY_DELAY_MS);
     },
-    [isSending, readCurrentCommands, t, writeCommands],
+    [finalizeCommand, isPending, readCurrentCommands, writeCommands],
   );
 
   const handleSubmit = useCallback(() => {
     send(draft);
   }, [draft, send]);
-
-  const handleApplyPreview = useCallback(() => {
-    if (!previewing) return;
-    const next = readCurrentCommands().map((cmd) =>
-      cmd.id === previewing.id ? { ...cmd, status: 'applied' as const } : cmd,
-    );
-    writeCommands(next);
-    toast.success(t('aiModify.toastApplied'));
-  }, [previewing, readCurrentCommands, t, writeCommands]);
-
-  const handleUndoPreview = useCallback(() => {
-    if (!previewing) return;
-    const next = readCurrentCommands().filter((cmd) => cmd.id !== previewing.id);
-    writeCommands(next);
-    toast(t('aiModify.toastUndone'));
-  }, [previewing, readCurrentCommands, t, writeCommands]);
 
   if (!scene) return null;
 
@@ -236,53 +253,7 @@ export function AIModifyPanel({
         )}
       </div>
 
-      {previewing ? (
-        <div
-          className="mx-3 mt-3 rounded-xl bg-gradient-to-br from-purple-50 to-violet-50 dark:from-purple-900/30 dark:to-violet-900/20 px-3 py-2.5 ring-1 ring-purple-200/70 dark:ring-purple-700/40"
-          role="status"
-          aria-live="polite"
-        >
-          <div className="flex items-start gap-2">
-            <Wand2 className="w-3.5 h-3.5 text-purple-600 dark:text-purple-300 mt-0.5 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <div className="text-[11px] uppercase tracking-wide text-purple-700/80 dark:text-purple-300/80 font-bold mb-0.5">
-                {t('aiModify.previewBannerTitle')}
-              </div>
-              <div className="text-xs text-zinc-800 dark:text-zinc-200 break-words leading-snug">
-                {previewing.instruction}
-              </div>
-              {previewing.summary ? (
-                <div className="mt-1 text-[11px] text-purple-700 dark:text-purple-300 break-words leading-snug">
-                  {previewing.summary}
-                </div>
-              ) : null}
-            </div>
-          </div>
-          <div className="mt-2 flex items-center justify-end gap-1.5">
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={handleUndoPreview}
-              className="h-7 px-2.5 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200/70 dark:hover:bg-zinc-700/40"
-            >
-              <Undo2 className="w-3 h-3 mr-1" />
-              {t('aiModify.undo')}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleApplyPreview}
-              className="h-7 px-2.5 bg-gradient-to-br from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 text-white"
-            >
-              <Check className="w-3 h-3 mr-1" />
-              {t('aiModify.apply')}
-            </Button>
-          </div>
-        </div>
-      ) : null}
-
-      {appliedCount > 0 && !previewing ? (
+      {appliedCount > 0 ? (
         <div className="mx-3 mt-3 flex items-start gap-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2 text-xs text-emerald-800 dark:text-emerald-200 ring-1 ring-emerald-200/60 dark:ring-emerald-700/30">
           <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 shrink-0" />
           <span>{t('aiModify.optimizedBanner', { count: appliedCount })}</span>
@@ -301,7 +272,7 @@ export function AIModifyPanel({
           }}
           rows={4}
           placeholder={t(placeholderKey)}
-          disabled={isSending}
+          disabled={isPending}
           className="w-full flex-1 min-h-[96px] resize-none rounded-lg bg-zinc-50 dark:bg-zinc-800/60 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none ring-1 ring-zinc-200/70 dark:ring-zinc-700/50 focus:ring-purple-400 dark:focus:ring-purple-500 transition-shadow disabled:opacity-60"
           aria-label={t('aiModify.draftAriaLabel')}
         />
@@ -310,7 +281,7 @@ export function AIModifyPanel({
             type="button"
             size="sm"
             onClick={handleSubmit}
-            disabled={isSending || draft.trim().length === 0}
+            disabled={isPending || draft.trim().length === 0}
             className="bg-gradient-to-br from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 text-white"
           >
             {isPending ? (

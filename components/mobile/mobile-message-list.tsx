@@ -85,7 +85,7 @@ export function MobileMessageList({
         const agent = meta?.agentId ? agentsById[meta.agentId] : undefined;
         const senderName = isUser
           ? (meta?.senderName ?? t('mobile.qa.you'))
-          : (agent?.name ?? meta?.senderName ?? '');
+          : (meta?.senderName?.trim() || agent?.name || '');
         const senderAvatar = isUser ? (meta?.senderAvatar ?? '🙂') : (agent?.avatar ?? '🤖');
         const text = (msg.parts ?? [])
           .filter((p) => p.type === 'text')

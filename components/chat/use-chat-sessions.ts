@@ -17,7 +17,10 @@ import { useCanvasStore } from '@/lib/store/canvas';
 import { useSettingsStore } from '@/lib/store/settings';
 import { useUserProfileStore } from '@/lib/store/user-profile';
 import { useAgentRegistry } from '@/lib/orchestration/registry/store';
-import { mergeTeacherAgentConfigForChatRequest } from '@/lib/orchestration/teacher-request-override';
+import {
+  mergeBuiltinPresetAgentForChatRequest,
+  mergeTeacherAgentConfigForChatRequest,
+} from '@/lib/orchestration/teacher-request-override';
 import { useI18n } from '@/lib/hooks/use-i18n';
 import { getCurrentModelConfig } from '@/lib/utils/model-config';
 import { USER_AVATAR } from '@/lib/types/roundtable';
@@ -484,6 +487,24 @@ export function useChatSessions(options: UseChatSessionsOptions = {}) {
           mergedAgentConfigs.splice(existingIdx, 1);
         }
         mergedAgentConfigs.unshift(teacherRest);
+      }
+
+      const presetOv = settingsState.presetAgentOverrides ?? {};
+      for (const agentId of requestTemplate.config.agentIds) {
+        if (agentId === 'default-1' || !agentId.startsWith('default-')) continue;
+        const base = useAgentRegistry.getState().getAgent(agentId);
+        if (!base?.isDefault) continue;
+        const row = presetOv[agentId];
+        const presetMerged = mergeBuiltinPresetAgentForChatRequest(
+          base,
+          row?.name,
+          row?.persona,
+        );
+        if (!presetMerged) continue;
+        const { createdAt: _ct, updatedAt: _ut, isDefault: _idf, ...presetRest } = presetMerged;
+        const idx = mergedAgentConfigs.findIndex((c) => c.id === agentId);
+        if (idx >= 0) mergedAgentConfigs.splice(idx, 1);
+        mergedAgentConfigs.push(presetRest);
       }
 
       if (mergedAgentConfigs.length > 0) {

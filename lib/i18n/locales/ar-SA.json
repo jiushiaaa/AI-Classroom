@@ -127,11 +127,9 @@
       "ttsSyncedBadgeTitle": "تم تحرير النص — سيستخدم تشغيل الصوت المحدّث في المرة التالية",
       "aiMockInstructionAppend": "\n\n[تم تضمين ملاحظتك] {{instructions}}",
       "aiOptimizeDialogTitle": "تحسين النص بالذكاء الاصطناعي",
-      "aiOptimizeDialogIntro": "الحقل أدناه اختياري: اشرح كيف تريد تعديل ملاحظات هذه الصفحة أو صياغة المعلم (النبرة، البنية، مستوى المصطلحات، إلخ).",
-      "aiOptimizeDialogBlankHint": "إذا تركته فارغًا، يُولَّد النص أو يُحسَّن تلقائيًا من شريحة الصفحة الحالية وأي تعديلات على النص.",
-      "aiOptimizeDialogSlideContext": "الصفحة: {{title}}",
+      "aiOptimizeDialogDescription": "اختياري: اذكر التعديلات. اتركه فارغًا للتحسين تلقائيًا من الشريحة والنص.",
       "aiOptimizeDialogLabel": "تعليمات (اختياري)",
-      "aiOptimizeDialogPlaceholder": "مثال: نبرة أوضح؛ سؤال افتتاحي؛ تبسيط المصطلحات…",
+      "aiOptimizeDialogPlaceholder": "مثال: نبرة أوضح، سؤال افتتاحي، تبسيط المصطلحات",
       "aiOptimizeDialogSubmit": "توليد"
     },
     "badge": {
@@ -388,6 +386,8 @@
     "undo": "تراجع",
     "overlayTitle": "الذكاء الاصطناعي يضبط المكوّن…",
     "toastApplied": "تم تطبيق تعديل الذكاء الاصطناعي",
+    "toastAutoApplied": "تم تطبيق تحسين الذكاء الاصطناعي ودخول وضع التحرير — احفظ أو تراجع من الشريط.",
+    "slideAiMark": "مُحسّن بالذكاء الاصطناعي",
     "toastPreviewReady": "المعاينة جاهزة",
     "toastPreviewDescription": "راجع النتيجة ثم اضغط «تطبيق» للحفاظ عليها.",
     "toastUndone": "تم التراجع عن التعديل",

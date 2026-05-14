@@ -9,9 +9,7 @@ import {
   Heading5,
   ImageIcon,
   LayoutTemplate,
-  Maximize2,
   MessageSquareQuote,
-  Minimize2,
   Pilcrow,
   Redo2,
   Table2,
@@ -45,8 +43,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
-import type { SlideBackgroundImageSize } from '@/lib/types/slides';
-
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 
@@ -199,7 +195,7 @@ function readFileAsDataUrl(file: File): Promise<string | null> {
 }
 
 /**
- * Insert tools (text / image / …), optional cover–end slide canvas background,
+ * Insert tools (text / image / …), per-slide canvas background (image fills slide),
  * then undo/redo — single floating strip above the slide canvas in edit mode.
  */
 export function SlideEditInsertToolbar() {
@@ -230,21 +226,13 @@ export function SlideEditInsertToolbar() {
   const vw = viewportSize || 1000;
   const vh = vw * (viewportRatio || 0.5625);
 
-  const idx = scenes.findIndex((s) => s.id === currentSceneId);
   const current = scenes.find((s) => s.id === currentSceneId);
-  const last = scenes.length > 0 ? scenes.length - 1 : 0;
-  const showMasterBg =
+  const showSlideBg =
     isEditing &&
     !!current &&
     current.type === 'slide' &&
     current.content.type === 'slide' &&
-    scenes.length > 0 &&
-    (idx === 0 || idx === last);
-
-  const bg = showMasterBg && current?.content.type === 'slide' ? current.content.canvas.background : undefined;
-  const imageSize: SlideBackgroundImageSize =
-    bg?.type === 'image' && bg.image?.size === 'contain' ? 'contain' : 'cover';
-  const bgIsImage = bg?.type === 'image' && !!bg.image?.src;
+    scenes.length > 0;
 
   const insertText = useCallback(
     (variant: SlideTextVariant) => {
@@ -348,20 +336,11 @@ export function SlideEditInsertToolbar() {
       }
       updateBackground({
         type: 'image',
-        image: { src: res.dataUrl, size: imageSize === 'contain' ? 'contain' : 'cover' },
+        image: { src: res.dataUrl, size: 'cover' },
       });
       addHistorySnapshot();
     },
-    [addHistorySnapshot, imageSize, t, updateBackground],
-  );
-
-  const setBackgroundFit = useCallback(
-    (size: SlideBackgroundImageSize) => {
-      if (bg?.type !== 'image' || !bg.image?.src) return;
-      updateBackground({ type: 'image', image: { ...bg.image, size } });
-      addHistorySnapshot();
-    },
-    [addHistorySnapshot, bg, updateBackground],
+    [addHistorySnapshot, t, updateBackground],
   );
 
   const tableGridCells = useMemo(() => {
@@ -575,7 +554,7 @@ export function SlideEditInsertToolbar() {
               </PopoverContent>
             </Popover>
 
-            {showMasterBg ? (
+            {showSlideBg ? (
               <>
                 <Separator
                   orientation="vertical"
@@ -595,22 +574,6 @@ export function SlideEditInsertToolbar() {
                     {t('editMode.slideCanvasBg.pageBgTooltip')}
                   </TooltipContent>
                 </Tooltip>
-                {bgIsImage ? (
-                  <>
-                    <HistoryBtn
-                      icon={<Maximize2 strokeWidth={1.75} />}
-                      label={t('editMode.slideCanvasBg.fitCover')}
-                      disabled={false}
-                      onClick={() => setBackgroundFit('cover')}
-                    />
-                    <HistoryBtn
-                      icon={<Minimize2 strokeWidth={1.75} />}
-                      label={t('editMode.slideCanvasBg.fitContain')}
-                      disabled={false}
-                      onClick={() => setBackgroundFit('contain')}
-                    />
-                  </>
-                ) : null}
               </>
             ) : null}
 

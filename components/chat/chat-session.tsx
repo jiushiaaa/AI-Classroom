@@ -10,6 +10,7 @@ import { AvatarDisplay } from '@/components/ui/avatar-display';
 import { CircleStop } from 'lucide-react';
 import { InlineActionTag } from './inline-action-tag';
 import { useUserProfileStore } from '@/lib/store/user-profile';
+import { useSettingsStore } from '@/lib/store/settings';
 
 /** Extended message part type covering standard + custom action parts */
 interface MessagePart {
@@ -163,6 +164,8 @@ export function ChatSessionComponent({
 }: ChatSessionProps) {
   const { t } = useI18n();
   const userProfileAvatar = useUserProfileStore((s) => s.avatar);
+  const teacherCustomDisplayName = useSettingsStore((s) => s.teacherCustomDisplayName);
+  const presetAgentOverrides = useSettingsStore((s) => s.presetAgentOverrides);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const activeBubbleRef = useRef<HTMLDivElement>(null);
@@ -300,6 +303,15 @@ export function ChatSessionComponent({
                   {(() => {
                     const agentId = message.metadata?.agentId;
                     if (agentId) {
+                      if (agentId === 'default-1') {
+                        const tn = teacherCustomDisplayName.trim();
+                        if (tn) return tn;
+                      } else {
+                        const pn = presetAgentOverrides[agentId]?.name?.trim();
+                        if (pn) return pn;
+                      }
+                      const fromMeta = message.metadata?.senderName?.trim();
+                      if (fromMeta) return fromMeta;
                       const i18nName = t(`settings.agentNames.${agentId}`);
                       if (i18nName !== `settings.agentNames.${agentId}`) return i18nName;
                     }

@@ -1030,12 +1030,9 @@ function AutoGenerateRolesPanel({
 }
 
 /**
- * Preset roles panel — read-only persona, expandable to view, checkable to
- * include in the classroom session. Voice is configurable via AgentVoicePill.
- *
- * The user CANNOT edit name / persona — these are system-defined character
- * presets. Preset agents come from the registry's built-in non-teacher
- * `default-N` entries (assistant + students).
+ * Preset roles panel — optional display name and full persona overrides per
+ * built-in preset (assistant + students). Voice via AgentVoicePill; teacher
+ * row keeps supplement-style persona; non-teacher presets use editable textarea.
  */
 interface PresetRolesPanelProps {
   agents: AgentConfig[];
@@ -1054,6 +1051,13 @@ interface PresetRolesPanelProps {
   setTeacherNameEdit: (value: boolean) => void;
   teacherPersonaExpanded: boolean;
   setTeacherPersonaExpanded: (value: boolean | ((prev: boolean) => boolean)) => void;
+  presetAgentOverrides: Record<string, { name?: string; persona?: string }>;
+  patchPresetAgentOverride: (
+    agentId: string,
+    patch: Partial<{ name: string | undefined; persona: string | undefined }>,
+  ) => void;
+  /** When false, inline name editors close (popover dismissed). */
+  popoverOpen: boolean;
 }
 
 function PresetRolesPanel({
@@ -1073,9 +1077,19 @@ function PresetRolesPanel({
   setTeacherNameEdit,
   teacherPersonaExpanded,
   setTeacherPersonaExpanded,
+  presetAgentOverrides,
+  patchPresetAgentOverride,
+  popoverOpen,
 }: Readonly<PresetRolesPanelProps>) {
   const { t } = useI18n();
 
+  const [editingPresetNameId, setEditingPresetNameId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!popoverOpen) {
+      setEditingPresetNameId(null);
+    }
+  }, [popoverOpen]);
   const teacherDisplayLabel =
     teacherAgent &&
     (teacherCustomDisplayName.trim() === ''
@@ -1259,11 +1273,15 @@ function PresetRolesPanel({
         {presets.map((agent, idx) => {
           const isSelected = selectedAgentIds.includes(agent.id);
           const isExpanded = expandedIds.has(agent.id);
-          const persona = personaText(agent);
+          const baselinePersona = personaText(agent);
+          const ovr = presetAgentOverrides[agent.id];
+          const defaultLabel = getAgentName(agent);
+          const displayName = ovr?.name?.trim() ? ovr.name.trim() : defaultLabel;
           const roleBadgeClass =
             agent.role === 'assistant'
               ? 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300'
               : 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300';
+          const isNameEdit = editingPresetNameId === agent.id;
           return (
             <div
               key={agent.id}
@@ -1274,7 +1292,7 @@ function PresetRolesPanel({
                   : 'border-border/50 bg-muted/15',
               )}
             >
-              <div className="flex items-center gap-2 px-2.5 py-2">
+              <div className="group/name flex items-center gap-2 px-2.5 py-2">
                 <Checkbox
                   checked={isSelected}
                   onCheckedChange={(c) => togglePreset(agent.id, c === true)}
@@ -1293,19 +1311,76 @@ function PresetRolesPanel({
                   />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="text-[13px] font-medium truncate">
-                      {getAgentName(agent)}
-                    </span>
-                    <span
-                      className={cn(
-                        'shrink-0 text-[10px] px-1.5 py-0.5 rounded-full font-medium',
-                        roleBadgeClass,
-                      )}
-                    >
-                      {t(`settings.agentRoles.${agent.role}`)}
-                    </span>
-                  </div>
+                  {isNameEdit ? (
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Input
+                        value={ovr?.name ?? ''}
+                        onChange={(e) =>
+                          patchPresetAgentOverride(agent.id, { name: e.target.value })
+                        }
+                        onBlur={() => {
+                          const raw = (presetAgentOverrides[agent.id]?.name ?? '').trim();
+                          if (raw === '') {
+                            patchPresetAgentOverride(agent.id, { name: undefined });
+                          } else {
+                            patchPresetAgentOverride(agent.id, { name: raw });
+                          }
+                          setEditingPresetNameId(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            (e.target as HTMLInputElement).blur();
+                          }
+                          if (e.key === 'Escape') {
+                            setEditingPresetNameId(null);
+                          }
+                        }}
+                        autoFocus
+                        maxLength={64}
+                        placeholder={defaultLabel}
+                        aria-label={t('agentBar.presetRoleNameAria')}
+                        className="h-7 text-[13px] font-medium min-w-0 flex-1 bg-background/90 border-border/60"
+                        onClick={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => e.stopPropagation()}
+                      />
+                      <span
+                        className={cn(
+                          'shrink-0 text-[10px] px-1.5 py-0.5 rounded-full font-medium',
+                          roleBadgeClass,
+                        )}
+                      >
+                        {t(`settings.agentRoles.${agent.role}`)}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-[13px] font-medium truncate">{displayName}</span>
+                      <span
+                        className={cn(
+                          'shrink-0 text-[10px] px-1.5 py-0.5 rounded-full font-medium',
+                          roleBadgeClass,
+                        )}
+                      >
+                        {t(`settings.agentRoles.${agent.role}`)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingPresetNameId(agent.id);
+                        }}
+                        className={cn(
+                          'size-6 shrink-0 inline-flex items-center justify-center rounded-md transition-colors',
+                          'text-muted-foreground/70 max-sm:opacity-100',
+                          'opacity-0 group-hover/name:opacity-100 focus-visible:opacity-100',
+                          'hover:bg-muted/60 hover:text-foreground',
+                        )}
+                        aria-label={t('agentBar.presetEditNameAria')}
+                      >
+                        <Pencil className="size-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
                 {showVoice && (
                   <AgentVoicePill
@@ -1343,9 +1418,26 @@ function PresetRolesPanel({
               </div>
               {isExpanded && (
                 <div className="px-3 pb-2.5 pt-0.5">
-                  <div className="rounded-lg border border-border/40 bg-background/60 px-2.5 py-2 text-[11.5px] leading-relaxed text-muted-foreground/95 whitespace-pre-line">
-                    {persona}
-                  </div>
+                  <Textarea
+                    value={ovr?.persona !== undefined ? ovr.persona : baselinePersona}
+                    onChange={(e) =>
+                      patchPresetAgentOverride(agent.id, { persona: e.target.value })
+                    }
+                    onBlur={() => {
+                      const raw = presetAgentOverrides[agent.id]?.persona;
+                      if (raw === undefined) return;
+                      const tr = raw.trim();
+                      if (tr === '' || tr === baselinePersona.trim()) {
+                        patchPresetAgentOverride(agent.id, { persona: undefined });
+                      }
+                    }}
+                    maxLength={4000}
+                    rows={4}
+                    aria-label={t('agentBar.presetPersonaAria')}
+                    className="text-[11.5px] leading-relaxed resize-none bg-background/60 border-border/40 focus-visible:border-violet-300/70 focus-visible:ring-violet-300/30"
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  />
                 </div>
               )}
             </div>
@@ -1383,6 +1475,8 @@ export function AgentBar() {
   const teacherPersonaSupplement = useSettingsStore((s) => s.teacherPersonaSupplement);
   const setTeacherCustomDisplayName = useSettingsStore((s) => s.setTeacherCustomDisplayName);
   const setTeacherPersonaSupplement = useSettingsStore((s) => s.setTeacherPersonaSupplement);
+  const presetAgentOverrides = useSettingsStore((s) => s.presetAgentOverrides);
+  const patchPresetAgentOverride = useSettingsStore((s) => s.patchPresetAgentOverride);
 
   const [publisherCustomRoles, setPublisherCustomRoles] = useState<PublisherCustomRoleRow[]>([]);
   const [teacherNameEdit, setTeacherNameEdit] = useState(false);
@@ -1585,6 +1679,9 @@ export function AgentBar() {
               setTeacherNameEdit={setTeacherNameEdit}
               teacherPersonaExpanded={teacherPersonaExpanded}
               setTeacherPersonaExpanded={setTeacherPersonaExpanded}
+              presetAgentOverrides={presetAgentOverrides}
+              patchPresetAgentOverride={patchPresetAgentOverride}
+              popoverOpen={open}
             />
           ) : (
             <AutoGenerateRolesPanel

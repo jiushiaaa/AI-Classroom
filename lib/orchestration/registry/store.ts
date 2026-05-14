@@ -270,10 +270,12 @@ export const useAgentRegistry = create<AgentRegistryState>()(
 export function agentsToParticipants(
   agentIds: string[],
   t?: (key: string) => string,
+  options?: { displayNameById?: Record<string, string> },
 ): Participant[] {
   const registry = useAgentRegistry.getState();
   const participants: Participant[] = [];
   let hasTeacher = false;
+  const displayNameById = options?.displayNameById;
 
   // Resolve agents and sort: teacher first (by role then priority desc)
   const resolved = agentIds
@@ -297,8 +299,13 @@ export function agentsToParticipants(
 
     // Use i18n name for default agents, fall back to registry name
     const i18nName = t?.(`settings.agentNames.${agent.id}`);
+    const custom = displayNameById?.[agent.id]?.trim();
     const displayName =
-      i18nName && i18nName !== `settings.agentNames.${agent.id}` ? i18nName : agent.name;
+      custom && custom.length > 0
+        ? custom
+        : i18nName && i18nName !== `settings.agentNames.${agent.id}`
+          ? i18nName
+          : agent.name;
 
     participants.push({
       id: agent.id,

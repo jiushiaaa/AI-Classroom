@@ -127,11 +127,9 @@
       "ttsSyncedBadgeTitle": "原稿を編集しました。次回再生時に新しい音声が使用されます",
       "aiMockInstructionAppend": "\n\n【ご指示を反映】{{instructions}}",
       "aiOptimizeDialogTitle": "AI で原稿を最適化",
-      "aiOptimizeDialogIntro": "下の欄は任意です。ノートや講師の語り方をどう変えたいか（トーン、構成、用語の深さなど）を書けます。",
-      "aiOptimizeDialogBlankHint": "空欄のままにすると、現在のスライド内容とこのページの原稿の変更に基づいて自動で生成・調整します。",
-      "aiOptimizeDialogSlideContext": "ページ：{{title}}",
+      "aiOptimizeDialogDescription": "任意：変更の希望を記入。空欄ならスライドと原稿から自動で最適化します。",
       "aiOptimizeDialogLabel": "指示（任意）",
-      "aiOptimizeDialogPlaceholder": "例：もっと親しみやすい口調で／冒頭に問いかけを／専門用語をかみ砕いて…",
+      "aiOptimizeDialogPlaceholder": "例：親しみやすい口調、冒頭の問いかけ、用語の平易化",
       "aiOptimizeDialogSubmit": "生成する"
     },
     "badge": {
@@ -388,6 +386,8 @@
     "undo": "元に戻す",
     "overlayTitle": "AI がコンポーネントを調整中…",
     "toastApplied": "AI の変更を適用しました",
+    "toastAutoApplied": "AI の最適化を適用し、編集モードに入りました。ツールバーから保存または取り消しできます。",
+    "slideAiMark": "AI 調整済み",
     "toastPreviewReady": "AI プレビューが準備できました",
     "toastPreviewDescription": "結果を確認してから「適用」を押してください。",
     "toastUndone": "AI の変更を取り消しました",
