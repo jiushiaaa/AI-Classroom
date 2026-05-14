@@ -147,8 +147,9 @@ export type SlotMode = 'auto' | 'custom';
 export interface GenerationSlot {
   /** 'auto' = let AI decide; 'custom' = use `value`. */
   mode: SlotMode;
-  /** Numeric quantity. Only meaningful when `mode === 'custom'`, but kept
-   * around so toggling auto → custom preserves the user's last chosen value. */
+  /** Numeric quantity. Only meaningful when `mode === 'custom'`. While
+   * `mode === 'auto'`, a stored `value` may still reflect legacy defaults;
+   * switching to custom starts at 1 (clamped), not this field. */
   value: number;
 }
 
@@ -343,6 +344,8 @@ function StepperRow({
 }: Readonly<SteppedRowProps>) {
   const { t } = useI18n();
   const isAuto = slot.mode === 'auto';
+  /** Leaving "auto": start configurable quantity at 1 (clamped), not row `defaultValue`. */
+  const leaveAutoValue = clampInt(1, min, max, min);
 
   const setAuto = () => onChange({ mode: 'auto', value: slot.value });
   const setCustom = (n: number) => {
@@ -352,7 +355,7 @@ function StepperRow({
 
   const handleMinus = () => {
     if (isAuto) {
-      setCustom(Math.max(min, defaultValue - step));
+      setCustom(leaveAutoValue);
       return;
     }
     const next = slot.value - step;
@@ -361,7 +364,7 @@ function StepperRow({
 
   const handlePlus = () => {
     if (isAuto) {
-      setCustom(Math.max(min, defaultValue));
+      setCustom(leaveAutoValue);
       return;
     }
     if (slot.value >= max || disableIncrement) return;
@@ -370,7 +373,7 @@ function StepperRow({
 
   const toggleMode = () => {
     if (isAuto) {
-      setCustom(Math.max(min, defaultValue));
+      setCustom(leaveAutoValue);
     } else {
       setAuto();
     }
