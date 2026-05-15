@@ -181,6 +181,7 @@ export interface SettingsState {
   ttsVolume: number; // 0-1, actual volume level
   autoPlayLecture: boolean;
   playbackSpeed: PlaybackSpeed;
+  teacherSubtitlesVisible: boolean;
 
   // Agent settings
   selectedAgentIds: string[];
@@ -226,6 +227,7 @@ export interface SettingsState {
   setTTSVolume: (volume: number) => void;
   setAutoPlayLecture: (autoPlay: boolean) => void;
   setPlaybackSpeed: (speed: PlaybackSpeed) => void;
+  setTeacherSubtitlesVisible: (visible: boolean) => void;
   setSelectedAgentIds: (ids: string[]) => void;
   setMaxTurns: (turns: string) => void;
   setAgentMode: (mode: 'auto' | 'custom') => void;
@@ -718,6 +720,7 @@ export const useSettingsStore = create<SettingsState>()(
         ttsVolume: 1,
         autoPlayLecture: false,
         playbackSpeed: 1,
+        teacherSubtitlesVisible: true,
 
         // Layout preferences
         sidebarCollapsed: true,
@@ -798,6 +801,8 @@ export const useSettingsStore = create<SettingsState>()(
         setAutoPlayLecture: (autoPlay) => set({ autoPlayLecture: autoPlay }),
 
         setPlaybackSpeed: (speed) => set({ playbackSpeed: speed }),
+
+        setTeacherSubtitlesVisible: (visible) => set({ teacherSubtitlesVisible: visible }),
 
         setSelectedAgentIds: (ids) => set({ selectedAgentIds: ids }),
 
@@ -1639,6 +1644,10 @@ export const useSettingsStore = create<SettingsState>()(
 
         if ((state as Record<string, unknown>).realtimeQAEnabled === undefined) {
           (state as Record<string, unknown>).realtimeQAEnabled = true;
+        }
+
+        if ((state as Record<string, unknown>).teacherSubtitlesVisible === undefined) {
+          (state as Record<string, unknown>).teacherSubtitlesVisible = true;
         }
 
         if ((state as Record<string, unknown>).thinkingConfigs === undefined) {

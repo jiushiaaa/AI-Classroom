@@ -187,6 +187,7 @@ export function Stage({
   // the publisher cycles speed or toggles auto-play in preview mode.
   const previewPlaybackSpeed = useSettingsStore((s) => s.playbackSpeed);
   const previewAutoPlayLecture = useSettingsStore((s) => s.autoPlayLecture);
+  const teacherSubtitlesVisible = useSettingsStore((s) => s.teacherSubtitlesVisible);
   const teacherCustomDisplayName = useSettingsStore((s) => s.teacherCustomDisplayName);
   const presetAgentOverrides = useSettingsStore((s) => s.presetAgentOverrides);
 
@@ -830,6 +831,15 @@ export function Stage({
     ],
   );
 
+  const studentPlaybackView = useMemo(
+    () => (teacherSubtitlesVisible ? playbackView : { ...playbackView, sourceText: '' }),
+    [teacherSubtitlesVisible, playbackView],
+  );
+
+  const visibleLiveSpeech = teacherSubtitlesVisible ? liveSpeech : null;
+  const visibleLectureSpeech = teacherSubtitlesVisible ? lectureSpeech : null;
+  const visibleIdleText = teacherSubtitlesVisible ? firstSpeechText : '';
+
   const isTopicActive = playbackView.isTopicActive;
 
   /**
@@ -1211,10 +1221,10 @@ export function Stage({
             <Roundtable
               mode={mode}
               initialParticipants={participants}
-              playbackView={playbackView}
-              currentSpeech={liveSpeech}
-              lectureSpeech={lectureSpeech}
-              idleText={firstSpeechText}
+              playbackView={studentPlaybackView}
+              currentSpeech={visibleLiveSpeech}
+              lectureSpeech={visibleLectureSpeech}
+              idleText={visibleIdleText}
               playbackCompleted={playbackCompleted}
               discussionRequest={discussionRequest}
               engineMode={engineMode}
@@ -1340,6 +1350,7 @@ export function Stage({
               isOpenmaicDemoClassroom={isOpenmaicDemoClassroom}
               lectureAudioProgress={lectureAudioProgress}
               onLectureAudioSeek={handleLectureAudioSeek}
+              showSubtitles={teacherSubtitlesVisible}
             />
           </div>
         )}
@@ -1525,7 +1536,7 @@ export function Stage({
       onCycleSpeed: cycleSpeed,
       autoPlayLecture: previewAutoPlayLecture,
       onToggleAutoPlay: toggleAutoPlay,
-      playbackView,
+      playbackView: studentPlaybackView,
       speakingAgentId,
       thinkingState,
       agents: mobileAgents,

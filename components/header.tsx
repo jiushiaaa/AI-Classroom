@@ -1,11 +1,21 @@
 'use client';
 
-import { ArrowLeft, Loader2, Download, FileDown, Package, Archive } from 'lucide-react';
+import {
+  ArrowLeft,
+  Loader2,
+  Download,
+  FileDown,
+  Package,
+  Archive,
+  Captions,
+  CaptionsOff,
+} from 'lucide-react';
 import { useI18n } from '@/lib/hooks/use-i18n';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useStageStore } from '@/lib/store/stage';
+import { useSettingsStore } from '@/lib/store/settings';
 import { useMediaGenerationStore } from '@/lib/store/media-generation';
 import { useExportPPTX } from '@/lib/export/use-export-pptx';
 import { useExportClassroom } from '@/lib/export/use-export-classroom';
@@ -47,6 +57,8 @@ export function Header({
   const generatingOutlines = useStageStore((s) => s.generatingOutlines);
   const failedOutlines = useStageStore((s) => s.failedOutlines);
   const mediaTasks = useMediaGenerationStore((s) => s.tasks);
+  const teacherSubtitlesVisible = useSettingsStore((s) => s.teacherSubtitlesVisible);
+  const setTeacherSubtitlesVisible = useSettingsStore((s) => s.setTeacherSubtitlesVisible);
 
   const canExport =
     scenes.length > 0 &&
@@ -100,6 +112,24 @@ export function Header({
         {!readOnly && (
           <>
             <EditModeToggleButton variant="header" />
+            <button
+              type="button"
+              onClick={() => setTeacherSubtitlesVisible(!teacherSubtitlesVisible)}
+              aria-pressed={teacherSubtitlesVisible}
+              title={teacherSubtitlesVisible ? '关闭 AI 老师字幕' : '开启 AI 老师字幕'}
+              className={cn(
+                'shrink-0 p-2 rounded-full transition-all',
+                teacherSubtitlesVisible
+                  ? 'text-purple-600 bg-purple-50 ring-1 ring-purple-100 hover:bg-purple-100 dark:text-purple-300 dark:bg-purple-950/40 dark:ring-purple-800/60'
+                  : 'text-gray-400 hover:bg-white hover:text-gray-700 hover:shadow-sm dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-200',
+              )}
+            >
+              {teacherSubtitlesVisible ? (
+                <Captions className="w-4 h-4" />
+              ) : (
+                <CaptionsOff className="w-4 h-4" />
+              )}
+            </button>
             {!hideDeviceTabs && <DevicePreviewTabs variant="iconRail" />}
             {/* Publish — compact icon button (hover to reveal "发布"); flush
                 left of the Download icon so the two share a single visual rail. */}

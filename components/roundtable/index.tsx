@@ -106,6 +106,7 @@ interface RoundtableProps {
   /** Pre-generated / URL lecture TTS clip progress (HTML audio only). */
   readonly lectureAudioProgress?: LectureAudioProgress | null;
   readonly onLectureAudioSeek?: (ratio: number) => void;
+  readonly showSubtitles?: boolean;
 }
 
 const VOICE_WAVE_BARS = [
@@ -193,6 +194,7 @@ export function Roundtable({
   isOpenmaicDemoClassroom = false,
   lectureAudioProgress,
   onLectureAudioSeek,
+  showSubtitles = true,
 }: RoundtableProps) {
   const { t } = useI18n();
   const ttsMuted = useSettingsStore((s) => s.ttsMuted);
@@ -255,13 +257,15 @@ export function Roundtable({
   // Role-aware source text: userMessage overlay on top of playbackView
   const sourceText = userMessage
     ? userMessage
-    : (playbackView?.sourceText ??
-      (currentSpeech
-        ? currentSpeech
-        : isInLiveFlow
-          ? ''
-          : lectureSpeech || (playbackCompleted ? '' : idleText) || ''));
-  const hasAgentFeedback = Boolean(playbackView?.sourceText || thinkingState);
+    : showSubtitles
+      ? (playbackView?.sourceText ??
+        (currentSpeech
+          ? currentSpeech
+          : isInLiveFlow
+            ? ''
+            : lectureSpeech || (playbackCompleted ? '' : idleText) || ''))
+      : '';
+  const hasAgentFeedback = Boolean((showSubtitles && playbackView?.sourceText) || thinkingState);
   const prevHasAgentFeedbackRef = useRef(hasAgentFeedback);
 
   const clearUserMessageClearTimer = useCallback(() => {
@@ -517,9 +521,9 @@ export function Roundtable({
     : null;
 
   // Bubble loading: speakingAgentId is set (agent_start fired) but text hasn't arrived yet
-  const isBubbleLoading = !!(speakingAgentId && !currentSpeech && !userMessage);
+  const isBubbleLoading = !!(showSubtitles && speakingAgentId && !currentSpeech && !userMessage);
   // Student agent specifically loading (for agent-style bubble)
-  const isAgentLoading = !!(speakingStudent && !currentSpeech && !userMessage);
+  const isAgentLoading = !!(showSubtitles && speakingStudent && !currentSpeech && !userMessage);
 
   const activeRole: 'teacher' | 'user' | 'agent' | null = userMessage
     ? 'user'
@@ -540,22 +544,24 @@ export function Roundtable({
 
   const bubbleRole: 'teacher' | 'user' | 'agent' | null = userMessage
     ? 'user'
-    : (playbackView?.bubbleRole ??
-      (currentSpeech && speakingStudent
-        ? 'agent'
-        : currentSpeech
-          ? 'teacher'
-          : isAgentLoading
-            ? 'agent'
-            : isBubbleLoading
-              ? 'teacher'
-              : isInLiveFlow
-                ? null
-                : isCueUser
+    : showSubtitles
+      ? (playbackView?.bubbleRole ??
+        (currentSpeech && speakingStudent
+          ? 'agent'
+          : currentSpeech
+            ? 'teacher'
+            : isAgentLoading
+              ? 'agent'
+              : isBubbleLoading
+                ? 'teacher'
+                : isInLiveFlow
                   ? null
-                  : lectureSpeech || idleText
-                    ? 'teacher'
-                    : null));
+                  : isCueUser
+                    ? null
+                    : lectureSpeech || idleText
+                      ? 'teacher'
+                      : null))
+      : null;
 
   const bubbleName =
     bubbleRole === 'agent'
@@ -578,7 +584,13 @@ export function Roundtable({
 
   // Enriched playbackView that includes userMessage overlay for bubbleRole/sourceText
   const enrichedPlaybackView: PlaybackView = playbackView
-    ? { ...playbackView, bubbleRole, sourceText, activeRole: activeRole ?? playbackView.activeRole }
+    ? {
+        ...playbackView,
+        bubbleRole,
+        sourceText,
+        activeRole: activeRole ?? playbackView.activeRole,
+        buttonState: showSubtitles || userMessage ? playbackView.buttonState : 'none',
+      }
     : {
         phase: 'idle' as const,
         sourceText,
