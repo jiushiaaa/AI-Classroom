@@ -43,6 +43,11 @@ export interface SpeechAction extends ActionBase {
   audioUrl?: string; // Server-generated TTS audio URL
   voice?: string;
   speed?: number; // default 1.0
+  publisherVoiceName?: string;
+  publisherVoiceUploadedAt?: number;
+  publisherVoiceMimeType?: string;
+  publisherPreviousAudioId?: string;
+  publisherPreviousAudioUrl?: string;
   /**
    * Timestamp (ms since epoch) of the most recent manual edit by the
    * publisher in the editor's Notes panel. When set, the editor renders a

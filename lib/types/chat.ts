@@ -208,6 +208,8 @@ export type LectureNoteItem =
       text: string;
       /** Timestamp of last manual edit, mirrors SpeechAction.userEditedAt. */
       userEditedAt?: number;
+      publisherVoiceName?: string;
+      publisherVoiceUploadedAt?: number;
     }
   | { kind: 'action'; type: string; label?: string };
 

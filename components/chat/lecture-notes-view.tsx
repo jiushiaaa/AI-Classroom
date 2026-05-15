@@ -17,6 +17,9 @@ import {
   Check,
   Pencil,
   Sparkles,
+  Mic2,
+  Trash2,
+  Loader2,
 } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
@@ -68,6 +71,8 @@ interface LectureNotesViewProps {
    * Shown as an icon on each card; when omitted, the control is hidden.
    */
   onAiGenerateScene?: (sceneId: string, userInstructions?: string) => void;
+  onUploadTeacherVoice?: (sceneId: string, file: File) => Promise<void> | void;
+  onRemoveTeacherVoice?: (sceneId: string) => Promise<void> | void;
   /** Card click jumps global current scene (scroll alone does not call this). */
   onSelectScene?: (sceneId: string) => void;
 }
@@ -77,6 +82,8 @@ export function LectureNotesView({
   currentSceneId,
   onEditSpeech,
   onAiGenerateScene,
+  onUploadTeacherVoice,
+  onRemoveTeacherVoice,
   onSelectScene,
 }: LectureNotesViewProps) {
   const { t } = useI18n();
@@ -88,6 +95,7 @@ export function LectureNotesView({
     sceneTitle: string;
   } | null>(null);
   const [aiOptimizeInstructions, setAiOptimizeInstructions] = useState('');
+  const [uploadingVoiceSceneId, setUploadingVoiceSceneId] = useState<string | null>(null);
 
   useEffect(() => {
     if (editingSceneId && !notes.some((n) => n.sceneId === editingSceneId)) {
@@ -183,6 +191,9 @@ export function LectureNotesView({
         const pageLabel = t('chat.lectureNotes.pageLabel', { n: pageNum });
 
         const showHeaderActions = Boolean(onAiGenerateScene || onEditSpeech);
+        const firstSpeech = note.items.find((item) => item.kind === 'speech');
+        const hasPublisherVoice =
+          firstSpeech?.kind === 'speech' && Boolean(firstSpeech.publisherVoiceUploadedAt);
         const speechUnlocked = editable && editingSceneId === note.sceneId;
 
         return (
@@ -246,7 +257,7 @@ export function LectureNotesView({
               >
                 {pageLabel}
               </span>
-              {showHeaderActions && (
+              {(showHeaderActions || onUploadTeacherVoice) && (
                 <div
                   className={cn(
                     'flex items-center gap-0.5 shrink-0',
@@ -293,6 +304,65 @@ export function LectureNotesView({
                       aria-pressed={speechUnlocked}
                     >
                       <Pencil className="size-3.5" />
+                    </button>
+                  )}
+                  {onUploadTeacherVoice && (
+                    <label
+                      onClick={(e) => e.stopPropagation()}
+                      className={cn(
+                        'size-6 inline-flex items-center justify-center rounded-md transition-colors cursor-pointer',
+                        hasPublisherVoice
+                          ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-100/80 dark:bg-emerald-900/35'
+                          : 'text-muted-foreground/70 hover:bg-emerald-100/80 dark:hover:bg-emerald-900/35 hover:text-emerald-600 dark:hover:text-emerald-300',
+                        uploadingVoiceSceneId === note.sceneId && 'pointer-events-none opacity-70',
+                      )}
+                      title={
+                        hasPublisherVoice
+                          ? `已上传真人老师人声：${firstSpeech?.kind === 'speech' ? firstSpeech.publisherVoiceName : ''}`
+                          : '上传真人老师人声'
+                      }
+                      aria-label="上传真人老师人声"
+                    >
+                      {uploadingVoiceSceneId === note.sceneId ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <Mic2 className="size-3.5" />
+                      )}
+                      <input
+                        type="file"
+                        accept="audio/*"
+                        className="sr-only"
+                        onChange={async (event) => {
+                          const file = event.target.files?.[0];
+                          event.currentTarget.value = '';
+                          if (!file) return;
+                          setUploadingVoiceSceneId(note.sceneId);
+                          try {
+                            await onUploadTeacherVoice(note.sceneId, file);
+                          } finally {
+                            setUploadingVoiceSceneId(null);
+                          }
+                        }}
+                      />
+                    </label>
+                  )}
+                  {hasPublisherVoice && onRemoveTeacherVoice && (
+                    <button
+                      type="button"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        setUploadingVoiceSceneId(note.sceneId);
+                        try {
+                          await onRemoveTeacherVoice(note.sceneId);
+                        } finally {
+                          setUploadingVoiceSceneId(null);
+                        }
+                      }}
+                      className="size-6 inline-flex items-center justify-center rounded-md text-emerald-600/80 dark:text-emerald-400/80 hover:bg-red-100/80 dark:hover:bg-red-900/35 hover:text-red-600 dark:hover:text-red-300 transition-colors"
+                      title="取消真人老师人声覆盖"
+                      aria-label="取消真人老师人声覆盖"
+                    >
+                      <Trash2 className="size-3.5" />
                     </button>
                   )}
                 </div>
@@ -512,8 +582,10 @@ function EditableSpeech({
 
   useEffect(() => {
     if (!editable) {
-      setIsEditing(false);
-      setPolishState(null);
+      queueMicrotask(() => {
+        setIsEditing(false);
+        setPolishState(null);
+      });
       if (spanRef.current) {
         spanRef.current.textContent = text;
       }
@@ -535,7 +607,7 @@ function EditableSpeech({
   // range that lives entirely inside our editable span.
   useEffect(() => {
     if (!isEditing) {
-      setPolishState(null);
+      queueMicrotask(() => setPolishState(null));
       return;
     }
 

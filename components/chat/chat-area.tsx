@@ -23,6 +23,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useChatSessions } from './use-chat-sessions';
 import { SessionList } from './session-list';
 import { LectureNotesView } from './lecture-notes-view';
+import { db } from '@/lib/utils/database';
 
 interface ChatAreaProps {
   className?: string;
@@ -191,6 +192,8 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
                     actionId: sa.id,
                     text: sa.text,
                     userEditedAt: sa.userEditedAt,
+                    publisherVoiceName: sa.publisherVoiceName,
+                    publisherVoiceUploadedAt: sa.publisherVoiceUploadedAt,
                   };
                 }
                 return {
@@ -233,6 +236,11 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
             userEditedAt: Date.now(),
             audioId: undefined,
             audioUrl: undefined,
+            publisherVoiceName: undefined,
+            publisherVoiceUploadedAt: undefined,
+            publisherVoiceMimeType: undefined,
+            publisherPreviousAudioId: undefined,
+            publisherPreviousAudioUrl: undefined,
           };
           return updated;
         });
@@ -283,6 +291,11 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
             userEditedAt: undefined,
             audioId: undefined,
             audioUrl: undefined,
+            publisherVoiceName: undefined,
+            publisherVoiceUploadedAt: undefined,
+            publisherVoiceMimeType: undefined,
+            publisherPreviousAudioId: undefined,
+            publisherPreviousAudioUrl: undefined,
           };
           return updated;
         });
@@ -292,6 +305,107 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
         });
       },
       [scenes, updateScene, t],
+    );
+
+    const handleUploadTeacherVoice = useCallback(
+      async (sceneId: string, file: File) => {
+        if (!file.type.startsWith('audio/')) {
+          toast.error('请选择音频文件');
+          return;
+        }
+
+        try {
+          const scene = scenes.find((s) => s.id === sceneId);
+          if (!scene?.actions?.length) return;
+
+          const speechAction = scene.actions.find((a) => a.type === 'speech') as
+            | SpeechAction
+            | undefined;
+          if (!speechAction) {
+            toast.error('当前页没有可覆盖的老师讲解音频');
+            return;
+          }
+
+          const now = Date.now();
+          const format = file.type.split('/')[1]?.split(';')[0] || 'mp3';
+          const audioId = `teacher_voice_${sceneId}_${now}`;
+
+          if (speechAction.audioId?.startsWith('teacher_voice_')) {
+            await db.audioFiles.delete(speechAction.audioId);
+          }
+
+          await db.audioFiles.put({
+            id: audioId,
+            blob: file,
+            format,
+            text: speechAction.text,
+            voice: 'publisher-teacher',
+            createdAt: now,
+          });
+
+          const nextActions: Action[] = scene.actions.map((a) => {
+            if (a.id !== speechAction.id || a.type !== 'speech') return a;
+            return {
+              ...(a as SpeechAction),
+              audioId,
+              audioUrl: undefined,
+              publisherPreviousAudioId:
+                speechAction.publisherPreviousAudioId ??
+                (speechAction.audioId?.startsWith('teacher_voice_')
+                  ? undefined
+                  : speechAction.audioId),
+              publisherPreviousAudioUrl:
+                speechAction.publisherPreviousAudioUrl ??
+                (speechAction.audioId?.startsWith('teacher_voice_')
+                  ? undefined
+                  : speechAction.audioUrl),
+              publisherVoiceName: file.name,
+              publisherVoiceUploadedAt: now,
+              publisherVoiceMimeType: file.type,
+            };
+          });
+
+          updateScene(sceneId, { actions: nextActions, updatedAt: now });
+          toast.success('已使用真人老师人声覆盖当前页');
+        } catch {
+          toast.error('真人老师人声上传失败，请重试');
+        }
+      },
+      [scenes, updateScene],
+    );
+
+    const handleRemoveTeacherVoice = useCallback(
+      async (sceneId: string) => {
+        const scene = scenes.find((s) => s.id === sceneId);
+        if (!scene?.actions?.length) return;
+
+        const speechAction = scene.actions.find(
+          (a) => a.type === 'speech' && (a as SpeechAction).publisherVoiceUploadedAt,
+        ) as SpeechAction | undefined;
+        if (!speechAction) return;
+
+        if (speechAction.audioId?.startsWith('teacher_voice_')) {
+          await db.audioFiles.delete(speechAction.audioId);
+        }
+
+        const nextActions: Action[] = scene.actions.map((a) => {
+          if (a.id !== speechAction.id || a.type !== 'speech') return a;
+          return {
+            ...(a as SpeechAction),
+            audioId: speechAction.publisherPreviousAudioId,
+            audioUrl: speechAction.publisherPreviousAudioUrl,
+            publisherVoiceName: undefined,
+            publisherVoiceUploadedAt: undefined,
+            publisherVoiceMimeType: undefined,
+            publisherPreviousAudioId: undefined,
+            publisherPreviousAudioUrl: undefined,
+          };
+        });
+
+        updateScene(sceneId, { actions: nextActions, updatedAt: Date.now() });
+        toast.success('已恢复当前页 AI 老师声音');
+      },
+      [scenes, updateScene],
     );
 
     // Filter out lecture sessions for the Chat tab
@@ -447,6 +561,8 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
                 currentSceneId={currentSceneId}
                 onEditSpeech={readOnly ? undefined : handleEditSpeech}
                 onAiGenerateScene={readOnly ? undefined : handleAiGenerateTeacherScript}
+                onUploadTeacherVoice={readOnly ? undefined : handleUploadTeacherVoice}
+                onRemoveTeacherVoice={readOnly ? undefined : handleRemoveTeacherVoice}
                 onSelectScene={onLectureNoteSceneSelect}
               />
             </TabsContent>
