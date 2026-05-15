@@ -21,6 +21,24 @@ import { resolveModelFromRequest } from '@/lib/server/resolve-model';
 
 const log = createLogger('Scene Content API');
 
+const MAX_PUBLISHER_FONTS_IN_REQUEST = 8;
+
+function normalizePublisherFontsForPrompt(
+  raw: unknown,
+): Array<{ family: string; label: string }> | undefined {
+  if (!raw || !Array.isArray(raw)) return undefined;
+  const out: Array<{ family: string; label: string }> = [];
+  for (const row of raw.slice(0, MAX_PUBLISHER_FONTS_IN_REQUEST)) {
+    if (!row || typeof row !== 'object') continue;
+    const r = row as { family?: unknown; label?: unknown };
+    const family = typeof r.family === 'string' ? r.family.trim().slice(0, 96) : '';
+    const label = typeof r.label === 'string' ? r.label.trim().slice(0, 120) : '';
+    if (!family || !/^[A-Za-z0-9_-]+$/.test(family)) continue;
+    out.push({ family, label: label || family });
+  }
+  return out.length > 0 ? out : undefined;
+}
+
 export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
@@ -37,6 +55,7 @@ export async function POST(req: NextRequest) {
       stageId,
       agents,
       languageDirective,
+      publisherFontsForPrompt: rawPublisherFonts,
     } = body as {
       outline: SceneOutline;
       allOutlines: SceneOutline[];
@@ -50,7 +69,10 @@ export async function POST(req: NextRequest) {
       stageId: string;
       agents?: AgentInfo[];
       languageDirective?: string;
+      publisherFontsForPrompt?: unknown;
     };
+
+    const publisherFontsForPrompt = normalizePublisherFontsForPrompt(rawPublisherFonts);
 
     // Validate required fields
     if (!rawOutline) {
@@ -155,6 +177,7 @@ export async function POST(req: NextRequest) {
       agents,
       languageDirective,
       thinkingConfig,
+      ...(publisherFontsForPrompt ? { publisherFontsForPrompt } : {}),
     });
 
     if (!content) {

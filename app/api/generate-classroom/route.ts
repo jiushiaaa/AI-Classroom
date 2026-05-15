@@ -23,10 +23,28 @@ export async function POST(req: NextRequest) {
         ? rawBody.referenceBackgroundImage
         : undefined;
 
+    const publisherFontsRaw = rawBody.publisherFontsForPrompt;
+    const publisherFontsForPrompt =
+      Array.isArray(publisherFontsRaw) && publisherFontsRaw.length > 0
+        ? publisherFontsRaw
+            .slice(0, 8)
+            .map((row: unknown) => {
+              if (!row || typeof row !== 'object') return null;
+              const r = row as { family?: unknown; label?: unknown };
+              const family =
+                typeof r.family === 'string' ? r.family.trim().slice(0, 96) : '';
+              const label = typeof r.label === 'string' ? r.label.trim().slice(0, 120) : '';
+              if (!family || !/^[A-Za-z0-9_-]+$/.test(family)) return null;
+              return { family, label: label || family };
+            })
+            .filter((x): x is { family: string; label: string } => x !== null)
+        : [];
+
     const body: GenerateClassroomInput = {
       requirement: rawBody.requirement || '',
       ...(rawBody.pdfContent ? { pdfContent: rawBody.pdfContent } : {}),
       ...(refBg ? { referenceBackgroundImage: refBg } : {}),
+      ...(publisherFontsForPrompt.length > 0 ? { publisherFontsForPrompt } : {}),
 
       ...(rawBody.enableWebSearch != null ? { enableWebSearch: rawBody.enableWebSearch } : {}),
       ...(rawBody.enableImageGeneration != null

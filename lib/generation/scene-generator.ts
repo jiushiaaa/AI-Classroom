@@ -73,6 +73,8 @@ export interface SceneContentOptions {
   thinkingConfig?: ThinkingConfig;
   /** Full-slide backdrop (data URL or https). Slide scenes use it as `background.type=image` and vision context. */
   referenceBackgroundImage?: string;
+  /** Publisher-selected custom fonts (CSS family + label) — passed to slide prompt only; binary fonts stay client-side. */
+  publisherFontsForPrompt?: Array<{ family: string; label: string }>;
 }
 
 export interface SceneActionsOptions {
@@ -296,6 +298,7 @@ export async function generateSceneContent(
     languageDirective,
     thinkingConfig,
     referenceBackgroundImage,
+    publisherFontsForPrompt,
   } = options;
 
   // Unified path for interactive scenes (both normal and ultra mode)
@@ -334,6 +337,7 @@ export async function generateSceneContent(
         agents,
         languageDirective,
         referenceBackgroundImage,
+        publisherFontsForPrompt,
       );
     case 'quiz':
       return generateQuizContent(outline, aiCall, languageDirective);
@@ -611,6 +615,7 @@ async function generateSlideContent(
   agents?: AgentInfo[],
   languageDirective?: string,
   referenceBackgroundImage?: string,
+  publisherFontsForPrompt?: Array<{ family: string; label: string }>,
 ): Promise<GeneratedSlideContent | null> {
   // Build assigned images description for the prompt
   let assignedImagesText = '无可用图片，禁止插入任何 image 元素';
@@ -700,6 +705,11 @@ async function generateSlideContent(
 
   const teacherContext = formatTeacherPersonaForPrompt(agents);
 
+  const publisherFontsActive = Boolean(publisherFontsForPrompt?.length);
+  const publisherFontsPrimaryFamily = publisherFontsForPrompt?.[0]?.family ?? '';
+  const publisherFontsList =
+    publisherFontsForPrompt?.map((f) => `- \`${f.family}\` — ${f.label}`).join('\n') ?? '';
+
   const prompts = buildPrompt(PROMPT_IDS.SLIDE_CONTENT, {
     title: outline.title,
     description: outline.description,
@@ -715,6 +725,9 @@ async function generateSlideContent(
     generatedVideoEnabled,
     mediaElementEnabled,
     referenceBackgroundActive: Boolean(referenceBackgroundImage),
+    publisherFontsActive,
+    publisherFontsPrimaryFamily,
+    publisherFontsList,
   });
 
   if (!prompts) {

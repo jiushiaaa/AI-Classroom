@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   AlignCenter,
@@ -33,12 +33,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-  FONT_OPTIONS,
   FONT_SIZE_OPTIONS,
   HIGHLIGHT_COLOR_SWATCHES,
   TEXT_COLOR_SWATCHES,
   parseFontSizePx,
 } from '../toolbar/toolbar-constants';
+import { getEditorFontOptions } from '@/lib/utils/editor-font-options';
 
 const TOOLBAR_HEIGHT = 40;
 const VIEWPORT_PADDING = 8;
@@ -103,6 +103,15 @@ export function TextSelectionMiniToolbar() {
   const barRef = useRef<HTMLDivElement>(null);
   const popoverOpenRef = useRef(false);
   const recomputeTimer = useRef<number | null>(null);
+  const [fontOptionsTick, setFontOptionsTick] = useState(0);
+
+  useEffect(() => {
+    const fn = () => setFontOptionsTick((x) => x + 1);
+    window.addEventListener('openmaic-publisher-fonts-changed', fn);
+    return () => window.removeEventListener('openmaic-publisher-fonts-changed', fn);
+  }, []);
+
+  const fontOptions = useMemo(() => getEditorFontOptions(), [fontOptionsTick]);
 
   const hide = useCallback(() => setPos(HIDDEN), []);
 
@@ -278,7 +287,7 @@ export function TextSelectionMiniToolbar() {
           onMouseDown={(e) => e.preventDefault()}
         >
           <ul className="max-h-64 overflow-y-auto">
-            {FONT_OPTIONS.map((f) => (
+            {fontOptions.map((f) => (
               <li key={f.value}>
                 <button
                   type="button"

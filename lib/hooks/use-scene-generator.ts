@@ -79,6 +79,7 @@ async function fetchSceneContent(
     };
     agents?: AgentInfo[];
     languageDirective?: string;
+    publisherFontsForPrompt?: Array<{ family: string; label: string }>;
   },
   signal?: AbortSignal,
 ): Promise<SceneContentResult> {
@@ -256,6 +257,8 @@ export interface GenerationParams {
   agents?: AgentInfo[];
   userProfile?: string;
   languageDirective?: string;
+  /** Publisher-selected fonts (CSS family tokens) for slide content prompts. */
+  publisherFontsForPrompt?: Array<{ family: string; label: string }>;
 }
 
 export function useSceneGenerator(options: UseSceneGeneratorOptions = {}) {
@@ -350,6 +353,7 @@ export function useSceneGenerator(options: UseSceneGeneratorOptions = {}) {
               stageInfo: params.stageInfo,
               agents: params.agents,
               languageDirective: params.languageDirective,
+              publisherFontsForPrompt: params.publisherFontsForPrompt,
             },
             signal,
           );

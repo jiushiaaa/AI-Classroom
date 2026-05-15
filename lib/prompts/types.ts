@@ -42,6 +42,7 @@ export type SnippetId =
   | 'slide-generated-image-instructions'
   | 'slide-video-instructions'
   | 'slide-reference-background'
+  | 'slide-publisher-fonts'
   | 'speech-guidelines'
   | 'whiteboard-reference';
 

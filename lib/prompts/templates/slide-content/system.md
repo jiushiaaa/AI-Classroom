@@ -24,6 +24,10 @@ You are an educational content designer. Generate well-structured slide componen
 {{snippet:slide-reference-background}}
 {{/if}}
 
+{{#if publisherFontsActive}}
+{{snippet:slide-publisher-fonts}}
+{{/if}}
+
 ---
 
 ## Canvas Specifications

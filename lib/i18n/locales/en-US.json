@@ -167,6 +167,26 @@
       "tooLarge": "Image must be under 2MB. Please compress and try again.",
       "badType": "Only JPG, PNG, WebP, or GIF are supported."
     },
+    "resourceLib": {
+      "title": "Resource library",
+      "subtitle": "Manage slide backgrounds and publisher fonts. Items checked for this run are passed into slide generation prompts and layout.",
+      "tabBackground": "Backgrounds",
+      "tabFonts": "Fonts",
+      "hubTrigger": "Resource library",
+      "hubHint": "Upload backgrounds and font files; checked items apply to the next AI slide generation."
+    },
+    "publisherFont": {
+      "uploadAdd": "Upload font to library",
+      "emptyLibrary": "No fonts yet. Upload .woff2 / .woff / .ttf / .otf above.",
+      "useThisRun": "Use for this generation",
+      "deleteTemplate": "Remove from library",
+      "clearThisRun": "Clear font selection for this run",
+      "savedToLibrary": "Font saved and selected for this run",
+      "libraryFull": "Font library is full (max {{max}}). Delete one first.",
+      "tooLarge": "Font file must be under 2MB.",
+      "badType": "Only WOFF2, WOFF, TTF, or OTF are supported.",
+      "previewSample": "Aa Type sample"
+    },
     "quickModels": {
       "yuntiPlusTagline": "Faster & lower cost — intros & outlines",
       "yuntiProTagline": "Stronger reasoning — hard topics & deep Q&A"

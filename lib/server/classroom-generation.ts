@@ -41,6 +41,8 @@ export interface GenerateClassroomInput {
   pdfContent?: { text: string; images: string[] };
   /** Data URL or https URL — every generated `slide` scene uses this as full-page image background. */
   referenceBackgroundImage?: string;
+  /** Publisher font tokens for slide JSON prompts (no binary; client holds font files). */
+  publisherFontsForPrompt?: Array<{ family: string; label: string }>;
   enableWebSearch?: boolean;
   enableImageGeneration?: boolean;
   enableVideoGeneration?: boolean;
@@ -395,6 +397,9 @@ export async function generateClassroom(
       languageDirective,
       ...(input.referenceBackgroundImage
         ? { referenceBackgroundImage: input.referenceBackgroundImage }
+        : {}),
+      ...(input.publisherFontsForPrompt?.length
+        ? { publisherFontsForPrompt: input.publisherFontsForPrompt }
         : {}),
     });
     if (!content) {

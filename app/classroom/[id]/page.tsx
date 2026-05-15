@@ -177,6 +177,7 @@ export default function ClassroomDetailPage() {
           agents: params.agents,
           userProfile: params.userProfile,
           languageDirective: params.languageDirective || stage.languageDirective,
+          publisherFontsForPrompt: params.publisherFontsForPrompt,
         });
       });
     } else if (outlines.length > 0 && stage) {

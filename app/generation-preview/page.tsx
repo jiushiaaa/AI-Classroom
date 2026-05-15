@@ -35,6 +35,8 @@ import { createLogger } from '@/lib/logger';
 import { type GenerationSessionState, ALL_STEPS, getActiveSteps } from './types';
 import { StepVisualizer } from './components/visualizers';
 import { defaultCourseNameFromPdfAndRequirement } from '@/lib/utils/course-display-name';
+import { publisherFontsForPromptFromIds } from '@/lib/utils/publisher-font-library-storage';
+import { readPublisherFontSessionIds } from '@/lib/utils/publisher-fonts-session';
 
 const log = createLogger('GenerationPreview');
 
@@ -897,6 +899,8 @@ function GenerationPreviewContent() {
       store.setGeneratingOutlines(remaining);
 
       // Store generation params for classroom to continue generation
+      const publisherFontsForPrompt = publisherFontsForPromptFromIds(readPublisherFontSessionIds());
+
       sessionStorage.setItem(
         'generationParams',
         JSON.stringify({
@@ -904,6 +908,7 @@ function GenerationPreviewContent() {
           agents,
           userProfile,
           languageDirective,
+          ...(publisherFontsForPrompt.length > 0 ? { publisherFontsForPrompt } : {}),
         }),
       );
 

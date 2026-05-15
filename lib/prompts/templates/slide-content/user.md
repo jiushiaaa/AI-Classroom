@@ -14,6 +14,9 @@
 {{#if referenceBackgroundActive}}
 - **Slide background**: The first attached image is the publisher’s fixed full-page background for this slide. Put teaching content only in `elements`; do not recreate the backdrop as a giant image element.
 {{/if}}
+{{#if publisherFontsActive}}
+- **Publisher fonts**: Use only the listed `font-family` tokens in TextElement `defaultFontName` / inline styles — see the system prompt section “Publisher-provided typefaces”.
+{{/if}}
 {{#if imageElementEnabled}}
 - **Available Media**: {{assignedImages}}
 {{/if}}

@@ -167,6 +167,26 @@
       "tooLarge": "图片需小于 2MB，请压缩后重试",
       "badType": "仅支持 JPG、PNG、WebP、GIF"
     },
+    "resourceLib": {
+      "title": "资源库",
+      "subtitle": "管理幻灯片背景与出版方字体；勾选「本次生成使用」后，将在 AI 生成幻灯片时写入版式与提示词。",
+      "tabBackground": "背景模板",
+      "tabFonts": "字体库",
+      "hubTrigger": "资源库",
+      "hubHint": "上传并管理背景图与字体文件；勾选的资源会在后续课堂生成（幻灯片）中生效。"
+    },
+    "publisherFont": {
+      "uploadAdd": "上传并保存到字体库",
+      "emptyLibrary": "还没有字体，请在上方上传 .woff2 / .woff / .ttf / .otf",
+      "useThisRun": "本次生成使用",
+      "deleteTemplate": "从字体库删除",
+      "clearThisRun": "取消本次选用的字体",
+      "savedToLibrary": "已保存到字体库并勾选本次使用",
+      "libraryFull": "字体库已满（最多 {{max}} 个），请先删除旧字体",
+      "tooLarge": "字体文件需小于 2MB，请压缩后重试",
+      "badType": "仅支持 WOFF2、WOFF、TTF、OTF",
+      "previewSample": "Aa 字体预览"
+    },
     "quickModels": {
       "yuntiPlusTagline": "更快更省，适合导读与大纲",
       "yuntiProTagline": "理解表达更强，适合难点与深度问答"
