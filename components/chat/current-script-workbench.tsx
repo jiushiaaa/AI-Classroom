@@ -349,12 +349,18 @@ export function CurrentScriptWorkbench({
           </TabsContent>
 
           <TabsContent value="ai" className="mt-0 min-h-[124px]">
-            <div className="relative min-h-[124px] p-1">
+            <div
+              className={cn(
+                'relative min-h-[124px] rounded-lg border border-gray-200/35 bg-gray-50/40 p-2 transition-[border-color,box-shadow]',
+                'focus-within:border-gray-300/50 focus-within:ring-1 focus-within:ring-gray-200/40',
+                'dark:border-gray-700/40 dark:bg-gray-900/25 dark:focus-within:border-gray-600/50 dark:focus-within:ring-gray-700/30',
+              )}
+            >
               <Textarea
                 value={aiInstruction}
                 onChange={(event) => setAiInstruction(event.target.value)}
                 placeholder="可选：输入优化需求，比如更像老师讲课、更生动、更简洁、增加互动提问。不填写则根据当前页面内容生成优化稿。"
-                className="min-h-[124px] resize-y border-0 bg-transparent px-1 pb-10 pt-1 font-mono text-[17px] leading-[2] tracking-normal shadow-none focus-visible:ring-0"
+                className="min-h-[108px] resize-y border-0 bg-transparent px-1.5 pb-10 pt-1 font-mono text-[17px] leading-[2] tracking-normal text-gray-950 shadow-none placeholder:text-gray-400 focus-visible:ring-0 dark:text-gray-100 dark:placeholder:text-gray-500"
               />
               <Button
                 type="button"
