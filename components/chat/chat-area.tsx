@@ -63,6 +63,12 @@ interface ChatAreaProps {
    * runtime student affordance, not part of the editing surface.
    */
   hideChatTab?: boolean;
+  /**
+   * When true, hide the tab header row. Lecture / chat content still
+   * switches via switchToTab; used by Stage so the side panel reads as a
+   * single surface without redundant single-tab chrome.
+   */
+  hideTabBar?: boolean;
 }
 
 export interface ChatAreaRef {
@@ -113,6 +119,7 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
       onLectureNoteSceneSelect,
       readOnly = false,
       hideChatTab = false,
+      hideTabBar = false,
     },
     ref,
   ) => {
@@ -519,6 +526,7 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
                 When real-time Q&A is disabled, the chat / discussion tab
                 is suppressed entirely so the panel reads as a focused
                 lecture-notes surface. */}
+            {!hideTabBar && (
             <div className="h-10 flex items-center gap-1 shrink-0 mt-3 mb-1 px-3">
               <TabsList variant="line" className="h-full flex-1 w-0">
                 <TabsTrigger value="lecture" className="text-xs gap-1 flex-1">
@@ -540,6 +548,7 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
                 )}
               </TabsList>
             </div>
+            )}
 
             {/* Notes Tab */}
             <TabsContent value="lecture" className="flex-1 overflow-hidden flex flex-col">
