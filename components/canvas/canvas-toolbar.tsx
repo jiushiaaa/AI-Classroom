@@ -16,6 +16,8 @@ import {
   Repeat,
   Maximize2,
   Minimize2,
+  Check,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useStageStore, useEditModeStore } from '@/lib/store';
