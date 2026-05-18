@@ -15,7 +15,7 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { Sparkles, X, Send, Loader2, CheckCircle2, GripHorizontal } from 'lucide-react';
+import { Sparkles, X, Send, Loader2, GripHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 import type { AICommand } from '@/lib/types/ai-command';
 import type { Scene, SceneType } from '@/lib/types/stage';
@@ -83,7 +83,6 @@ export function AIModifyPanel({
   );
 
   const isPending = sortedCommands.some((c) => c.status === 'pending');
-  const appliedCount = commands.filter((c) => c.status === 'applied').length;
 
   const sceneType: SceneType = scene?.type ?? 'slide';
   const sceneTitle = scene?.title ?? '';
@@ -252,13 +251,6 @@ export function AIModifyPanel({
           </button>
         )}
       </div>
-
-      {appliedCount > 0 ? (
-        <div className="mx-3 mt-3 flex items-start gap-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2 text-xs text-emerald-800 dark:text-emerald-200 ring-1 ring-emerald-200/60 dark:ring-emerald-700/30">
-          <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-          <span>{t('aiModify.optimizedBanner', { count: appliedCount })}</span>
-        </div>
-      ) : null}
 
       <div className="p-3 flex-1 min-h-0 flex flex-col gap-2">
         <textarea
