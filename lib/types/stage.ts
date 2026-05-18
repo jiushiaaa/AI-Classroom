@@ -141,6 +141,10 @@ export interface Scene {
   // Metadata
   createdAt?: number;
   updatedAt?: number;
+  /** Soft-delete timestamp. Deleted scenes stay restorable from the page recycle bin. */
+  deletedAt?: number;
+  /** Original position before soft delete, used when restoring the page. */
+  deletedOrder?: number;
 }
 
 export type SceneVersionSource = 'manual' | 'ai' | 'restore';
@@ -155,6 +159,7 @@ export interface SceneVersion {
   instruction?: string;
   summary?: string;
   authorName?: string;
+  restoredFromTimestamp?: number;
   signature: string;
 }
 

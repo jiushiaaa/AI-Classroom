@@ -16,6 +16,7 @@ interface BuildSceneVersionInput extends SceneVersionSnapshot {
   instruction?: string;
   summary?: string;
   authorName?: string;
+  restoredFromTimestamp?: number;
 }
 
 export function createSceneVersionSignature(snapshot: SceneVersionSnapshot): string {
@@ -43,6 +44,7 @@ export function buildSceneVersion(input: BuildSceneVersionInput): SceneVersion {
     instruction: input.instruction,
     summary: input.summary,
     authorName: input.authorName,
+    restoredFromTimestamp: input.restoredFromTimestamp,
     signature: createSceneVersionSignature(snapshot),
   };
 }

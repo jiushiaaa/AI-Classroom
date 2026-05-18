@@ -154,7 +154,9 @@ export async function listStages(): Promise<StageListItem[]> {
 
     const stageList: StageListItem[] = await Promise.all(
       stages.map(async (stage) => {
-        const sceneCount = await db.scenes.where('stageId').equals(stage.id).count();
+        const sceneCount = (
+          await db.scenes.where('stageId').equals(stage.id).toArray()
+        ).filter((scene) => !scene.deletedAt).length;
 
         return {
           id: stage.id,
@@ -188,7 +190,7 @@ export async function getFirstSlideByStages(
     await Promise.all(
       stageIds.map(async (stageId) => {
         const scenes = await db.scenes.where('stageId').equals(stageId).sortBy('order');
-        const firstSlide = scenes.find((s) => s.content?.type === 'slide');
+        const firstSlide = scenes.find((s) => !s.deletedAt && s.content?.type === 'slide');
         if (firstSlide && firstSlide.content.type === 'slide') {
           const slide = structuredClone(firstSlide.content.canvas);
 

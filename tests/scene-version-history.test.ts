@@ -84,4 +84,16 @@ describe('scene version history', () => {
       createSceneVersionSignature(JSON.parse(JSON.stringify(baseSnapshot))),
     );
   });
+
+  it('keeps the restored source timestamp for restore versions', () => {
+    const version = buildSceneVersion({
+      id: 'version-restore',
+      timestamp: 2,
+      source: 'restore',
+      restoredFromTimestamp: 1,
+      ...baseSnapshot,
+    });
+
+    expect(version.restoredFromTimestamp).toBe(1);
+  });
 });

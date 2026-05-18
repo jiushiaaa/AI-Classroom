@@ -61,6 +61,7 @@ interface StageState {
 
   // Scenes
   scenes: Scene[];
+  deletedScenes: Scene[];
   currentSceneId: string | null;
 
   // Chats
@@ -112,6 +113,8 @@ interface StageState {
   insertSceneAt: (scene: Scene, index: number) => void;
   updateScene: (sceneId: string, updates: Partial<Scene>) => void;
   deleteScene: (sceneId: string) => void;
+  restoreScene: (sceneId: string) => void;
+  purgeDeletedScene: (sceneId: string) => void;
   /**
    * Deep-clone a scene and insert it immediately after the source. The new
    * scene gets a fresh id, a copy-suffixed title, and all subsequent scenes
@@ -161,6 +164,7 @@ const useStageStoreBase = create<StageState>()((set, get) => ({
   // Initial state
   stage: null,
   scenes: [],
+  deletedScenes: [],
   currentSceneId: null,
   chats: [],
   mode: 'playback',
@@ -179,6 +183,7 @@ const useStageStoreBase = create<StageState>()((set, get) => ({
     set((s) => ({
       stage,
       scenes: [],
+      deletedScenes: [],
       currentSceneId: null,
       chats: [],
       // Drop the clipboard when switching stages — pasting a scene cloned
@@ -238,7 +243,24 @@ const useStageStoreBase = create<StageState>()((set, get) => ({
   },
 
   deleteScene: (sceneId) => {
-    const scenes = get().scenes.filter((scene) => scene.id !== sceneId);
+    const allScenes = get().scenes;
+    const deletedScene = allScenes.find((scene) => scene.id === sceneId);
+    if (!deletedScene) return;
+
+    const deletedAt = Date.now();
+    const scenes = allScenes.filter((scene) => scene.id !== sceneId).map((scene, index) => ({
+      ...scene,
+      order: index,
+    }));
+    const deletedScenes = [
+      {
+        ...deletedScene,
+        deletedAt,
+        deletedOrder: deletedScene.order,
+        updatedAt: deletedAt,
+      },
+      ...get().deletedScenes.filter((scene) => scene.id !== sceneId),
+    ];
     const currentSceneId = get().currentSceneId;
 
     // If deleted scene was current, select next or previous
@@ -247,12 +269,47 @@ const useStageStoreBase = create<StageState>()((set, get) => ({
       const newIndex = index < scenes.length ? index : scenes.length - 1;
       set({
         scenes,
+        deletedScenes,
         currentSceneId: scenes[newIndex]?.id || null,
         sceneVersionPreview: null,
       });
     } else {
-      set({ scenes, sceneVersionPreview: null });
+      set({ scenes, deletedScenes, sceneVersionPreview: null });
     }
+    debouncedSave();
+  },
+
+  restoreScene: (sceneId) => {
+    const deleted = get().deletedScenes.find((scene) => scene.id === sceneId);
+    if (!deleted) return;
+
+    const restoreIndex = Math.max(
+      0,
+      Math.min(deleted.deletedOrder ?? deleted.order ?? get().scenes.length, get().scenes.length),
+    );
+    const restored: Scene = {
+      ...deleted,
+      deletedAt: undefined,
+      deletedOrder: undefined,
+      updatedAt: Date.now(),
+    };
+    const next = [...get().scenes];
+    next.splice(restoreIndex, 0, restored);
+    const scenes = next.map((scene, index) => ({ ...scene, order: index }));
+
+    set({
+      scenes,
+      deletedScenes: get().deletedScenes.filter((scene) => scene.id !== sceneId),
+      currentSceneId: restored.id,
+      sceneVersionPreview: null,
+    });
+    debouncedSave();
+  },
+
+  purgeDeletedScene: (sceneId) => {
+    const deletedScenes = get().deletedScenes.filter((scene) => scene.id !== sceneId);
+    if (deletedScenes.length === get().deletedScenes.length) return;
+    set({ deletedScenes, sceneVersionPreview: null });
     debouncedSave();
   },
 
@@ -428,7 +485,7 @@ const useStageStoreBase = create<StageState>()((set, get) => ({
 
   // Storage methods
   saveToStorage: async () => {
-    const { stage, scenes, currentSceneId, chats } = get();
+    const { stage, scenes, deletedScenes, currentSceneId, chats } = get();
     if (!stage?.id) {
       log.warn('Cannot save: stage.id is required');
       return;
@@ -438,7 +495,7 @@ const useStageStoreBase = create<StageState>()((set, get) => ({
       const { saveStageData } = await import('@/lib/utils/stage-storage');
       await saveStageData(stage.id, {
         stage,
-        scenes,
+        scenes: [...scenes, ...deletedScenes],
         currentSceneId,
         chats,
       });
@@ -466,15 +523,22 @@ const useStageStoreBase = create<StageState>()((set, get) => ({
       const outlines = outlinesRecord?.outlines || [];
 
       if (data) {
+        const activeScenes = data.scenes.filter((scene) => !scene.deletedAt);
+        const deletedScenes = data.scenes
+          .filter((scene) => scene.deletedAt)
+          .sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0));
         set({
           stage: data.stage,
-          scenes: data.scenes,
-          currentSceneId: data.currentSceneId,
+          scenes: activeScenes,
+          deletedScenes,
+          currentSceneId: activeScenes.some((scene) => scene.id === data.currentSceneId)
+            ? data.currentSceneId
+            : activeScenes[0]?.id || null,
           chats: data.chats,
           sceneVersionPreview: null,
           outlines,
           // Compute generatingOutlines from persisted outlines minus completed scenes
-          generatingOutlines: outlines.filter((o) => !data.scenes.some((s) => s.order === o.order)),
+          generatingOutlines: outlines.filter((o) => !activeScenes.some((s) => s.order === o.order)),
         });
         log.info('Loaded from storage:', stageId);
       } else {
@@ -490,6 +554,7 @@ const useStageStoreBase = create<StageState>()((set, get) => ({
     set((s) => ({
       stage: null,
       scenes: [],
+      deletedScenes: [],
       currentSceneId: null,
       chats: [],
       sceneVersionPreview: null,

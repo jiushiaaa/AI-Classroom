@@ -74,6 +74,8 @@ export interface SceneRecord {
   versions?: SceneVersion[]; // Stored as JSON
   createdAt: number;
   updatedAt: number;
+  deletedAt?: number;
+  deletedOrder?: number;
 }
 
 /**

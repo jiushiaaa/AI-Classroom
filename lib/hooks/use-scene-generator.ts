@@ -192,7 +192,7 @@ export async function generateAndStoreTTS(
 }
 
 /** Generate TTS for all speech actions in a scene. Returns result. */
-async function generateTTSForScene(
+export async function generateTTSForScene(
   scene: Scene,
   language?: string,
   signal?: AbortSignal,

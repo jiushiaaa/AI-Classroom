@@ -112,7 +112,8 @@ interface RoundtableProps {
    * When true, force a publisher-edit surface that suppresses student-side
    * interactive chrome (companion avatars, voice/text input, ProactiveCard,
    * etc.) via a per-instance override of `realtimeQAEnabled`. The teacher
-   * speech bubble is hidden separately when `persistentEdit` / slide edit.
+   * speech bubble stays visible in `persistentEdit` (publisher edit) with an
+   * inline play control; non-publisher slide edit hides the strip.
    */
   readonly lectureOnly?: boolean;
   /** Publisher ToB flow — show Save instead of enter/confirm/cancel on toolbar. */
@@ -229,9 +230,10 @@ export function Roundtable({
   const realtimeQAEnabledSetting = useSettingsStore((s) => s.realtimeQAEnabled);
   const realtimeQAEnabled = lectureOnly ? false : realtimeQAEnabledSetting;
   const isEditing = useEditModeStore.use.isEditing();
-  // Publisher edit view / slide edit — hide AI teacher avatar + speech bubble;
-  // lecture script is edited in the 笔记 panel instead.
-  const hideLectureSurface = persistentEdit || isEditing;
+  // Publisher edit keeps the teacher speech strip (inline play on the bubble) so
+  // publishers can audition narration while editing. Non-publisher slide edit still
+  // hides the strip to maximize canvas space.
+  const hideLectureSurface = isEditing && !persistentEdit;
   const [isInputOpen, setIsInputOpen] = useState(false);
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
@@ -1166,7 +1168,11 @@ export function Roundtable({
     <div
       className={cn(
         'w-full flex flex-col relative z-10 transition-all duration-300',
-        hideLectureSurface ? 'h-auto shrink-0' : 'h-[192px]',
+        hideLectureSurface
+          ? 'h-auto shrink-0'
+          : persistentEdit
+            ? 'h-[136px]'
+            : 'h-[192px]',
         isPresenting && !controlsVisible
           ? 'border-t border-transparent bg-transparent backdrop-blur-none'
           : 'border-t border-gray-100 dark:border-gray-800 bg-white/60 dark:bg-gray-800/60 backdrop-blur-md',
@@ -1202,7 +1208,7 @@ export function Roundtable({
         )}
         {toolbar}
       </div>
-      {/* ── Interaction area — three-column layout (hidden in edit view) ── */}
+      {/* ── Interaction area — teacher speech strip (compact in publisher edit) ── */}
       {!hideLectureSurface && (
       <div className="flex-1 flex items-stretch min-h-0">
         {/* Left: Teacher identity */}
@@ -1701,7 +1707,8 @@ export function Roundtable({
                         onPlayPause?.();
                       }}
                       className={cn(
-                        'relative px-4 pt-2 pb-3 rounded-2xl text-[15px] leading-relaxed transition-all border w-[min(420px,calc(100%-3rem))] group/bubble flex flex-col max-h-[110px]',
+                        'relative px-4 pt-2 pb-3 rounded-2xl text-[15px] leading-relaxed transition-all border w-[min(420px,calc(100%-3rem))] group/bubble flex flex-col',
+                        persistentEdit ? 'max-h-[80px]' : 'max-h-[110px]',
                         bubbleRole === 'teacher' ? 'pl-4 pr-10' : 'pl-4 pr-10',
                         bubbleRole === 'user'
                           ? 'bg-purple-600/95 dark:bg-purple-500/95 backdrop-blur-sm border-purple-400/40 dark:border-purple-300/40 text-white rounded-br-sm shadow-md shadow-purple-300/30 dark:shadow-purple-800/30'

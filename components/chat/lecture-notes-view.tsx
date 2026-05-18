@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { getLectureNoteVoiceStatus } from '@/lib/utils/lecture-notes';
 
 const ACTION_ICON_ONLY: Record<string, { Icon: typeof Flashlight; style: string }> = {
   spotlight: {
@@ -198,6 +199,7 @@ export function LectureNotesView({
         const hasPublisherVoice =
           firstSpeech?.kind === 'speech' && Boolean(firstSpeech.publisherVoiceUploadedAt);
         const speechUnlocked = editable && editingSceneId === note.sceneId;
+        const voiceStatus = getLectureNoteVoiceStatus(note);
 
         return (
           <div
@@ -373,6 +375,11 @@ export function LectureNotesView({
               {isCurrent && (
                 <span className="text-[9px] font-bold px-1.5 py-px rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300 shrink-0">
                   {t('chat.lectureNotes.currentPage')}
+                </span>
+              )}
+              {voiceStatus === 'teacher' && (
+                <span className="ml-auto text-[9px] font-bold px-1.5 py-px rounded-full shrink-0 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/35 dark:text-emerald-300">
+                  真人声音
                 </span>
               )}
             </div>

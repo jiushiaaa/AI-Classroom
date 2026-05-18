@@ -42,7 +42,10 @@ import { PublishButton } from './publish/publish-button';
 import { EditModeToggleButton } from '@/components/canvas/edit-mode-toggle-button';
 import { SceneVersionHistoryButton } from '@/components/scene-version-history-panel';
 import { useSceneVersionAutosave } from '@/lib/hooks/use-scene-version-autosave';
-import { shouldShowSceneVersionHistory } from '@/lib/utils/header-toolbar-visibility';
+import {
+  getSceneHistoryLabel,
+  shouldShowSceneVersionHistory,
+} from '@/lib/utils/header-toolbar-visibility';
 
 interface HeaderProps {
   /** AI-summarised course / classroom name (stage.name), editable in the header. */
@@ -83,6 +86,9 @@ export function Header({
   const router = useRouter();
   const stage = useStageStore((s) => s.stage);
   const currentSceneId = useStageStore((s) => s.currentSceneId);
+  const currentSceneIndex = useStageStore((s) =>
+    s.currentSceneId ? s.scenes.findIndex((scene) => scene.id === s.currentSceneId) : -1,
+  );
   const patchStage = useStageStore((s) => s.patchStage);
   const showPublisherChrome = !!onTogglePublisherEditView;
   const showSceneVersionHistory = shouldShowSceneVersionHistory({
@@ -96,6 +102,7 @@ export function Header({
     currentSceneId,
     showSceneVersionHistory && showSlideInsertTools,
   );
+  const sceneHistoryLabel = getSceneHistoryLabel(currentSceneIndex);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const titleEditable = publisherEditView && !readOnly && !!stage;
 
@@ -313,6 +320,7 @@ export function Header({
               <SceneVersionHistoryButton
                 sceneId={currentSceneId}
                 saveStatus={versionSaveStatus}
+                historyLabel={sceneHistoryLabel}
               />
             )}
           </>

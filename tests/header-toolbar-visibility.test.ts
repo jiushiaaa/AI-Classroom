@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { shouldShowSceneVersionHistory } from '@/lib/utils/header-toolbar-visibility';
+import {
+  getSceneHistoryLabel,
+  shouldShowSceneVersionHistory,
+} from '@/lib/utils/header-toolbar-visibility';
 
 describe('header toolbar visibility', () => {
   it('shows page history in publisher edit view even when slide insert tools are hidden', () => {
@@ -58,5 +61,11 @@ describe('header toolbar visibility', () => {
         publisherEditView: false,
       }),
     ).toBe(false);
+  });
+
+  it('labels history with the current page number', () => {
+    expect(getSceneHistoryLabel(0)).toBe('第 1 页历史记录');
+    expect(getSceneHistoryLabel(2)).toBe('第 3 页历史记录');
+    expect(getSceneHistoryLabel(-1)).toBe('页面历史记录');
   });
 });

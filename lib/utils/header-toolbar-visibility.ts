@@ -16,3 +16,10 @@ export function shouldShowSceneVersionHistory({
   if (readOnly || !hasCurrentScene) return false;
   return showSlideInsertTools || (showPublisherChrome && publisherEditView);
 }
+
+export function getSceneHistoryLabel(sceneIndex: number | null | undefined): string {
+  if (sceneIndex === null || sceneIndex === undefined || sceneIndex < 0) {
+    return '页面历史记录';
+  }
+  return `第 ${sceneIndex + 1} 页历史记录`;
+}

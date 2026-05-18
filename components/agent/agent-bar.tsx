@@ -376,7 +376,7 @@ function AgentVoicePill({
  * Teacher voice pill — reads/writes global ttsProviderId + ttsVoice (single source of truth).
  * This ensures lecture and discussion use the same voice for the teacher.
  */
-function TeacherVoicePill({
+export function TeacherVoicePill({
   availableProviders,
   disabled,
   previewDisplayName,

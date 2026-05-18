@@ -34,6 +34,7 @@ import { buildSceneVersion, mergeSceneVersion } from '@/lib/utils/scene-version-
 interface SceneVersionHistoryButtonProps {
   readonly sceneId: string | null;
   readonly saveStatus: SceneVersionSaveStatus;
+  readonly historyLabel?: string;
 }
 
 function formatVersionTime(timestamp: number) {
@@ -60,9 +61,22 @@ function VersionSourceIcon({ source }: { readonly source: SceneVersion['source']
   return <PenLine className="size-3.5 text-fuchsia-600" />;
 }
 
+function resolveVersionSourceLabel(version: SceneVersion) {
+  if (version.source === 'ai') return 'AI 优化';
+  if (version.source !== 'restore') return '手动修改';
+
+  if (version.restoredFromTimestamp) {
+    return `还原自 ${formatVersionTime(version.restoredFromTimestamp)} 的版本`;
+  }
+
+  const restoredTime = version.summary?.match(/(?:恢复到|还原自)\s*(.+?)\s*的版本/)?.[1];
+  return restoredTime ? `还原自 ${restoredTime} 的版本` : '还原自历史版本';
+}
+
 export function SceneVersionHistoryButton({
   sceneId,
   saveStatus,
+  historyLabel = '页面历史记录',
 }: SceneVersionHistoryButtonProps) {
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -102,6 +116,7 @@ export function SceneVersionHistoryButton({
         content: version.content,
         actions: version.actions,
         summary: `恢复到 ${formatVersionTime(version.timestamp)} 的版本`,
+        restoredFromTimestamp: version.timestamp,
         authorName: nickname.trim() || '少华',
       });
 
@@ -161,8 +176,8 @@ export function SceneVersionHistoryButton({
           type="button"
           onClick={() => setOpen(true)}
           disabled={!sceneId}
-          aria-label="本页历史记录"
-          title="本页历史记录"
+          aria-label={historyLabel}
+          title={historyLabel}
           className={cn(
             'relative p-2 rounded-full transition-all',
             sceneId
@@ -191,12 +206,12 @@ export function SceneVersionHistoryButton({
               right: panelRight,
               maxWidth: `calc(100vw - ${panelRight}px - 24px)`,
             }}
-            aria-label="本页历史记录"
+            aria-label={historyLabel}
           >
             <div className="h-14 shrink-0 border-b border-gray-100 dark:border-gray-800 px-4 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">
-                  本页历史记录
+                  {historyLabel}
                 </h2>
               </div>
               <button
@@ -295,13 +310,7 @@ export function SceneVersionHistoryButton({
                                 ) : null}
                                 <div className="ml-6 mt-2 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                                   <VersionSourceIcon source={version.source} />
-                                  <span>
-                                    {version.source === 'ai'
-                                      ? 'AI 优化'
-                                      : version.source === 'restore'
-                                        ? '还原至历史版本'
-                                        : '手动修改'}
-                                  </span>
+                                  <span>{resolveVersionSourceLabel(version)}</span>
                                 </div>
                               </button>
                               {isExpanded ? (

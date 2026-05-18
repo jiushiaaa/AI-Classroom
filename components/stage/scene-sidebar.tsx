@@ -17,6 +17,8 @@ import {
   Sparkles,
   FilePlus2,
   Loader2,
+  RotateCcw,
+  MoreHorizontal,
 } from 'lucide-react';
 import { VisuallyHidden } from 'radix-ui';
 import { cn } from '@/lib/utils';
@@ -34,6 +36,7 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Dialog,
   DialogContent,
@@ -46,6 +49,12 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { AddScenePopover, buildBlankSlideScene } from '@/components/stage/add-scene-popover';
 import { AIGenerateSceneDialog } from '@/components/stage/ai-generate-scene-dialog';
 import { AIModifyPanel } from '@/components/scene-renderers/ai-modify-panel';
@@ -193,14 +202,22 @@ export function SceneSidebar({
   readOnly = false,
 }: SceneSidebarProps) {
   const { t } = useI18n();
-  const { scenes, currentSceneId, setCurrentSceneId, generatingOutlines, generationStatus } =
-    useStageStore();
+  const {
+    scenes,
+    deletedScenes,
+    currentSceneId,
+    setCurrentSceneId,
+    generatingOutlines,
+    generationStatus,
+  } = useStageStore();
   const failedOutlines = useStageStore.use.failedOutlines();
   const viewportSize = useCanvasStore.use.viewportSize();
   const viewportRatio = useCanvasStore.use.viewportRatio();
   const stage = useStageStore.use.stage();
   const reorderScenes = useStageStore.use.reorderScenes();
   const deleteSceneAction = useStageStore.use.deleteScene();
+  const restoreScene = useStageStore.use.restoreScene();
+  const purgeDeletedScene = useStageStore.use.purgeDeletedScene();
   const insertSceneAt = useStageStore.use.insertSceneAt();
   const duplicateScene = useStageStore.use.duplicateScene();
   const sceneClipboard = useStageStore.use.sceneClipboard();
@@ -948,11 +965,92 @@ export function SceneSidebar({
             })()}
         </div>
 
-        {/* The bottom "+ 新建一页" button has been retired in favour of the
-            inline "insert" slots that live between every two scenes (and above
-            the first one). The slot below the last scene already covers the
-            "append at the end" use case. */}
       </div>
+
+      {!readOnly ? (
+        <div className="shrink-0 border-t border-gray-100 bg-white/85 px-2 py-2 dark:border-gray-800 dark:bg-slate-900/85">
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className={cn(
+                  'relative flex h-10 w-full items-center justify-center rounded-lg transition-colors',
+                  deletedScenes.length > 0
+                    ? 'bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:bg-gray-800/60 dark:text-gray-300 dark:hover:bg-gray-800'
+                    : 'bg-gray-50/60 text-gray-300 dark:bg-gray-800/30 dark:text-gray-600',
+                )}
+                title="回收站"
+                aria-label="回收站"
+              >
+                <Trash2 className="size-4" />
+                {deletedScenes.length > 0 ? (
+                  <span className="absolute right-2 top-2 size-1.5 rounded-full bg-violet-500" />
+                ) : null}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              side="right"
+              align="end"
+              sideOffset={8}
+              className="w-80 rounded-xl border-gray-100 p-0 shadow-xl dark:border-gray-800"
+            >
+              <div className="border-b border-gray-100 px-4 py-3 dark:border-gray-800">
+                <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">回收站</h3>
+                <p className="mt-0.5 text-xs text-gray-400">已删除页面可在这里恢复</p>
+              </div>
+              <div className="max-h-80 overflow-y-auto py-1">
+                {deletedScenes.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-sm text-gray-400">
+                    暂无已删除页面
+                  </div>
+                ) : (
+                  deletedScenes.map((scene) => (
+                    <div
+                      key={scene.id}
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-900"
+                    >
+                      <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300">
+                        <BookOpen className="size-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-gray-800 dark:text-gray-100">
+                          {scene.title}
+                        </div>
+                        <div className="mt-0.5 text-xs text-gray-400">已删除页面</div>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                            aria-label="更多操作"
+                            title="更多"
+                          >
+                            <MoreHorizontal className="size-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-32">
+                          <DropdownMenuItem onClick={() => restoreScene(scene.id)}>
+                            <RotateCcw className="size-4" />
+                            <span>恢复</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onClick={() => purgeDeletedScene(scene.id)}
+                          >
+                            <Trash2 className="size-4" />
+                            <span>彻底删除</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  ))
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+      ) : null}
 
       {/* Sidebar-owned AI generate dialog: opened from the right-click menu's
           "AI 新增幻灯片" item. Inline "+" slots own their own AI dialog

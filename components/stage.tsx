@@ -29,6 +29,7 @@ import type { Action, DiscussionAction, SpeechAction } from '@/lib/types/action'
 import { cn } from '@/lib/utils';
 // Playback state persistence removed — refresh always starts from the beginning
 import { ChatArea, type ChatAreaRef } from '@/components/chat/chat-area';
+import { CurrentScriptWorkbench } from '@/components/chat/current-script-workbench';
 import { agentsToParticipants, useAgentRegistry } from '@/lib/orchestration/registry/store';
 import type { AgentConfig } from '@/lib/orchestration/registry/types';
 import {
@@ -42,6 +43,9 @@ import {
 import { AlertTriangle } from 'lucide-react';
 import { VisuallyHidden } from 'radix-ui';
 import { toast } from 'sonner';
+import { generateTTSForScene } from '@/lib/hooks/use-scene-generator';
+import { useLectureNotesEditor } from '@/lib/hooks/use-lecture-notes-editor';
+import { getCurrentLectureNote } from '@/lib/utils/lecture-notes';
 
 /**
  * Stage Component
@@ -62,6 +66,7 @@ export function Stage({
     scenes,
     currentSceneId,
     setCurrentSceneId,
+    updateScene,
     generatingOutlines,
     outlines,
   } = useStageStore();
@@ -70,6 +75,13 @@ export function Stage({
   const isOpenmaicDemoClassroom = isOpenmaicDemoClassroomId(stage?.id ?? '');
 
   const currentScene = getCurrentScene();
+  const {
+    lectureNotes,
+    handleEditSpeech,
+    handleAiGenerateTeacherScript,
+    handleUploadTeacherVoice,
+    handleRemoveTeacherVoice,
+  } = useLectureNotesEditor();
 
   // Multi-device preview state (web | mobile | tablet) + orientation —
   // drives the editor chrome around the playback engine. The engine itself
@@ -199,7 +211,7 @@ export function Stage({
   // In this lean view:
   //   • The slide canvas auto-enters edit mode (no manual "进入编辑").
   //   • The 笔记 panel (lecture notes — editable content) stays visible.
-  //   • The AI 老师 speech bubble is hidden — lecture script is edited in 笔记.
+  //   • The AI 老师 speech bubble (inline play) stays visible for narration preview.
   //   • Only the RUNTIME interactive surfaces (student avatars, mic/text
   //     input dock, ProactiveCard, "your turn" cue) collapse — those are
   //     student-side affordances, not editing tools.
@@ -922,14 +934,17 @@ export function Stage({
     ],
   );
 
+  const showTeacherSpeechInChrome = publisherEditView || teacherSubtitlesVisible;
+
   const studentPlaybackView = useMemo(
-    () => (teacherSubtitlesVisible ? playbackView : { ...playbackView, sourceText: '' }),
-    [teacherSubtitlesVisible, playbackView],
+    () =>
+      showTeacherSpeechInChrome ? playbackView : { ...playbackView, sourceText: '' },
+    [showTeacherSpeechInChrome, playbackView],
   );
 
-  const visibleLiveSpeech = teacherSubtitlesVisible ? liveSpeech : null;
-  const visibleLectureSpeech = teacherSubtitlesVisible ? lectureSpeech : null;
-  const visibleIdleText = teacherSubtitlesVisible ? firstSpeechText : '';
+  const visibleLiveSpeech = showTeacherSpeechInChrome ? liveSpeech : null;
+  const visibleLectureSpeech = showTeacherSpeechInChrome ? lectureSpeech : null;
+  const visibleIdleText = showTeacherSpeechInChrome ? firstSpeechText : '';
 
   const isTopicActive = playbackView.isTopicActive;
 
@@ -964,9 +979,43 @@ export function Stage({
     setPendingSceneId(null);
   }, []);
 
+  /** Regenerate cloud TTS when the publisher edited the script (audio cleared). */
+  const regenerateTtsForCurrentSceneIfNeeded = useCallback(async (): Promise<void> => {
+    if (!publisherEditView || !currentScene?.actions?.length) return;
+
+    const needsTts = currentScene.actions.some(
+      (a) =>
+        a.type === 'speech' &&
+        !!(a as SpeechAction).text &&
+        !(a as SpeechAction).audioId &&
+        !(a as SpeechAction).publisherVoiceUploadedAt,
+    );
+    if (!needsTts) return;
+
+    const { ttsEnabled, ttsProviderId } = useSettingsStore.getState();
+    if (!ttsEnabled || ttsProviderId === 'browser-native-tts') return;
+
+    const workingScene = {
+      ...currentScene,
+      actions: currentScene.actions.map((a) => ({ ...a })),
+    };
+    const result = await generateTTSForScene(workingScene, stage?.languageDirective);
+    updateScene(currentScene.id, {
+      actions: workingScene.actions,
+      updatedAt: Date.now(),
+    });
+    if (!result.success && result.failedCount > 0) {
+      toast.warning(t('chat.lectureNotes.ttsPartialFailed'));
+    }
+    // Let the scene-change effect rebuild PlaybackEngine with fresh audio ids.
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+  }, [publisherEditView, currentScene, stage?.languageDirective, updateScene, t]);
+
   // play/pause toggle
   const handlePlayPause = useCallback(async () => {
-    const engine = engineRef.current;
+    let engine = engineRef.current;
     if (!engine) return;
 
     const mode = engine.getMode();
@@ -983,6 +1032,10 @@ export function Stage({
         chatAreaRef.current?.resumeBuffer(lectureSessionIdRef.current);
       }
     } else {
+      await regenerateTtsForCurrentSceneIfNeeded();
+      engine = engineRef.current;
+      if (!engine) return;
+
       const wasCompleted = playbackCompleted;
       setPlaybackCompleted(false);
       // Starting playback - create/reuse lecture session
@@ -999,7 +1052,7 @@ export function Stage({
         engine.continuePlayback();
       }
     }
-  }, [playbackCompleted, currentScene]);
+  }, [playbackCompleted, currentScene, regenerateTtsForCurrentSceneIfNeeded]);
 
   // get scene information
   const isPendingScene = currentSceneId === PENDING_SCENE_ID;
@@ -1051,6 +1104,7 @@ export function Stage({
     ? scenes.length
     : scenes.findIndex((s) => s.id === currentSceneId);
   const totalScenesCount = scenes.length + (canAdvanceToPendingSlot ? 1 : 0);
+  const currentLectureNote = getCurrentLectureNote(lectureNotes, currentSceneId);
 
   // get action information
   const totalActions = currentScene?.actions?.length || 0;
@@ -1210,10 +1264,10 @@ export function Stage({
   // Calculate scene viewer height (subtract Header's 80px height)
   const sceneViewerHeight = (() => {
     const headerHeight = isPresenting ? 0 : 56; // Header h-14 = 56px
-    // Roundtable stays mounted for the merged toolbar; in publisher edit view
-    // the AI teacher speech strip is hidden so only ~36px (toolbar) is reserved.
+    // Roundtable stays mounted for the merged toolbar; publisher edit reserves
+    // space for the compact teacher speech strip (avatar + bubble + inline play).
     const roundtableHeight =
-      mode === 'playback' && !isPresenting ? (publisherEditView ? 36 : 192) : 0;
+      mode === 'playback' && !isPresenting ? (publisherEditView ? 188 : 192) : 0;
     return `calc(100% - ${headerHeight + roundtableHeight}px)`;
   })();
 
@@ -1310,10 +1364,8 @@ export function Stage({
           />
         </div>
 
-        {/* Roundtable — toolbar always mounted in playback mode. In publisher
-            edit view the AI teacher speech strip is hidden (script lives in
-            笔记); `lectureOnly` still suppresses student Q&A chrome. Preview
-            restores the full student-facing roundtable. */}
+        {/* Bottom surface: publisher edit gets a current-page script workbench;
+            preview restores the full student-facing roundtable. */}
         {mode === 'playback' && (
           <div
             className={cn(
@@ -1322,7 +1374,18 @@ export function Stage({
               isPresenting && 'absolute inset-x-0 bottom-0 z-20',
             )}
           >
-            <Roundtable
+            {publisherEditView && !isPresenting ? (
+              <CurrentScriptWorkbench
+                note={currentLectureNote}
+                engineMode={engineMode}
+                onEditSpeech={handleEditSpeech}
+                onAiGenerateScene={handleAiGenerateTeacherScript}
+                onUploadTeacherVoice={handleUploadTeacherVoice}
+                onRemoveTeacherVoice={handleRemoveTeacherVoice}
+                onPlayPause={handlePlayPause}
+              />
+            ) : (
+              <Roundtable
               mode={mode}
               initialParticipants={participants}
               playbackView={studentPlaybackView}
@@ -1458,11 +1521,12 @@ export function Stage({
               isOpenmaicDemoClassroom={isOpenmaicDemoClassroom}
               lectureAudioProgress={lectureAudioProgress}
               onLectureAudioSeek={handleLectureAudioSeek}
-              showSubtitles={teacherSubtitlesVisible}
+              showSubtitles={showTeacherSpeechInChrome}
               lectureOnly={publisherEditView}
               persistentEdit={publisherEditView}
               publisherWorkflow
             />
+            )}
           </div>
         )}
       </div>
@@ -1481,8 +1545,9 @@ export function Stage({
         onActiveBubble={(id) => setActiveBubbleId(id)}
         currentSceneId={currentSceneId}
         onLectureNoteSceneSelect={gatedSceneSwitch}
-        readOnly={lectureNotesReadOnly}
+        readOnly={publisherEditView ? true : lectureNotesReadOnly}
         hideChatTab={publisherEditView}
+        lectureTabLabel={publisherEditView ? '讲稿预览' : undefined}
         onLiveSpeech={(text, agentId) => {
           // Capture epoch at call time — discard if scene has changed since
           const epoch = sceneEpochRef.current;
