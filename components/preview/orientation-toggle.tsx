@@ -17,7 +17,12 @@ import { cn } from '@/lib/utils';
  * mode) plus a small overlapping `RotateCw` cue so the publisher reads it as
  * "flip orientation" rather than "open phone settings".
  */
-export function OrientationToggle() {
+interface OrientationToggleProps {
+  /** Renders inside the device pill group (no outer ring / shadow). */
+  readonly embedded?: boolean;
+}
+
+export function OrientationToggle({ embedded = false }: OrientationToggleProps) {
   const { t } = useI18n();
   const previewDevice = usePreviewDeviceStore((s) => s.previewDevice);
   const previewOrientation = usePreviewDeviceStore((s) => s.previewOrientation);
@@ -38,11 +43,15 @@ export function OrientationToggle() {
       aria-label={tooltip}
       data-testid="orientation-toggle"
       className={cn(
-        'group relative flex items-center justify-center w-9 h-9 rounded-full',
-        'bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-100/60 dark:border-gray-700/60',
-        'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200',
-        'hover:bg-white/90 dark:hover:bg-gray-700/80 shadow-sm',
-        'transition-all duration-200',
+        'group relative flex items-center justify-center rounded-full transition-all duration-200',
+        embedded
+          ? 'w-8 h-8 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-white/80 dark:hover:bg-gray-700/60'
+          : cn(
+              'w-9 h-9',
+              'bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-100/60 dark:border-gray-700/60',
+              'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200',
+              'hover:bg-white/90 dark:hover:bg-gray-700/80 shadow-sm',
+            ),
       )}
     >
       <Smartphone

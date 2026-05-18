@@ -157,7 +157,6 @@ export function SceneVersionHistoryButton({
   return (
     <>
       <div className="flex items-center gap-1.5 shrink-0">
-        {saveStatusNode}
         <button
           type="button"
           onClick={() => setOpen(true)}
@@ -176,6 +175,7 @@ export function SceneVersionHistoryButton({
             <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-violet-500" />
           ) : null}
         </button>
+        {saveStatusNode}
       </div>
 
       <AnimatePresence>

@@ -22,6 +22,7 @@ import { CanvasToolbar } from '@/components/canvas/canvas-toolbar';
 import { useAudioRecorder } from '@/lib/hooks/use-audio-recorder';
 import { useI18n } from '@/lib/hooks/use-i18n';
 import { toast } from 'sonner';
+import { useEditModeStore } from '@/lib/store';
 import { useSettingsStore, PLAYBACK_SPEEDS } from '@/lib/store/settings';
 // `realtimeQAEnabled` (publisher generation config) gates ALL interactive
 // chat surfaces — when disabled the classroom should behave like a passive
@@ -108,12 +109,10 @@ interface RoundtableProps {
   readonly onLectureAudioSeek?: (ratio: number) => void;
   readonly showSubtitles?: boolean;
   /**
-   * When true, force a publisher-edit "lecture-only" surface — the teacher's
-   * speech bubble stays visible (since the script is editable content), but
-   * every interactive surface (companion avatars column, voice/text input
-   * dock, "your turn" cue, ProactiveCard, etc.) is collapsed. Treated as a
-   * per-instance override of the global `realtimeQAEnabled` setting so the
-   * publisher's tweak doesn't leak into the student-facing classroom.
+   * When true, force a publisher-edit surface that suppresses student-side
+   * interactive chrome (companion avatars, voice/text input, ProactiveCard,
+   * etc.) via a per-instance override of `realtimeQAEnabled`. The teacher
+   * speech bubble is hidden separately when `persistentEdit` / slide edit.
    */
   readonly lectureOnly?: boolean;
   /** Publisher ToB flow — show Save instead of enter/confirm/cancel on toolbar. */
@@ -229,6 +228,10 @@ export function Roundtable({
   // the actual publisher setting that drives the student-facing classroom.
   const realtimeQAEnabledSetting = useSettingsStore((s) => s.realtimeQAEnabled);
   const realtimeQAEnabled = lectureOnly ? false : realtimeQAEnabledSetting;
+  const isEditing = useEditModeStore.use.isEditing();
+  // Publisher edit view / slide edit — hide AI teacher avatar + speech bubble;
+  // lecture script is edited in the 笔记 panel instead.
+  const hideLectureSurface = persistentEdit || isEditing;
   const [isInputOpen, setIsInputOpen] = useState(false);
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
@@ -1162,7 +1165,8 @@ export function Roundtable({
   return (
     <div
       className={cn(
-        'h-[192px] w-full flex flex-col relative z-10 transition-all duration-300',
+        'w-full flex flex-col relative z-10 transition-all duration-300',
+        hideLectureSurface ? 'h-auto shrink-0' : 'h-[192px]',
         isPresenting && !controlsVisible
           ? 'border-t border-transparent bg-transparent backdrop-blur-none'
           : 'border-t border-gray-100 dark:border-gray-800 bg-white/60 dark:bg-gray-800/60 backdrop-blur-md',
@@ -1198,7 +1202,8 @@ export function Roundtable({
         )}
         {toolbar}
       </div>
-      {/* ── Interaction area — three-column layout ── */}
+      {/* ── Interaction area — three-column layout (hidden in edit view) ── */}
+      {!hideLectureSurface && (
       <div className="flex-1 flex items-stretch min-h-0">
         {/* Left: Teacher identity */}
         <div
@@ -2225,7 +2230,7 @@ export function Roundtable({
         </div>
         )}
       </div>
-      {/* close interaction row */}
+      )}
     </div>
   );
 }

@@ -349,7 +349,11 @@
     "exportSuccess": "导出成功",
     "exportFailed": "导出失败",
     "classroomZip": "导出课堂 ZIP",
-    "classroomZipDesc": "课程结构 + 媒体文件"
+    "classroomZipDesc": "课程结构 + 媒体文件",
+    "blockedNoScenes": "暂无幻灯片可导出",
+    "blockedOutlinesGenerating": "大纲仍在生成中，请稍后再导出",
+    "blockedOutlinesFailed": "存在生成失败的大纲，请先重试后再导出",
+    "blockedMediaGenerating": "媒体资源正在生成中，请稍后再导出"
   },
   "import": {
     "classroom": "导入课堂",

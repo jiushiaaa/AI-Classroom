@@ -337,7 +337,11 @@
     "exportSuccess": "Export successful",
     "exportFailed": "Export failed",
     "classroomZip": "Export Classroom ZIP",
-    "classroomZipDesc": "Course structure + media files"
+    "classroomZipDesc": "Course structure + media files",
+    "blockedNoScenes": "No slides to export yet",
+    "blockedOutlinesGenerating": "Outlines are still generating — try again shortly",
+    "blockedOutlinesFailed": "Some outlines failed to generate — retry before exporting",
+    "blockedMediaGenerating": "Media is still generating — try again shortly"
   },
   "import": {
     "classroom": "Import Classroom",

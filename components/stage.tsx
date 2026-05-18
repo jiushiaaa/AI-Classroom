@@ -15,8 +15,6 @@ import { SceneSidebar } from './stage/scene-sidebar';
 import { Header } from './header';
 import { CanvasArea } from '@/components/canvas/canvas-area';
 import { Roundtable } from '@/components/roundtable';
-import { DevicePreviewTabs } from '@/components/preview/device-preview-tabs';
-import { OrientationToggle } from '@/components/preview/orientation-toggle';
 import { DevicePreviewShell } from '@/components/mobile/device-preview-shell';
 import { PhoneClassroomView } from '@/components/mobile/phone-classroom-view';
 import { TabletClassroomView } from '@/components/mobile/tablet-classroom-view';
@@ -79,7 +77,9 @@ export function Stage({
   // survives toggling.
   const previewDevice = usePreviewDeviceStore((s) => s.previewDevice);
   const previewOrientation = usePreviewDeviceStore((s) => s.previewOrientation);
-  const isPreviewMode = previewDevice !== 'web';
+  const setPreviewDevice = usePreviewDeviceStore((s) => s.setPreviewDevice);
+  /** Phone / iPad device-frame preview (distinct from publisher web preview). */
+  const isDeviceFramePreview = previewDevice !== 'web';
 
   // Layout state from settings store (persisted via localStorage)
   const sidebarCollapsed = useSettingsStore((s) => s.sidebarCollapsed);
@@ -100,14 +100,22 @@ export function Stage({
   // restored when switching back to the web view — preview-mode toggles
   // never leak into the web experience.
   const webCollapsePrefsRef = useRef<{ sidebar: boolean; chat: boolean } | null>(null);
-  const wasPreviewModeRef = useRef(isPreviewMode);
-  // Publisher edit view defaults to on; restored when returning from device preview.
+  const wasDeviceFramePreviewRef = useRef(isDeviceFramePreview);
+  // Publisher edit view defaults to on; publisher preview (web) is toggled via header.
   const [publisherEditView, setPublisherEditView] = useState(true);
-  useEffect(() => {
-    const wasPreview = wasPreviewModeRef.current;
-    wasPreviewModeRef.current = isPreviewMode;
 
-    if (isPreviewMode && !wasPreview) {
+  // Device preview (phone / iPad) is only available in publisher preview — not edit.
+  useEffect(() => {
+    if (publisherEditView && previewDevice !== 'web') {
+      setPreviewDevice('web');
+    }
+  }, [publisherEditView, previewDevice, setPreviewDevice]);
+
+  useEffect(() => {
+    const wasDeviceFrame = wasDeviceFramePreviewRef.current;
+    wasDeviceFramePreviewRef.current = isDeviceFramePreview;
+
+    if (isDeviceFramePreview && !wasDeviceFrame) {
       webCollapsePrefsRef.current = {
         sidebar: useSettingsStore.getState().sidebarCollapsed,
         chat: useSettingsStore.getState().chatAreaCollapsed,
@@ -119,17 +127,16 @@ export function Stage({
       // handles) would leak through into the student-facing preview.
       useEditModeStore.getState().setEditing(false);
       useCanvasStore.getState().setWhiteboardOpen(false);
-    } else if (!isPreviewMode && wasPreview) {
+    } else if (!isDeviceFramePreview && wasDeviceFrame) {
       if (webCollapsePrefsRef.current) {
         setSidebarCollapsed(webCollapsePrefsRef.current.sidebar);
         setChatAreaCollapsed(webCollapsePrefsRef.current.chat);
         webCollapsePrefsRef.current = null;
       }
-      // Web is the publisher workspace — always land in edit mode after
-      // device preview (mobile / tablet), not the full-student preview layout.
-      setPublisherEditView(true);
+      // Preserve publisher preview vs edit — switching web ↔ mobile/iPad must
+      // not force the user back into edit mode when they were previewing.
     }
-  }, [isPreviewMode, setSidebarCollapsed, setChatAreaCollapsed, setPublisherEditView]);
+  }, [isDeviceFramePreview, setSidebarCollapsed, setChatAreaCollapsed]);
 
   // Start per-tab study timer on first real scene view in playback (completion page duration).
   useEffect(() => {
@@ -192,8 +199,7 @@ export function Stage({
   // In this lean view:
   //   • The slide canvas auto-enters edit mode (no manual "进入编辑").
   //   • The 笔记 panel (lecture notes — editable content) stays visible.
-  //   • The AI 老师 speech bubble (the lecture script — also editable)
-  //     stays visible via `Roundtable.lectureOnly`.
+  //   • The AI 老师 speech bubble is hidden — lecture script is edited in 笔记.
   //   • Only the RUNTIME interactive surfaces (student avatars, mic/text
   //     input dock, ProactiveCard, "your turn" cue) collapse — those are
   //     student-side affordances, not editing tools.
@@ -209,9 +215,9 @@ export function Stage({
     });
   }, []);
   /** Lecture notes are editable only in publisher edit view (not student preview). */
-  const lectureNotesReadOnly = isPreviewMode || !publisherEditView;
+  const lectureNotesReadOnly = isDeviceFramePreview || !publisherEditView;
   /** Sidebar / canvas: read-only in device preview or student-facing preview. */
-  const workspaceReadOnly = isPreviewMode || !publisherEditView;
+  const workspaceReadOnly = isDeviceFramePreview || !publisherEditView;
 
   // Selected agents from settings store (Zustand)
   const selectedAgentIds = useSettingsStore((s) => s.selectedAgentIds);
@@ -443,6 +449,8 @@ export function Stage({
   // doesn't surprise-restart audio after a long edit session.
   const isEditing = useEditModeStore.use.isEditing();
   const saveEdits = useEditModeStore.use.saveEdits();
+  // Edit workspace: slide thumbnails + 笔记 stay pinned open (no collapse toggles).
+  const pinLayoutPanels = publisherEditView || isEditing;
 
   // Publisher ToB: Ctrl/Cmd+S flushes slide changes without leaving edit mode.
   useEffect(() => {
@@ -517,6 +525,13 @@ export function Stage({
     setSelectedEditElementId,
     setEditing,
   ]);
+
+  useEffect(() => {
+    if (pinLayoutPanels) {
+      setSidebarCollapsed(false);
+      setChatAreaCollapsed(false);
+    }
+  }, [pinLayoutPanels, setSidebarCollapsed, setChatAreaCollapsed]);
 
   useEffect(() => {
     if (!isPresenting) {
@@ -1116,11 +1131,13 @@ export function Stage({
           break;
         case 's':
         case 'S':
+          if (pinLayoutPanels) break;
           event.preventDefault();
           setSidebarCollapsed(!sidebarCollapsed);
           break;
         case 'c':
         case 'C':
+          if (pinLayoutPanels) break;
           event.preventDefault();
           setChatAreaCollapsed(!chatAreaCollapsed);
           break;
@@ -1140,6 +1157,7 @@ export function Stage({
     isPresenting,
     isPresentationInteractionActive,
     isPresentationShortcutTarget,
+    pinLayoutPanels,
     resetPresentationIdleTimer,
     setChatAreaCollapsed,
     setSidebarCollapsed,
@@ -1192,10 +1210,10 @@ export function Stage({
   // Calculate scene viewer height (subtract Header's 80px height)
   const sceneViewerHeight = (() => {
     const headerHeight = isPresenting ? 0 : 56; // Header h-14 = 56px
-    // The Roundtable stays mounted in publisher edit view (the AI 老师
-    // speech bubble is editable content), so we still need to reserve its
-    // 192px slot — only the chat panel collapses.
-    const roundtableHeight = mode === 'playback' && !isPresenting ? 192 : 0;
+    // Roundtable stays mounted for the merged toolbar; in publisher edit view
+    // the AI teacher speech strip is hidden so only ~36px (toolbar) is reserved.
+    const roundtableHeight =
+      mode === 'playback' && !isPresenting ? (publisherEditView ? 36 : 192) : 0;
     return `calc(100% - ${headerHeight + roundtableHeight}px)`;
   })();
 
@@ -1217,19 +1235,19 @@ export function Stage({
       {!isPresenting && (
         <Header
           classroomTitle={stage?.name ?? ''}
-          hideDeviceTabs={isPreviewMode}
-          readOnly={isPreviewMode}
           publisherEditView={publisherEditView}
           onTogglePublisherEditView={togglePublisherEditView}
+          hideEditToggle={isDeviceFramePreview}
+          deviceTabsVariant="pill"
           showSlideInsertTools={
-            publisherEditView && !isPreviewMode && currentScene?.type === 'slide'
+            publisherEditView && !isDeviceFramePreview && currentScene?.type === 'slide'
           }
         />
       )}
 
       <div className="flex-1 flex overflow-hidden min-h-0">
         <SceneSidebar
-          collapsed={sidebarCollapsed}
+          collapsed={pinLayoutPanels ? false : sidebarCollapsed}
           onCollapseChange={setSidebarCollapsed}
           onSceneSelect={gatedSceneSwitch}
           onRetryOutline={onRetryOutline}
@@ -1255,10 +1273,14 @@ export function Stage({
               chatIsStreaming || isTopicPending || engineMode === 'live' || !!chatSessionType
             }
             whiteboardOpen={whiteboardOpen}
-            sidebarCollapsed={sidebarCollapsed}
-            chatCollapsed={chatAreaCollapsed}
-            onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
-            onToggleChat={() => setChatAreaCollapsed(!chatAreaCollapsed)}
+            sidebarCollapsed={pinLayoutPanels ? false : sidebarCollapsed}
+            chatCollapsed={pinLayoutPanels ? false : chatAreaCollapsed}
+            onToggleSidebar={
+              pinLayoutPanels ? undefined : () => setSidebarCollapsed(!sidebarCollapsed)
+            }
+            onToggleChat={
+              pinLayoutPanels ? undefined : () => setChatAreaCollapsed(!chatAreaCollapsed)
+            }
             onPrevSlide={handlePreviousScene}
             onNextSlide={handleNextScene}
             onPlayPause={handlePlayPause}
@@ -1288,14 +1310,10 @@ export function Stage({
           />
         </div>
 
-        {/* Roundtable Area — the AI 老师 speech bubble is part of the
-            publisher's editable content (the lecture script), so we keep
-            the bar mounted in both views. In publisher edit view we pass
-            `lectureOnly=true` so the surrounding interactive surfaces
-            (student avatars, mic/text input dock, ProactiveCard, "your
-            turn" cue, etc.) collapse — leaving only the teacher's lecture
-            bubble visible. The "预览" header button toggles back to the
-            full student-facing surface. */}
+        {/* Roundtable — toolbar always mounted in playback mode. In publisher
+            edit view the AI teacher speech strip is hidden (script lives in
+            笔记); `lectureOnly` still suppresses student Q&A chrome. Preview
+            restores the full student-facing roundtable. */}
         {mode === 'playback' && (
           <div
             className={cn(
@@ -1420,10 +1438,14 @@ export function Stage({
               currentSceneIndex={currentSceneIndex}
               scenesCount={totalScenesCount}
               whiteboardOpen={whiteboardOpen}
-              sidebarCollapsed={sidebarCollapsed}
-              chatCollapsed={chatAreaCollapsed}
-              onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
-              onToggleChat={() => setChatAreaCollapsed(!chatAreaCollapsed)}
+              sidebarCollapsed={pinLayoutPanels ? false : sidebarCollapsed}
+              chatCollapsed={pinLayoutPanels ? false : chatAreaCollapsed}
+              onToggleSidebar={
+                pinLayoutPanels ? undefined : () => setSidebarCollapsed(!sidebarCollapsed)
+              }
+              onToggleChat={
+                pinLayoutPanels ? undefined : () => setChatAreaCollapsed(!chatAreaCollapsed)
+              }
               onPrevSlide={handlePreviousScene}
               onNextSlide={handleNextScene}
               onWhiteboardClose={handleWhiteboardToggle}
@@ -1432,7 +1454,7 @@ export function Stage({
               onTogglePresentation={togglePresentation}
               onPresentationInteractionChange={setIsPresentationInteractionActive}
               fullscreenContainerRef={stageRef}
-              readOnly={isPreviewMode}
+              readOnly={isDeviceFramePreview}
               isOpenmaicDemoClassroom={isOpenmaicDemoClassroom}
               lectureAudioProgress={lectureAudioProgress}
               onLectureAudioSeek={handleLectureAudioSeek}
@@ -1453,7 +1475,7 @@ export function Stage({
         ref={chatAreaRef}
         width={chatAreaWidth}
         onWidthChange={setChatAreaWidth}
-        collapsed={chatAreaCollapsed}
+        collapsed={pinLayoutPanels ? false : chatAreaCollapsed}
         onCollapseChange={setChatAreaCollapsed}
         activeBubbleId={activeBubbleId}
         onActiveBubble={(id) => setActiveBubbleId(id)}
@@ -1567,8 +1589,8 @@ export function Stage({
   // shared Zustand state. The publisher edits exclusively from web mode;
   // mobile / iPad are preview-only views — optimised for "this is how a
   // student sees it" rather than parity with the desktop publisher.
-  if (isPreviewMode) {
-    // TS doesn't narrow `previewDevice` from the derived `isPreviewMode`
+  if (isDeviceFramePreview) {
+    // TS doesn't narrow `previewDevice` from the derived `isDeviceFramePreview`
     // boolean, so we lock the narrowed device kind here once.
     const mobileDevice: 'mobile' | 'tablet' =
       previewDevice === 'mobile' ? 'mobile' : 'tablet';
@@ -1643,11 +1665,13 @@ export function Stage({
 
     return (
       <div className="flex-1 flex flex-col overflow-hidden bg-gray-50 dark:bg-gray-950">
-        {/* Page-level slim strip — device toggle + orientation toggle */}
-        <div className="shrink-0 h-12 px-4 flex items-center justify-center gap-4 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200/60 dark:border-gray-800/60 z-10">
-          <DevicePreviewTabs />
-          <OrientationToggle />
-        </div>
+        <Header
+          classroomTitle={stage?.name ?? ''}
+          publisherEditView={publisherEditView}
+          onTogglePublisherEditView={togglePublisherEditView}
+          hideEditToggle
+          deviceTabsVariant="pill"
+        />
 
         {/* Preview area — minimal chrome, scale-to-fit shell takes care
             of sizing the device-shaped surface to the available space. */}

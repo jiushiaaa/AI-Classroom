@@ -17,9 +17,16 @@ import {
   SlideEditInsertToolbar,
 } from '@/components/slide-renderer/Editor/slide-edit-insert-toolbar';
 import { Separator } from '@/components/ui/separator';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { SceneProvider } from '@/lib/contexts/scene-context';
 import { useI18n } from '@/lib/hooks/use-i18n';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useStageStore } from '@/lib/store/stage';
@@ -27,22 +34,23 @@ import { useSettingsStore } from '@/lib/store/settings';
 import { useMediaGenerationStore } from '@/lib/store/media-generation';
 import { useExportPPTX } from '@/lib/export/use-export-pptx';
 import { useExportClassroom } from '@/lib/export/use-export-classroom';
-import { DevicePreviewTabs } from './preview/device-preview-tabs';
+import {
+  DevicePreviewTabs,
+  type DevicePreviewTabsVariant,
+} from './preview/device-preview-tabs';
 import { PublishButton } from './publish/publish-button';
 import { EditModeToggleButton } from '@/components/canvas/edit-mode-toggle-button';
 import { SceneVersionHistoryButton } from '@/components/scene-version-history-panel';
 import { useSceneVersionAutosave } from '@/lib/hooks/use-scene-version-autosave';
+import { shouldShowSceneVersionHistory } from '@/lib/utils/header-toolbar-visibility';
 
 interface HeaderProps {
   /** AI-summarised course / classroom name (stage.name), editable in the header. */
   readonly classroomTitle: string;
-  /**
-   * When true, hide the centre device-preview tab group. Used by the in-frame
-   * Header inside mobile / iPad preview mode so the tabs aren't duplicated
-   * (the publisher switches device from the page-level tab strip outside the
-   * frame).
-   */
-  readonly hideDeviceTabs?: boolean;
+  /** Pill tabs (preview chrome) vs icon rail (compact edit chrome). */
+  readonly deviceTabsVariant?: DevicePreviewTabsVariant;
+  /** Hide the preview / return-to-edit toggle (mobile & iPad device frames). */
+  readonly hideEditToggle?: boolean;
   /**
    * When true, hide all publisher-only actions (publish, export). Used by the
    * mobile / iPad preview frames so the in-frame chrome shows ONLY what an end
@@ -64,10 +72,11 @@ interface HeaderProps {
 
 export function Header({
   classroomTitle,
-  hideDeviceTabs = false,
   readOnly = false,
   publisherEditView = false,
   onTogglePublisherEditView,
+  hideEditToggle = false,
+  deviceTabsVariant = 'iconRail',
   showSlideInsertTools = false,
 }: HeaderProps) {
   const { t } = useI18n();
@@ -75,9 +84,17 @@ export function Header({
   const stage = useStageStore((s) => s.stage);
   const currentSceneId = useStageStore((s) => s.currentSceneId);
   const patchStage = useStageStore((s) => s.patchStage);
+  const showPublisherChrome = !!onTogglePublisherEditView;
+  const showSceneVersionHistory = shouldShowSceneVersionHistory({
+    readOnly,
+    hasCurrentScene: !!currentSceneId,
+    showSlideInsertTools,
+    showPublisherChrome,
+    publisherEditView,
+  });
   const versionSaveStatus = useSceneVersionAutosave(
     currentSceneId,
-    !readOnly && showSlideInsertTools,
+    showSceneVersionHistory && showSlideInsertTools,
   );
   const titleRef = useRef<HTMLHeadingElement>(null);
   const titleEditable = publisherEditView && !readOnly && !!stage;
@@ -144,7 +161,6 @@ export function Header({
   const { exporting: isExporting, exportPPTX, exportResourcePack } = useExportPPTX();
   const { exporting: isExportingZip, exportClassroomZip } = useExportClassroom();
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
-  const exportRef = useRef<HTMLDivElement>(null);
   const scenes = useStageStore((s) => s.scenes);
   const generatingOutlines = useStageStore((s) => s.generatingOutlines);
   const failedOutlines = useStageStore((s) => s.failedOutlines);
@@ -152,20 +168,27 @@ export function Header({
   const teacherSubtitlesVisible = useSettingsStore((s) => s.teacherSubtitlesVisible);
   const setTeacherSubtitlesVisible = useSettingsStore((s) => s.setTeacherSubtitlesVisible);
 
-  const canExport =
-    scenes.length > 0 &&
-    generatingOutlines.length === 0 &&
-    failedOutlines.length === 0 &&
-    Object.values(mediaTasks).every((task) => task.status === 'done' || task.status === 'failed');
+  const exportBlockedReason = useMemo(() => {
+    if (scenes.length === 0) return t('export.blockedNoScenes');
+    if (generatingOutlines.length > 0) return t('export.blockedOutlinesGenerating');
+    if (failedOutlines.length > 0) return t('export.blockedOutlinesFailed');
+    const hasGeneratingMedia = Object.values(mediaTasks).some((task) => task.status === 'generating');
+    if (hasGeneratingMedia) return t('export.blockedMediaGenerating');
+    return null;
+  }, [scenes.length, generatingOutlines.length, failedOutlines.length, mediaTasks, t]);
 
-  // Close dropdown when clicking outside
-  const handleClickOutside = useCallback(
-    (e: MouseEvent) => {
-      if (exportMenuOpen && exportRef.current && !exportRef.current.contains(e.target as Node)) {
-        setExportMenuOpen(false);
+  const canExport = exportBlockedReason === null;
+
+  const handleExportOpenChange = useCallback(
+    (open: boolean) => {
+      if (isExporting || isExportingZip) return;
+      if (open && exportBlockedReason) {
+        toast.error(exportBlockedReason);
+        return;
       }
+      setExportMenuOpen(open);
     },
-    [exportMenuOpen],
+    [exportBlockedReason, isExporting, isExportingZip],
   );
 
   // Build the publisher edit-view toggle button outside the JSX tree to
@@ -173,6 +196,8 @@ export function Header({
   let editViewToggle: React.ReactNode;
   if (!onTogglePublisherEditView) {
     editViewToggle = <EditModeToggleButton variant="header" />;
+  } else if (hideEditToggle) {
+    editViewToggle = null;
   } else if (publisherEditView) {
     editViewToggle = (
       <button
@@ -207,19 +232,15 @@ export function Header({
     );
   }
 
-  useEffect(() => {
-    if (exportMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [exportMenuOpen, handleClickOutside]);
-
-  const showPublisherChrome = !!onTogglePublisherEditView;
+  // Publisher ToB: edit view = 预览 + 发布 + 下载；网页预览 = 字幕 + 设备 preview（无发布/导出）
+  const showSubtitlesToggle = !readOnly && (!showPublisherChrome || !publisherEditView);
+  const showDevicePreviewTabs = !readOnly && (!showPublisherChrome || !publisherEditView);
+  const showPublishExport = !readOnly && (!showPublisherChrome || publisherEditView);
 
   return (
     <header
       className={cn(
-        'shrink-0 px-3 flex items-center gap-2 z-20 border-b border-gray-200/80 dark:border-gray-800/80',
+        'shrink-0 px-3 flex items-center gap-2 z-20 overflow-visible border-b border-gray-200/80 dark:border-gray-800/80',
         'bg-white/95 dark:bg-gray-950/95 backdrop-blur-md shadow-[0_1px_0_rgba(0,0,0,0.04)]',
         showSlideInsertTools ? 'min-h-14 py-1' : 'h-14',
       )}
@@ -227,7 +248,11 @@ export function Header({
       <div
         className={cn(
           'flex items-center gap-2 min-w-0',
-          showSlideInsertTools ? 'shrink-0 max-w-[min(40%,320px)]' : 'flex-1',
+          showSlideInsertTools
+            ? 'shrink-0 max-w-[min(40%,320px)]'
+            : showSceneVersionHistory
+              ? 'shrink-0 max-w-[min(55%,420px)]'
+              : 'flex-1',
         )}
       >
         <button
@@ -241,7 +266,10 @@ export function Header({
           <h1
             ref={titleRef}
             className={cn(
-              'text-base font-semibold text-gray-800 dark:text-gray-200 tracking-tight truncate min-w-0 flex-1',
+              'text-base font-semibold text-gray-800 dark:text-gray-200 tracking-tight truncate min-w-0',
+              showSceneVersionHistory && !showSlideInsertTools
+                ? 'max-w-[min(32vw,360px)]'
+                : 'flex-1',
               'outline-none rounded-md px-1 -mx-1 cursor-text',
               'hover:bg-gray-100/70 dark:hover:bg-gray-800/70',
               'focus:bg-white dark:focus:bg-gray-900',
@@ -262,24 +290,31 @@ export function Header({
           </h1>
         ) : (
           <h1
-            className="text-base font-semibold text-gray-800 dark:text-gray-200 tracking-tight truncate min-w-0 flex-1"
+            className={cn(
+              'text-base font-semibold text-gray-800 dark:text-gray-200 tracking-tight truncate min-w-0',
+              showSceneVersionHistory && !showSlideInsertTools
+                ? 'max-w-[min(32vw,360px)]'
+                : 'flex-1',
+            )}
             title={classroomTitle}
             suppressHydrationWarning
           >
             {classroomTitle || t('common.loading')}
           </h1>
         )}
-        {showSlideInsertTools && (
+        {(showSlideInsertTools || showSceneVersionHistory) && (
           <>
             <Separator
               orientation="vertical"
               className="h-9 mx-0.5 shrink-0 bg-gray-200/90 dark:bg-gray-700/80"
             />
-            <SlideEditHistoryButtons placement="title" />
-            <SceneVersionHistoryButton
-              sceneId={currentSceneId}
-              saveStatus={versionSaveStatus}
-            />
+            {showSlideInsertTools && <SlideEditHistoryButtons placement="title" />}
+            {showSceneVersionHistory && (
+              <SceneVersionHistoryButton
+                sceneId={currentSceneId}
+                saveStatus={versionSaveStatus}
+              />
+            )}
           </>
         )}
       </div>
@@ -295,13 +330,14 @@ export function Header({
 
       <div
         className={cn(
-          'flex items-center justify-end gap-1.5 min-w-0',
+          'relative z-30 flex items-center justify-end gap-1.5 min-w-0',
           showSlideInsertTools ? 'shrink-0' : 'flex-1',
         )}
       >
         {!readOnly && (
           <>
             {showPublisherChrome && editViewToggle}
+            {showSubtitlesToggle && (
             <button
               type="button"
               onClick={() => setTeacherSubtitlesVisible(!teacherSubtitlesVisible)}
@@ -320,34 +356,36 @@ export function Header({
                 <CaptionsOff className="w-4 h-4" />
               )}
             </button>
-            {!hideDeviceTabs && <DevicePreviewTabs variant="iconRail" />}
+            )}
+            {showDevicePreviewTabs && (
+              <DevicePreviewTabs variant={deviceTabsVariant} showOrientationToggle />
+            )}
+            {showPublishExport && (
+              <>
             {/* Publish — compact icon button (hover to reveal "发布"); flush
                 left of the Download icon so the two share a single visual rail. */}
             <PublishButton
               disabled={!canExport}
-              disabledReason={canExport ? undefined : t('share.notReady')}
+              disabledReason={exportBlockedReason ?? undefined}
             />
 
-            {/* Export Dropdown */}
-            <div className="relative" ref={exportRef}>
+            {/* Export — portal menu so dropdown is not clipped by stage overflow-hidden */}
+            <DropdownMenu open={exportMenuOpen} onOpenChange={handleExportOpenChange}>
+              <DropdownMenuTrigger asChild>
               <button
-                onClick={() => {
-                  if (canExport && !isExporting && !isExportingZip)
-                    setExportMenuOpen(!exportMenuOpen);
-                }}
-                disabled={!canExport || isExporting || isExportingZip}
+                type="button"
+                disabled={isExporting || isExportingZip}
                 title={
-                  canExport
-                    ? isExporting || isExportingZip
-                      ? t('export.exporting')
-                      : t('export.pptx')
-                    : t('share.notReady')
+                  exportBlockedReason ??
+                  (isExporting || isExportingZip ? t('export.exporting') : t('export.pptx'))
                 }
                 className={cn(
                   'shrink-0 p-2 rounded-full transition-all',
-                  canExport && !isExporting && !isExportingZip
-                    ? 'text-gray-400 dark:text-gray-500 hover:bg-white dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200 hover:shadow-sm'
-                    : 'text-gray-300 dark:text-gray-600 cursor-not-allowed opacity-50',
+                  isExporting || isExportingZip
+                    ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed opacity-50'
+                    : exportBlockedReason
+                      ? 'text-gray-400 dark:text-gray-500 opacity-70 hover:bg-white dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200'
+                      : 'text-gray-400 dark:text-gray-500 hover:bg-white dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200 hover:shadow-sm',
                 )}
               >
                 {isExporting || isExportingZip ? (
@@ -356,52 +394,44 @@ export function Header({
                   <Download className="w-4 h-4" />
                 )}
               </button>
-              {exportMenuOpen && (
-                <div className="absolute top-full mt-2 right-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg overflow-hidden z-50 min-w-[200px]">
-                  <button
-                    onClick={() => {
-                      setExportMenuOpen(false);
-                      exportPPTX();
-                    }}
-                    className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-2.5"
-                  >
-                    <FileDown className="w-4 h-4 text-gray-400 shrink-0" />
-                    <span>{t('export.pptx')}</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setExportMenuOpen(false);
-                      exportResourcePack();
-                    }}
-                    className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-2.5"
-                  >
-                    <Package className="w-4 h-4 text-gray-400 shrink-0" />
-                    <div>
-                      <div>{t('export.resourcePack')}</div>
-                      <div className="text-[11px] text-gray-400 dark:text-gray-500">
-                        {t('export.resourcePackDesc')}
-                      </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[200px] p-1">
+                <DropdownMenuItem
+                  className="gap-2.5 px-3 py-2.5 cursor-pointer"
+                  onClick={() => exportPPTX()}
+                >
+                  <FileDown className="w-4 h-4 text-gray-400 shrink-0" />
+                  <span>{t('export.pptx')}</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="items-start gap-2.5 px-3 py-2.5 cursor-pointer"
+                  onClick={() => exportResourcePack()}
+                >
+                  <Package className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                  <div>
+                    <div>{t('export.resourcePack')}</div>
+                    <div className="text-[11px] text-gray-400 dark:text-gray-500">
+                      {t('export.resourcePackDesc')}
                     </div>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setExportMenuOpen(false);
-                      exportClassroomZip();
-                    }}
-                    disabled={isExportingZip}
-                    className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-2.5"
-                  >
-                    <Archive className="w-4 h-4 text-gray-400 shrink-0" />
-                    <div>
-                      <div>{t('export.classroomZip')}</div>
-                      <div className="text-[11px] text-gray-400 dark:text-gray-500">
-                        {t('export.classroomZipDesc')}
-                      </div>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="items-start gap-2.5 px-3 py-2.5 cursor-pointer"
+                  disabled={isExportingZip}
+                  onClick={() => exportClassroomZip()}
+                >
+                  <Archive className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                  <div>
+                    <div>{t('export.classroomZip')}</div>
+                    <div className="text-[11px] text-gray-400 dark:text-gray-500">
+                      {t('export.classroomZipDesc')}
                     </div>
-                  </button>
-                </div>
-              )}
-            </div>
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+              </>
+            )}
           </>
         )}
       </div>

@@ -164,6 +164,8 @@ export function CanvasToolbar({
   const canEnterEdit = !readOnly && isManuallyEditableSceneType(currentSceneType);
   const showSessionEditControls =
     !publisherWorkflow && canEnterEdit && !hideEditToggle && !isPresenting;
+  // Slide edit / publisher edit view — playback chrome is irrelevant while editing.
+  const hidePlaybackControls = isEditing || persistentEdit;
 
   // Volume slider hover state
   const [volumeHover, setVolumeHover] = useState(false);
@@ -190,7 +192,7 @@ export function CanvasToolbar({
     <div className={cn('flex items-center gap-2', className)}>
       {/* ── Left: sidebar toggle + page indicator ── */}
       <div className="flex items-center gap-1 shrink-0 pl-1">
-        {onToggleSidebar && (
+        {onToggleSidebar && !hidePlaybackControls && (
           <button
             onClick={onToggleSidebar}
             className={cn(
@@ -212,9 +214,10 @@ export function CanvasToolbar({
         </span>
       </div>
 
-      <CtrlDivider />
+      {hidePlaybackControls ? null : <CtrlDivider />}
 
-      {/* ── Center: unified playback controls ── */}
+      {/* ── Center: unified playback controls (hidden in edit mode) ── */}
+      {!hidePlaybackControls && (
       <div className="flex-1 flex items-center justify-center min-w-0">
         <div
           className={cn(
@@ -444,9 +447,15 @@ export function CanvasToolbar({
           )}
         </div>
       </div>
+      )}
 
       {/* ── Right: edit toggle + fullscreen + chat toggle ── */}
-      <div className="flex items-center justify-end gap-px shrink-0 pr-1">
+      <div
+        className={cn(
+          'flex items-center justify-end gap-px shrink-0 pr-1',
+          hidePlaybackControls && 'ml-auto',
+        )}
+      >
         {showSessionEditControls ? <CtrlDivider /> : null}
         {/* Legacy enter / confirm / cancel — not used in publisher ToB flow. */}
         {showSessionEditControls && (
@@ -528,7 +537,7 @@ export function CanvasToolbar({
             )}
           </TooltipProvider>
         )}
-        {onTogglePresentation && (
+        {onTogglePresentation && !hidePlaybackControls && (
           <button
             onClick={onTogglePresentation}
             className={cn(
@@ -548,7 +557,7 @@ export function CanvasToolbar({
             )}
           </button>
         )}
-        {onToggleChat && (
+        {onToggleChat && !hidePlaybackControls && (
           <button
             onClick={onToggleChat}
             className={cn(
