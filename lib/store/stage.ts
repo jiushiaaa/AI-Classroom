@@ -21,10 +21,10 @@ export const PENDING_SCENE_ID = '__pending__';
 function debounce<T extends (...args: Parameters<T>) => ReturnType<T>>(
   func: T,
   delay: number,
-): (...args: Parameters<T>) => void {
+): ((...args: Parameters<T>) => void) & { flush: () => void } {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
-  return (...args: Parameters<T>) => {
+  const debounced = (...args: Parameters<T>) => {
     if (timeoutId) {
       clearTimeout(timeoutId);
     }
@@ -33,6 +33,16 @@ function debounce<T extends (...args: Parameters<T>) => ReturnType<T>>(
       timeoutId = null;
     }, delay);
   };
+
+  debounced.flush = () => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      timeoutId = null;
+    }
+    func();
+  };
+
+  return debounced;
 }
 
 type ToolbarState = 'design' | 'ai';
@@ -473,3 +483,9 @@ export const useStageStore = createSelectors(useStageStoreBase);
 const debouncedSave = debounce(() => {
   useStageStore.getState().saveToStorage();
 }, 500);
+
+/** Flush any pending debounced write, then persist immediately (Ctrl+S / Save). */
+export async function flushStageSave(): Promise<void> {
+  debouncedSave.flush();
+  await useStageStore.getState().saveToStorage();
+}

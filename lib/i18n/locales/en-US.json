@@ -573,6 +573,10 @@
     "cancelChanges": "Discard",
     "confirmChangesTooltip": "Keep your edits and return to lecture view",
     "cancelChangesTooltip": "Revert changes made since you entered edit mode",
+    "save": "Save",
+    "saveTooltip": "Save changes to this classroom (Ctrl+S)",
+    "savedToast": "Saved",
+    "saveFailedToast": "Save failed — please try again",
     "pausedBanner": "Paused for editing",
     "insertToolbar": {
       "label": "Insert",

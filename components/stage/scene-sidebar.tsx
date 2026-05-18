@@ -1,9 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import {
-  PanelLeftClose,
   PieChart,
   Cpu,
   MousePointer2,
@@ -70,6 +68,122 @@ const DEFAULT_WIDTH = 220;
 const MIN_WIDTH = 170;
 const MAX_WIDTH = 400;
 
+function SceneSidebarTitle({
+  sceneId,
+  title,
+  isActive,
+  readOnly,
+}: {
+  sceneId: string;
+  title: string;
+  isActive: boolean;
+  readOnly: boolean;
+}) {
+  const updateScene = useStageStore((s) => s.updateScene);
+  const titleRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    const node = titleRef.current;
+    if (!node) return;
+    if (document.activeElement === node) return;
+    const next = title || '';
+    if (node.textContent !== next) {
+      node.textContent = next;
+    }
+  }, [title, sceneId]);
+
+  const commitTitle = useCallback(() => {
+    if (readOnly) return;
+    const node = titleRef.current;
+    if (!node) return;
+    const next = (node.textContent || '').trim();
+    if (!next) {
+      node.textContent = title || '';
+      return;
+    }
+    if (next !== title) {
+      updateScene(sceneId, { title: next });
+    }
+  }, [readOnly, sceneId, title, updateScene]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLSpanElement>) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        titleRef.current?.blur();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        const node = titleRef.current;
+        if (node) node.textContent = title || '';
+        node?.blur();
+      }
+    },
+    [title],
+  );
+
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLSpanElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const text = e.clipboardData
+      .getData('text/plain')
+      .replace(/[\r\n]+/g, ' ')
+      .trim();
+    if (!text) return;
+    const selection = globalThis.getSelection?.();
+    if (!selection || selection.rangeCount === 0) return;
+    const range = selection.getRangeAt(0);
+    range.deleteContents();
+    const textNode = document.createTextNode(text);
+    range.insertNode(textNode);
+    range.setStartAfter(textNode);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }, []);
+
+  const stopBubble = useCallback((e: React.SyntheticEvent) => {
+    e.stopPropagation();
+  }, []);
+
+  const className = cn(
+    'text-xs font-bold truncate transition-colors min-w-0 flex-1',
+    isActive
+      ? 'text-purple-700 dark:text-purple-300'
+      : 'text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-gray-100',
+    !readOnly &&
+      'cursor-text outline-none rounded px-0.5 -mx-0.5 hover:bg-black/5 dark:hover:bg-white/5 focus:bg-white/90 dark:focus:bg-gray-900/90 focus:ring-1 focus:ring-purple-300/60 dark:focus:ring-purple-500/40',
+  );
+
+  if (readOnly) {
+    return (
+      <span data-testid="scene-title" className={className}>
+        {title}
+      </span>
+    );
+  }
+
+  return (
+    <span
+      ref={titleRef}
+      data-testid="scene-title"
+      className={className}
+      contentEditable
+      suppressContentEditableWarning
+      spellCheck={false}
+      title="点击修改页标题（回车确认，Esc 取消）"
+      onBlur={commitTitle}
+      onKeyDown={handleKeyDown}
+      onPaste={handlePaste}
+      onMouseDown={stopBubble}
+      onClick={stopBubble}
+      onDragStart={(e) => e.preventDefault()}
+    >
+      {title}
+    </span>
+  );
+}
+
 export function SceneSidebar({
   collapsed,
   onCollapseChange,
@@ -79,7 +193,6 @@ export function SceneSidebar({
   readOnly = false,
 }: SceneSidebarProps) {
   const { t } = useI18n();
-  const router = useRouter();
   const { scenes, currentSceneId, setCurrentSceneId, generatingOutlines, generationStatus } =
     useStageStore();
   const failedOutlines = useStageStore.use.failedOutlines();
@@ -281,33 +394,11 @@ export function SceneSidebar({
       )}
 
       <div className={cn('flex flex-col w-full h-full overflow-hidden', collapsed && 'hidden')}>
-        {/* Logo Header */}
-        <div className="h-10 flex items-center justify-between shrink-0 relative mt-3 mb-1 px-3">
-          <button
-            onClick={() => router.push('/')}
-            className="flex items-center gap-2 cursor-pointer rounded-lg px-1.5 -mx-1.5 py-1 -my-1 hover:bg-gray-100/80 dark:hover:bg-gray-800/60 active:scale-[0.97] transition-all duration-150"
-            title={t('generation.backToHome')}
-          >
-            <img
-              src="/yunti-logo.png"
-              alt="云梯科技 YUN TI TECHNOLOGY"
-              className="h-7 w-auto select-none dark:brightness-0 dark:invert"
-              draggable={false}
-            />
-          </button>
-          <button
-            onClick={() => onCollapseChange(true)}
-            className="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center bg-gray-100/80 dark:bg-gray-800/80 text-gray-500 dark:text-gray-400 ring-1 ring-black/[0.04] dark:ring-white/[0.06] hover:bg-gray-200/90 dark:hover:bg-gray-700/90 hover:text-gray-700 dark:hover:text-gray-200 active:scale-90 transition-all duration-200"
-          >
-            <PanelLeftClose className="w-4 h-4" />
-          </button>
-        </div>
-
         {/* Scenes List */}
         <div
           ref={sceneListRef}
           data-testid="scene-list"
-          className="flex-1 overflow-y-auto overflow-x-hidden p-2 scrollbar-hide pt-1"
+          className="flex-1 overflow-y-auto overflow-x-hidden p-2 scrollbar-hide pt-3"
         >
           {/* Insert-slot above the very first scene (only when editable) */}
           {!readOnly && scenes.length > 0 && <AddScenePopover variant="slot" insertIndex={0} />}
@@ -390,17 +481,12 @@ export function SceneSidebar({
                     >
                       {index + 1}
                     </span>
-                    <span
-                      data-testid="scene-title"
-                      className={cn(
-                        'text-xs font-bold truncate transition-colors',
-                        isActive
-                          ? 'text-purple-700 dark:text-purple-300'
-                          : 'text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-gray-100',
-                      )}
-                    >
-                      {scene.title}
-                    </span>
+                    <SceneSidebarTitle
+                      sceneId={scene.id}
+                      title={scene.title}
+                      isActive={isActive}
+                      readOnly={readOnly}
+                    />
                   </div>
                 </div>
 

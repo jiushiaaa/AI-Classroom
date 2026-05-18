@@ -107,6 +107,18 @@ interface RoundtableProps {
   readonly lectureAudioProgress?: LectureAudioProgress | null;
   readonly onLectureAudioSeek?: (ratio: number) => void;
   readonly showSubtitles?: boolean;
+  /**
+   * When true, force a publisher-edit "lecture-only" surface — the teacher's
+   * speech bubble stays visible (since the script is editable content), but
+   * every interactive surface (companion avatars column, voice/text input
+   * dock, "your turn" cue, ProactiveCard, etc.) is collapsed. Treated as a
+   * per-instance override of the global `realtimeQAEnabled` setting so the
+   * publisher's tweak doesn't leak into the student-facing classroom.
+   */
+  readonly lectureOnly?: boolean;
+  /** Publisher ToB flow — show Save instead of enter/confirm/cancel on toolbar. */
+  readonly persistentEdit?: boolean;
+  readonly publisherWorkflow?: boolean;
 }
 
 const VOICE_WAVE_BARS = [
@@ -195,6 +207,9 @@ export function Roundtable({
   lectureAudioProgress,
   onLectureAudioSeek,
   showSubtitles = true,
+  lectureOnly = false,
+  persistentEdit = false,
+  publisherWorkflow = false,
 }: RoundtableProps) {
   const { t } = useI18n();
   const ttsMuted = useSettingsStore((s) => s.ttsMuted);
@@ -209,7 +224,11 @@ export function Roundtable({
   const playbackSpeed = useSettingsStore((s) => s.playbackSpeed);
   const setPlaybackSpeed = useSettingsStore((s) => s.setPlaybackSpeed);
   // Publisher-controlled gate for all interactive Q&A surfaces.
-  const realtimeQAEnabled = useSettingsStore((s) => s.realtimeQAEnabled);
+  // `lectureOnly` (per-instance) overrides the global toggle to force the
+  // lecture-only surface inside the publisher's edit view, without changing
+  // the actual publisher setting that drives the student-facing classroom.
+  const realtimeQAEnabledSetting = useSettingsStore((s) => s.realtimeQAEnabled);
+  const realtimeQAEnabled = lectureOnly ? false : realtimeQAEnabledSetting;
   const [isInputOpen, setIsInputOpen] = useState(false);
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
@@ -713,7 +732,9 @@ export function Roundtable({
       playbackSpeed={playbackSpeed}
       onCycleSpeed={handleCycleSpeed}
       readOnly={readOnly}
-      hideEditToggle={!isPresenting && !readOnly}
+      hideEditToggle={isPresenting || readOnly}
+      persistentEdit={persistentEdit}
+      publisherWorkflow={publisherWorkflow}
     />
   );
 

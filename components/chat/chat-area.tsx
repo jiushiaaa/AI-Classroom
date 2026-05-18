@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/hooks/use-i18n';
 import { useStageStore } from '@/lib/store';
 import { useSettingsStore } from '@/lib/store/settings';
-import { PanelRightClose, BookOpen, MessageSquare, Volume2, Sparkles } from 'lucide-react';
+import { BookOpen, MessageSquare, Sparkles } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useChatSessions } from './use-chat-sessions';
 import { SessionList } from './session-list';
@@ -57,6 +57,12 @@ interface ChatAreaProps {
    * student would see.
    */
   readOnly?: boolean;
+  /**
+   * When true, hide the "对话" tab and its content so the panel is
+   * lecture-notes only. Used by the publisher edit view — QA chat is a
+   * runtime student affordance, not part of the editing surface.
+   */
+  hideChatTab?: boolean;
 }
 
 export interface ChatAreaRef {
@@ -106,6 +112,7 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
       currentSceneId,
       onLectureNoteSceneSelect,
       readOnly = false,
+      hideChatTab = false,
     },
     ref,
   ) => {
@@ -113,6 +120,7 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
     const scenes = useStageStore((s) => s.scenes);
     const updateScene = useStageStore((s) => s.updateScene);
     const realtimeQAEnabled = useSettingsStore((s) => s.realtimeQAEnabled);
+    const showChatTab = realtimeQAEnabled && !hideChatTab;
     const {
       sessions,
       activeSessionType,
@@ -148,15 +156,14 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
 
     const [activeTab, setActiveTab] = useState<'lecture' | 'chat'>('lecture');
 
-    // Force-back to the lecture tab whenever the publisher disables real-time
-    // Q&A — the chat tab is hidden in that mode and would otherwise leave the
-    // panel showing an empty selection.
+    // Force-back to the lecture tab whenever the chat tab is hidden — the
+    // panel would otherwise show an empty selection.
     useEffect(() => {
-      if (!realtimeQAEnabled && activeTab === 'chat') {
+      if (!showChatTab && activeTab === 'chat') {
         setActiveTab('lecture');
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to QA toggle
-    }, [realtimeQAEnabled]);
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to tab visibility
+    }, [showChatTab]);
     // The "样式" tab used to live here; it now opens as a right-side drawer
     // in the slide editor (see SlideStyleDrawer + useEditModeStore.stylePanelOpen).
     // Reading isEditing here purely so we can suppress edit-mode-only chrome
@@ -191,7 +198,6 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
                     kind: 'speech' as const,
                     actionId: sa.id,
                     text: sa.text,
-                    userEditedAt: sa.userEditedAt,
                     publisherVoiceName: sa.publisherVoiceName,
                     publisherVoiceUploadedAt: sa.publisherVoiceUploadedAt,
                   };
@@ -209,9 +215,7 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
 
     /**
      * Edit a speech action's text from the Notes tab. Updates the underlying
-     * Scene.actions array, marks it as user-edited, and clears any cached
-     * server-side TTS audio so the playback engine re-synthesises on the
-     * next playback. Shows a toast confirming TTS sync.
+     * Scene.actions array and clears cached TTS audio so playback re-synthesises.
      */
     const handleEditSpeech = useCallback(
       (sceneId: string, actionId: string, newText: string) => {
@@ -233,7 +237,6 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
           const updated: SpeechAction = {
             ...(a as SpeechAction),
             text: trimmed,
-            userEditedAt: Date.now(),
             audioId: undefined,
             audioUrl: undefined,
             publisherVoiceName: undefined,
@@ -246,14 +249,8 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
         });
 
         updateScene(sceneId, { actions: nextActions, updatedAt: Date.now() });
-
-        toast.success(t('chat.lectureNotes.ttsSyncedToast'), {
-          description: t('chat.lectureNotes.ttsSyncedDescription'),
-          icon: <Volume2 className="w-4 h-4 text-purple-500" />,
-          duration: 2400,
-        });
       },
-      [scenes, updateScene, t],
+      [scenes, updateScene],
     );
 
     /** Mock one-click draft for the AI teacher script from slide text (offline demo). */
@@ -288,7 +285,6 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
           const updated: SpeechAction = {
             ...(a as SpeechAction),
             text: generated,
-            userEditedAt: undefined,
             audioId: undefined,
             audioUrl: undefined,
             publisherVoiceName: undefined,
@@ -431,10 +427,10 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
         // Imperative callers (e.g. mobile bridge) may try to surface the chat
         // tab when a new QA bubble arrives. If the publisher disabled QA,
         // ignore the switch and stay on lecture notes.
-        if (tab === 'chat' && !realtimeQAEnabled) return;
+        if (tab === 'chat' && !showChatTab) return;
         setActiveTab(tab);
       },
-      [realtimeQAEnabled],
+      [showChatTab],
     );
 
     useImperativeHandle(ref, () => ({
@@ -529,7 +525,7 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
                   <BookOpen className="w-3.5 h-3.5" />
                   {t('chat.tabs.lecture')}
                 </TabsTrigger>
-                {realtimeQAEnabled && (
+                {showChatTab && (
                   <TabsTrigger value="chat" className="text-xs gap-1 flex-1 relative">
                     <MessageSquare className="w-3.5 h-3.5" />
                     {t('chat.tabs.chat')}
@@ -543,15 +539,6 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
                   </TabsTrigger>
                 )}
               </TabsList>
-
-              {onCollapseChange && (
-                <button
-                  onClick={() => onCollapseChange(true)}
-                  className="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center bg-gray-100/80 dark:bg-gray-800/80 text-gray-500 dark:text-gray-400 ring-1 ring-black/[0.04] dark:ring-white/[0.06] hover:bg-gray-200/90 dark:hover:bg-gray-700/90 hover:text-gray-700 dark:hover:text-gray-200 active:scale-90 transition-all duration-200"
-                >
-                  <PanelRightClose className="w-4 h-4" />
-                </button>
-              )}
             </div>
 
             {/* Notes Tab */}
@@ -568,7 +555,7 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
             </TabsContent>
 
             {/* Chat Tab — gated by real-time Q&A toggle */}
-            {realtimeQAEnabled && (
+            {showChatTab && (
             <TabsContent value="chat" className="flex-1 overflow-hidden flex flex-col">
               <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 space-y-2 scrollbar-hide">
                 {chatSessions.length === 0 ? (

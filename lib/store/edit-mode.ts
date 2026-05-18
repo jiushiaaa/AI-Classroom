@@ -21,6 +21,7 @@
 
 import { create } from 'zustand';
 import { createSelectors } from '@/lib/utils/create-selectors';
+import { flushStageSave } from './stage';
 import { useSnapshotStore } from './snapshot';
 
 interface EditModeState {
@@ -49,6 +50,12 @@ interface EditModeState {
   setEditing: (next: boolean) => void;
   setSelectedElementId: (id: string | null) => void;
   setStylePanelOpen: (next: boolean) => void;
+  /**
+   * Publisher ToB flow: persist the current canvas to storage and advance
+   * the edit-session baseline so undo history stays but "revert session"
+   * would no longer roll back past this point. Does not exit edit mode.
+   */
+  saveEdits: () => Promise<void>;
   /** Exit edit mode and revert slide/stage changes back to the snapshot taken at edit entry. */
   cancelEditingWithRevert: () => Promise<void>;
   /** Convenience: clear edit state (used on preview switches / unmount). */
@@ -81,6 +88,12 @@ const useEditModeStoreBase = create<EditModeState>()((set, get) => ({
 
   setSelectedElementId: (id) => set({ selectedElementId: id }),
   setStylePanelOpen: (next) => set({ stylePanelOpen: next }),
+
+  saveEdits: async () => {
+    await flushStageSave();
+    const cursor = useSnapshotStore.getState().snapshotCursor;
+    set({ editSessionBaselineSnapshotCursor: cursor });
+  },
 
   cancelEditingWithRevert: async () => {
     if (!get().isEditing) return;

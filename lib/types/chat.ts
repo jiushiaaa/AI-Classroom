@@ -206,8 +206,6 @@ export type LectureNoteItem =
        *  write edits back via stage-store.updateScene. */
       actionId: string;
       text: string;
-      /** Timestamp of last manual edit, mirrors SpeechAction.userEditedAt. */
-      userEditedAt?: number;
       publisherVoiceName?: string;
       publisherVoiceUploadedAt?: number;
     }

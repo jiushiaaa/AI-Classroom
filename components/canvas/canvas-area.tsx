@@ -51,6 +51,8 @@ export function CanvasArea({
   onRetryGeneration,
   readOnly,
   hideEditToggle,
+  persistentEdit,
+  publisherWorkflow,
 }: CanvasAreaProps) {
   const { t } = useI18n();
   const isEditing = useEditModeStore.use.isEditing();
@@ -279,6 +281,8 @@ export function CanvasArea({
             onStopDiscussion={onStopDiscussion}
             readOnly={readOnly}
             hideEditToggle={hideEditToggle}
+            persistentEdit={persistentEdit}
+            publisherWorkflow={publisherWorkflow}
           />
       )}
     </div>

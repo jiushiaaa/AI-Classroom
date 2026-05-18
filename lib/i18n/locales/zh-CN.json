@@ -585,6 +585,10 @@
     "cancelChanges": "取消修改",
     "confirmChangesTooltip": "保留本次修改并返回讲解视图",
     "cancelChangesTooltip": "放弃本次修改，恢复进入编辑前的内容",
+    "save": "保存",
+    "saveTooltip": "保存修改到课堂（Ctrl+S）",
+    "savedToast": "已保存",
+    "saveFailedToast": "保存失败，请稍后重试",
     "pausedBanner": "编辑模式已暂停",
     "insertToolbar": {
       "label": "插入",

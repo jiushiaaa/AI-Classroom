@@ -3,7 +3,6 @@
 import Canvas from './Canvas';
 import type { StageMode } from '@/lib/types/stage';
 import { ScreenCanvas } from './ScreenCanvas';
-import { SlideEditInsertToolbar } from './slide-edit-insert-toolbar';
 import { SlideStyleDrawer } from './SlideStyleDrawer';
 
 /**
@@ -27,7 +26,6 @@ export function SlideEditor({
   const showFullCanvas = forceEditing || mode === 'autonomous';
   return (
     <div className="flex flex-col h-full min-h-0">
-      {showFullCanvas ? <SlideEditInsertToolbar /> : null}
       {/* `relative` so SlideStyleDrawer can absolutely-position itself to
           the right edge of the canvas column without leaking out into the
           chat area. */}

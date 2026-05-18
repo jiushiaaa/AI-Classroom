@@ -16,8 +16,6 @@ import {
   Repeat,
   Maximize2,
   Minimize2,
-  Check,
-  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useStageStore, useEditModeStore } from '@/lib/store';
@@ -66,6 +64,16 @@ export interface CanvasToolbarProps {
    * should pass false to keep edit on this toolbar.
    */
   readonly hideEditToggle?: boolean;
+  /**
+   * Publisher ToB flow: editing is the default state — show a Save action
+   * instead of enter / confirm / cancel edit chrome.
+   */
+  readonly persistentEdit?: boolean;
+  /**
+   * ToB publisher classroom — never show legacy enter/confirm/cancel;
+   * Save is only offered while `persistentEdit` is true (edit view).
+   */
+  readonly publisherWorkflow?: boolean;
 }
 
 /* Compact control button */
@@ -126,6 +134,8 @@ export function CanvasToolbar({
   onCycleSpeed,
   readOnly = false,
   hideEditToggle = false,
+  persistentEdit = false,
+  publisherWorkflow = false,
 }: CanvasToolbarProps) {
   const { t } = useI18n();
   const canGoPrev = currentSceneIndex > 0;
@@ -150,6 +160,8 @@ export function CanvasToolbar({
     return id ? s.scenes.find((sc) => sc.id === id)?.type : undefined;
   });
   const canEnterEdit = !readOnly && isManuallyEditableSceneType(currentSceneType);
+  const showSessionEditControls =
+    !publisherWorkflow && canEnterEdit && !hideEditToggle && !isPresenting;
 
   // Volume slider hover state
   const [volumeHover, setVolumeHover] = useState(false);
@@ -196,23 +208,6 @@ export function CanvasToolbar({
           <span className="opacity-35 mx-px">/</span>
           {scenesCount}
         </span>
-        {isEditing && !readOnly && (
-          <span
-            className={cn(
-              'ml-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5',
-              'bg-violet-100/80 dark:bg-violet-900/30',
-              'text-[10px] font-semibold text-violet-700 dark:text-violet-300',
-              'ring-1 ring-violet-200/70 dark:ring-violet-700/50',
-              'select-none whitespace-nowrap',
-            )}
-            data-testid="edit-paused-banner"
-            role="status"
-            aria-live="polite"
-          >
-            <Pause className="w-2.5 h-2.5" strokeWidth={3} />
-            {t('editMode.pausedBanner')}
-          </span>
-        )}
       </div>
 
       <CtrlDivider />
@@ -450,11 +445,9 @@ export function CanvasToolbar({
 
       {/* ── Right: edit toggle + fullscreen + chat toggle ── */}
       <div className="flex items-center justify-end gap-px shrink-0 pr-1">
-        {canEnterEdit && !hideEditToggle ? <CtrlDivider /> : null}
-        {/* P3: Enter / Exit edit mode. Hidden when the active scene type
-        cannot be inline-edited (interactive / pbl rely on the AI-modify
-        button shipped in P4 instead). */}
-        {canEnterEdit && !hideEditToggle && (
+        {showSessionEditControls ? <CtrlDivider /> : null}
+        {/* Legacy enter / confirm / cancel — not used in publisher ToB flow. */}
+        {showSessionEditControls && (
           <TooltipProvider delayDuration={0}>
             {!isEditing ? (
               <Tooltip>

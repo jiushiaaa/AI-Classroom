@@ -99,7 +99,17 @@ export function computePlaybackView(raw: PlaybackRawState): PlaybackView {
   // event clears chatIsStreaming, but the session is still active until
   // doSessionCleanup runs. Without this, bubbleRole briefly falls through to
   // the 'teacher' idleText case, causing a visible flash.
-  const isInLiveFlow = !!(speakingAgentId || thinkingState || chatIsStreaming || sessionType);
+  // Lecture sessions are NOT interactive live flow — they use the normal
+  // lectureSpeech / idleText bubble path. Treating `sessionType: 'lecture'`
+  // as live flow would suppress the teacher bubble whenever a lecture session
+  // is active (including edit-mode pause after auto-play).
+  const isInteractiveSession = sessionType === 'qa' || sessionType === 'discussion';
+  const isInLiveFlow = !!(
+    speakingAgentId ||
+    thinkingState ||
+    chatIsStreaming ||
+    isInteractiveSession
+  );
 
   // ---- phase ----
   // Live flow states MUST be checked before playbackCompleted so that

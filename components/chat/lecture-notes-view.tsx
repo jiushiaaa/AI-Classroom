@@ -14,7 +14,6 @@ import {
   Flashlight,
   MousePointer2,
   Play,
-  Check,
   Pencil,
   Sparkles,
   Mic2,
@@ -102,6 +101,10 @@ export function LectureNotesView({
       setEditingSceneId(null);
     }
   }, [notes, editingSceneId]);
+
+  useEffect(() => {
+    if (!editable) setEditingSceneId(null);
+  }, [editable]);
 
   // Auto-scroll to the current scene note
   useEffect(() => {
@@ -390,7 +393,6 @@ export function LectureNotesView({
                       inlineActions: string[];
                       text: string;
                       actionId: string;
-                      userEditedAt?: number;
                     }
                   | { kind: 'discussion'; label?: string }
                   | { kind: 'trailing'; inlineActions: string[] };
@@ -414,7 +416,6 @@ export function LectureNotesView({
                       inlineActions: pendingInline,
                       text: item.text,
                       actionId: item.actionId,
-                      userEditedAt: item.userEditedAt,
                     });
                     pendingInline = [];
                   }
@@ -454,13 +455,10 @@ export function LectureNotesView({
                         sceneId={note.sceneId}
                         actionId={row.actionId}
                         text={row.text}
-                        userEditedAt={row.userEditedAt}
                         inlineActions={row.inlineActions}
                         editable={speechUnlocked}
                         onEditSpeech={onEditSpeech}
                         editHintLabel={t('chat.lectureNotes.editHint')}
-                        ttsSyncedLabel={t('chat.lectureNotes.ttsSyncedBadge')}
-                        ttsSyncedTitle={t('chat.lectureNotes.ttsSyncedBadgeTitle')}
                       />
                     );
                   }
@@ -551,26 +549,20 @@ interface EditableSpeechProps {
   readonly sceneId: string;
   readonly actionId: string;
   readonly text: string;
-  readonly userEditedAt?: number;
   readonly inlineActions: string[];
   readonly editable: boolean;
   readonly onEditSpeech?: (sceneId: string, actionId: string, newText: string) => void;
   readonly editHintLabel: string;
-  readonly ttsSyncedLabel: string;
-  readonly ttsSyncedTitle: string;
 }
 
 function EditableSpeech({
   sceneId,
   actionId,
   text,
-  userEditedAt,
   inlineActions,
   editable,
   onEditSpeech,
   editHintLabel,
-  ttsSyncedLabel,
-  ttsSyncedTitle,
 }: EditableSpeechProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [polishState, setPolishState] = useState<{
@@ -757,17 +749,6 @@ function EditableSpeech({
         </span>
       ) : (
         <span className="select-text">{text}</span>
-      )}
-
-      {/* TTS synced badge — persistent across reloads once edited */}
-      {userEditedAt && !isEditing && (
-        <span
-          title={ttsSyncedTitle}
-          className="ml-1 inline-flex items-center gap-0.5 align-middle px-1.5 py-px rounded-full bg-purple-100/90 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300 text-[9px] font-semibold ring-1 ring-purple-200/70 dark:ring-purple-700/40 select-none"
-        >
-          <Check className="w-2.5 h-2.5 shrink-0" strokeWidth={3} />
-          <span>{ttsSyncedLabel}</span>
-        </span>
       )}
 
       <AnimatePresence>

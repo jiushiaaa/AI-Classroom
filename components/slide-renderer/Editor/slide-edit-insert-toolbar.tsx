@@ -52,15 +52,42 @@ interface InsertBtnVisualProps {
   readonly active?: boolean;
 }
 
-const insertBtnClass = cn(
-  'group inline-flex flex-col items-center justify-center gap-1 px-3 min-h-[52px] min-w-[52px] rounded-xl',
-  'text-[11px] font-medium text-gray-600 dark:text-gray-300',
-  'transition-all duration-150 ease-out',
-  'hover:bg-white dark:hover:bg-gray-800/90',
-  'hover:shadow-sm hover:ring-1 hover:ring-violet-200/70 dark:hover:ring-violet-500/25',
-  'active:scale-[0.97]',
-  '[&_svg]:size-[18px] text-gray-500 group-hover:text-violet-600 dark:text-gray-400 dark:group-hover:text-violet-400',
-);
+type ToolbarVariant = 'strip' | 'header';
+
+function toolbarStyles(variant: ToolbarVariant) {
+  const isHeader = variant === 'header';
+  return {
+    insertBtn: cn(
+      'group inline-flex flex-col items-center justify-center font-medium text-gray-600 dark:text-gray-300',
+      'transition-all duration-150 ease-out active:scale-[0.97]',
+      'text-gray-500 group-hover:text-violet-600 dark:text-gray-400 dark:group-hover:text-violet-400',
+      isHeader
+        ? 'gap-0.5 px-2 min-h-[44px] min-w-[44px] rounded-lg text-[10px] hover:bg-gray-100/90 dark:hover:bg-gray-800/80 [&_svg]:size-4'
+        : cn(
+            'gap-1 px-3 min-h-[52px] min-w-[52px] rounded-xl text-[11px]',
+            'hover:bg-white dark:hover:bg-gray-800/90',
+            'hover:shadow-sm hover:ring-1 hover:ring-violet-200/70 dark:hover:ring-violet-500/25',
+            '[&_svg]:size-[18px]',
+          ),
+    ),
+    insertBtnActive: isHeader
+      ? 'bg-gray-100 dark:bg-gray-800/90 text-violet-600 dark:text-violet-400'
+      : 'bg-white dark:bg-gray-800/90 ring-1 ring-violet-200/70',
+    historyBtn: cn(
+      'inline-flex items-center justify-center rounded-lg shrink-0 text-gray-500 dark:text-gray-400',
+      'transition-all duration-150 ease-out active:scale-[0.97]',
+      isHeader
+        ? 'min-h-[44px] min-w-[36px] hover:bg-gray-100/90 dark:hover:bg-gray-800/80 hover:text-violet-600 [&_svg]:size-4'
+        : cn(
+            'min-h-[52px] min-w-[44px] rounded-xl',
+            'hover:bg-white dark:hover:bg-gray-800/90 hover:text-violet-600',
+            'hover:shadow-sm hover:ring-1 hover:ring-violet-200/70 dark:hover:ring-violet-500/25',
+            '[&_svg]:size-[20px]',
+          ),
+    ),
+    sepMinH: isHeader ? 'min-h-[28px]' : 'min-h-[40px]',
+  };
+}
 
 function InsertBtnLabel({ icon, label, active }: InsertBtnVisualProps) {
   return (
@@ -80,6 +107,8 @@ function InsertBtnLabel({ icon, label, active }: InsertBtnVisualProps) {
 
 interface InsertBtnProps extends InsertBtnVisualProps {
   readonly onClick: () => void;
+  readonly btnClass: string;
+  readonly activeClass: string;
   readonly ariaHasPopup?: 'menu' | 'dialog' | 'listbox' | 'true' | 'grid';
   readonly ariaExpanded?: boolean;
 }
@@ -89,6 +118,8 @@ function InsertBtn({
   label,
   active,
   onClick,
+  btnClass,
+  activeClass,
   ariaHasPopup,
   ariaExpanded,
 }: InsertBtnProps) {
@@ -101,7 +132,7 @@ function InsertBtn({
       aria-expanded={ariaExpanded}
       onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
-      className={cn(insertBtnClass, active && 'bg-white dark:bg-gray-800/90 ring-1 ring-violet-200/70')}
+      className={cn(btnClass, active && activeClass)}
     >
       <InsertBtnLabel icon={icon} label={label} active={active} />
     </button>
@@ -113,9 +144,10 @@ interface HistoryBtnProps {
   readonly label: string;
   readonly disabled: boolean;
   readonly onClick: () => void;
+  readonly btnClass: string;
 }
 
-function HistoryBtn({ icon, label, disabled, onClick }: HistoryBtnProps) {
+function HistoryBtn({ icon, label, disabled, onClick, btnClass }: HistoryBtnProps) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -128,12 +160,7 @@ function HistoryBtn({ icon, label, disabled, onClick }: HistoryBtnProps) {
           onMouseDown={(e) => e.preventDefault()}
           onClick={onClick}
           className={cn(
-            'inline-flex items-center justify-center min-h-[52px] min-w-[44px] rounded-xl shrink-0',
-            'text-gray-500 dark:text-gray-400 transition-all duration-150 ease-out',
-            'hover:bg-white dark:hover:bg-gray-800/90 hover:text-violet-600 dark:hover:text-violet-400',
-            'hover:shadow-sm hover:ring-1 hover:ring-violet-200/70 dark:hover:ring-violet-500/25',
-            'active:scale-[0.97]',
-            '[&_svg]:size-[20px]',
+            btnClass,
             disabled && 'opacity-35 pointer-events-none hover:bg-transparent hover:shadow-none hover:ring-0',
           )}
         >
@@ -144,6 +171,65 @@ function HistoryBtn({ icon, label, disabled, onClick }: HistoryBtnProps) {
         {label}
       </TooltipContent>
     </Tooltip>
+  );
+}
+
+const titleHistoryBtnClass = cn(
+  'inline-flex items-center justify-center shrink-0 rounded-md h-8 w-8',
+  'text-gray-400 dark:text-gray-500 transition-all duration-150 active:scale-[0.97]',
+  'hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300',
+  '[&_svg]:size-[18px]',
+);
+
+/** Undo / redo — rendered beside the scene title in the page header. */
+export function SlideEditHistoryButtons({
+  placement = 'toolbar',
+}: {
+  readonly placement?: 'title' | 'toolbar';
+}) {
+  const { t } = useI18n();
+  const isEditing = useEditModeStore.use.isEditing();
+  const snapshotCursor = useSnapshotStore((s) => s.snapshotCursor);
+  const snapshotLength = useSnapshotStore((s) => s.snapshotLength);
+  const undo = useSnapshotStore((s) => s.undo);
+  const redo = useSnapshotStore((s) => s.redo);
+  const canUndo = snapshotCursor > 0;
+  const canRedo = snapshotCursor < snapshotLength - 1;
+
+  const handleUndo = useCallback(() => {
+    if (!canUndo) return;
+    undo().catch(() => {});
+  }, [canUndo, undo]);
+
+  const handleRedo = useCallback(() => {
+    if (!canRedo) return;
+    redo().catch(() => {});
+  }, [canRedo, redo]);
+
+  if (!isEditing) return null;
+
+  const btnClass =
+    placement === 'title' ? titleHistoryBtnClass : toolbarStyles('header').historyBtn;
+
+  return (
+    <TooltipProvider delayDuration={300}>
+      <div className="flex items-center gap-0.5 shrink-0" data-testid="slide-edit-history-buttons">
+        <HistoryBtn
+          btnClass={btnClass}
+          icon={<Undo2 strokeWidth={1.75} />}
+          label={t('editMode.insertToolbar.undo')}
+          disabled={!canUndo}
+          onClick={handleUndo}
+        />
+        <HistoryBtn
+          btnClass={btnClass}
+          icon={<Redo2 strokeWidth={1.75} />}
+          label={t('editMode.insertToolbar.redo')}
+          disabled={!canRedo}
+          onClick={handleRedo}
+        />
+      </div>
+    </TooltipProvider>
   );
 }
 
@@ -195,23 +281,19 @@ function readFileAsDataUrl(file: File): Promise<string | null> {
 }
 
 /**
- * Insert tools (text / image / …), per-slide canvas background (image fills slide),
- * then undo/redo — single floating strip above the slide canvas in edit mode.
+ * Insert tools (text / image / …), per-slide canvas background, undo/redo.
+ * `header` — compact row in the page top bar (AIppt / Synthesia style).
+ * `strip` — legacy full-width strip above the canvas (unused in publisher flow).
  */
-export function SlideEditInsertToolbar() {
+export function SlideEditInsertToolbar({ variant = 'strip' }: { readonly variant?: ToolbarVariant }) {
+  const styles = toolbarStyles(variant);
+  const isHeader = variant === 'header';
   const { t } = useI18n();
   const isEditing = useEditModeStore.use.isEditing();
   const viewportSize = useCanvasStore.use.viewportSize();
   const viewportRatio = useCanvasStore.use.viewportRatio();
   const scenes = useStageStore.use.scenes();
   const currentSceneId = useStageStore.use.currentSceneId();
-
-  const snapshotCursor = useSnapshotStore((s) => s.snapshotCursor);
-  const snapshotLength = useSnapshotStore((s) => s.snapshotLength);
-  const undo = useSnapshotStore((s) => s.undo);
-  const redo = useSnapshotStore((s) => s.redo);
-  const canUndo = snapshotCursor > 0;
-  const canRedo = snapshotCursor < snapshotLength - 1;
 
   const { addElement, updateBackground } = useCanvasOperations();
   const { addHistorySnapshot } = useHistorySnapshot();
@@ -310,16 +392,6 @@ export function SlideEditInsertToolbar() {
     [addElement, addHistorySnapshot, vw, vh],
   );
 
-  const handleUndo = useCallback(() => {
-    if (!canUndo) return;
-    undo().catch(() => {});
-  }, [canUndo, undo]);
-
-  const handleRedo = useCallback(() => {
-    if (!canRedo) return;
-    redo().catch(() => {});
-  }, [canRedo, redo]);
-
   const pickBackgroundFile = useCallback(() => {
     bgFileRef.current?.click();
   }, []);
@@ -367,10 +439,14 @@ export function SlideEditInsertToolbar() {
       <div
         data-testid="slide-edit-insert-toolbar"
         className={cn(
-          'shrink-0 flex w-full items-center justify-center px-3 py-2 min-h-[4.25rem]',
-          'bg-gradient-to-b from-white to-gray-50/90 dark:from-gray-900 dark:to-gray-950/90',
-          'border-b border-gray-200/90 dark:border-gray-800',
-          'shadow-[0_1px_0_rgba(0,0,0,0.04)]',
+          isHeader
+            ? 'flex items-center justify-center shrink-0 min-w-0 overflow-x-auto'
+            : cn(
+                'shrink-0 flex w-full items-center justify-center px-3 py-2 min-h-[4.25rem]',
+                'bg-gradient-to-b from-white to-gray-50/90 dark:from-gray-900 dark:to-gray-950/90',
+                'border-b border-gray-200/90 dark:border-gray-800',
+                'shadow-[0_1px_0_rgba(0,0,0,0.04)]',
+              ),
         )}
       >
         <input
@@ -396,12 +472,16 @@ export function SlideEditInsertToolbar() {
         />
         <div
           className={cn(
-            'flex flex-row items-stretch justify-center rounded-2xl px-1.5 py-1',
-            'bg-gray-100/80 dark:bg-gray-800/50',
-            'ring-1 ring-inset ring-gray-200/80 dark:ring-gray-700/80',
+            isHeader
+              ? 'flex flex-row items-stretch justify-center gap-0.5'
+              : cn(
+                  'flex flex-row items-stretch justify-center rounded-2xl px-1.5 py-1',
+                  'bg-gray-100/80 dark:bg-gray-800/50',
+                  'ring-1 ring-inset ring-gray-200/80 dark:ring-gray-700/80',
+                ),
           )}
         >
-          <div className="flex items-stretch justify-center gap-0.5 sm:gap-1 flex-wrap sm:flex-nowrap">
+          <div className="flex items-stretch justify-center gap-0.5 flex-nowrap">
             <Popover open={textMenuOpen} onOpenChange={setTextMenuOpen}>
               <PopoverTrigger asChild>
                 <button
@@ -411,10 +491,7 @@ export function SlideEditInsertToolbar() {
                   aria-haspopup="menu"
                   aria-expanded={textMenuOpen}
                   onMouseDown={(e) => e.preventDefault()}
-                  className={cn(
-                    insertBtnClass,
-                    textMenuOpen && 'bg-white dark:bg-gray-800/90 ring-1 ring-violet-200/70',
-                  )}
+                  className={cn(styles.insertBtn, textMenuOpen && styles.insertBtnActive)}
                 >
                   <InsertBtnLabel
                     icon={<Type />}
@@ -457,11 +534,15 @@ export function SlideEditInsertToolbar() {
             </Popover>
 
             <InsertBtn
+              btnClass={styles.insertBtn}
+              activeClass={styles.insertBtnActive}
               icon={<ImageIcon />}
               label={t('editMode.insertToolbar.image')}
               onClick={pickImageFile}
             />
             <InsertBtn
+              btnClass={styles.insertBtn}
+              activeClass={styles.insertBtnActive}
               icon={<Video />}
               label={t('editMode.insertToolbar.video')}
               onClick={pickVideoFile}
@@ -482,10 +563,7 @@ export function SlideEditInsertToolbar() {
                   aria-haspopup="grid"
                   aria-expanded={tableMenuOpen}
                   onMouseDown={(e) => e.preventDefault()}
-                  className={cn(
-                    insertBtnClass,
-                    tableMenuOpen && 'bg-white dark:bg-gray-800/90 ring-1 ring-violet-200/70',
-                  )}
+                  className={cn(styles.insertBtn, tableMenuOpen && styles.insertBtnActive)}
                 >
                   <InsertBtnLabel
                     icon={<Table2 />}
@@ -558,12 +636,17 @@ export function SlideEditInsertToolbar() {
               <>
                 <Separator
                   orientation="vertical"
-                  className="mx-0.5 h-auto min-h-[40px] self-center bg-gray-300/80 dark:bg-gray-600/80"
+                  className={cn(
+                    'mx-0.5 h-auto self-center bg-gray-300/80 dark:bg-gray-600/80',
+                    styles.sepMinH,
+                  )}
                 />
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="inline-flex">
                       <InsertBtn
+                        btnClass={styles.insertBtn}
+                        activeClass={styles.insertBtnActive}
                         icon={<LayoutTemplate />}
                         label={t('editMode.insertToolbar.slideBg')}
                         onClick={pickBackgroundFile}
@@ -577,22 +660,18 @@ export function SlideEditInsertToolbar() {
               </>
             ) : null}
 
-            <Separator
-              orientation="vertical"
-              className="mx-0.5 h-auto min-h-[40px] self-center bg-gray-300/80 dark:bg-gray-600/80"
-            />
-            <HistoryBtn
-              icon={<Undo2 strokeWidth={1.75} />}
-              label={t('editMode.insertToolbar.undo')}
-              disabled={!canUndo}
-              onClick={handleUndo}
-            />
-            <HistoryBtn
-              icon={<Redo2 strokeWidth={1.75} />}
-              label={t('editMode.insertToolbar.redo')}
-              disabled={!canRedo}
-              onClick={handleRedo}
-            />
+            {!isHeader && (
+              <>
+                <Separator
+                  orientation="vertical"
+                  className={cn(
+                    'mx-0.5 h-auto self-center bg-gray-300/80 dark:bg-gray-600/80',
+                    styles.sepMinH,
+                  )}
+                />
+                <SlideEditHistoryButtons placement="toolbar" />
+              </>
+            )}
           </div>
         </div>
       </div>
