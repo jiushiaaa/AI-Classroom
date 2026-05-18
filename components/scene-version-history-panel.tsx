@@ -7,7 +7,6 @@ import {
   ChevronDown,
   ChevronRight,
   Clock3,
-  HelpCircle,
   History,
   Loader2,
   PenLine,
@@ -16,6 +15,15 @@ import {
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useStageStore } from '@/lib/store/stage';
 import { useSettingsStore } from '@/lib/store/settings';
 import { useUserProfileStore } from '@/lib/store/user-profile';
@@ -49,7 +57,6 @@ function formatWeekLabel(timestamp: number) {
 
 function VersionSourceIcon({ source }: { readonly source: SceneVersion['source'] }) {
   if (source === 'ai') return <Sparkles className="size-3.5 text-violet-500" />;
-  if (source === 'restore') return <RotateCcw className="size-3.5 text-blue-500" />;
   return <PenLine className="size-3.5 text-fuchsia-600" />;
 }
 
@@ -59,6 +66,7 @@ export function SceneVersionHistoryButton({
 }: SceneVersionHistoryButtonProps) {
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [pendingRestoreVersion, setPendingRestoreVersion] = useState<SceneVersion | null>(null);
   const scene = useStageStore((s) => s.scenes.find((item) => item.id === sceneId));
   const updateScene = useStageStore.use.updateScene();
   const sceneVersionPreview = useStageStore((s) => s.sceneVersionPreview);
@@ -105,6 +113,7 @@ export function SceneVersionHistoryButton({
         updatedAt: Date.now(),
       });
       setSceneVersionPreview(null);
+      setPendingRestoreVersion(null);
     },
     [nickname, scene, setSceneVersionPreview, updateScene],
   );
@@ -153,8 +162,8 @@ export function SceneVersionHistoryButton({
           type="button"
           onClick={() => setOpen(true)}
           disabled={!sceneId}
-          aria-label="历史记录"
-          title="历史记录"
+          aria-label="本页历史记录"
+          title="本页历史记录"
           className={cn(
             'relative p-2 rounded-full transition-all',
             sceneId
@@ -182,14 +191,13 @@ export function SceneVersionHistoryButton({
               right: panelRight,
               maxWidth: `calc(100vw - ${panelRight}px - 24px)`,
             }}
-            aria-label="历史记录"
+            aria-label="本页历史记录"
           >
             <div className="h-14 shrink-0 border-b border-gray-100 dark:border-gray-800 px-4 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">
-                  历史记录
+                  本页历史记录
                 </h2>
-                <HelpCircle className="size-3.5 text-gray-400" />
               </div>
               <button
                 type="button"
@@ -238,17 +246,41 @@ export function SceneVersionHistoryButton({
                                 className="w-full px-3 py-3 text-left hover:bg-gray-50/80 dark:hover:bg-gray-800/60 transition-colors"
                               >
                                 <div className="flex items-center gap-2">
-                                  {isExpanded ? (
-                                    <ChevronDown className="size-4 text-gray-400" />
-                                  ) : (
-                                    <ChevronRight className="size-4 text-gray-400" />
-                                  )}
+                                  <span
+                                    role="button"
+                                    tabIndex={0}
+                                    aria-label={isExpanded ? '收起版本操作' : '展开版本操作'}
+                                    title={isExpanded ? '收起' : '展开'}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setExpanded((prev) => ({
+                                        ...prev,
+                                        [version.id]: !isExpanded,
+                                      }));
+                                    }}
+                                    onKeyDown={(event) => {
+                                      if (event.key !== 'Enter' && event.key !== ' ') return;
+                                      event.preventDefault();
+                                      event.stopPropagation();
+                                      setExpanded((prev) => ({
+                                        ...prev,
+                                        [version.id]: !isExpanded,
+                                      }));
+                                    }}
+                                    className="inline-flex size-5 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800"
+                                  >
+                                    {isExpanded ? (
+                                      <ChevronDown className="size-4" />
+                                    ) : (
+                                      <ChevronRight className="size-4" />
+                                    )}
+                                  </span>
                                   <span className="text-sm font-semibold leading-tight text-gray-900 dark:text-gray-100">
                                     {formatVersionTime(version.timestamp)}
                                   </span>
                                   {latest ? (
                                     <span className="ml-auto rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold text-violet-600 dark:bg-violet-900/40 dark:text-violet-300">
-                                      {isPreviewing ? '预览中' : '当前页'}
+                                      {isPreviewing ? '预览中' : '最新版本'}
                                     </span>
                                   ) : isPreviewing ? (
                                     <span className="ml-auto rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-600 dark:bg-blue-950/40 dark:text-blue-300">
@@ -267,7 +299,7 @@ export function SceneVersionHistoryButton({
                                     {version.source === 'ai'
                                       ? 'AI 优化'
                                       : version.source === 'restore'
-                                        ? '恢复版本'
+                                        ? '还原至历史版本'
                                         : '手动修改'}
                                   </span>
                                 </div>
@@ -276,11 +308,11 @@ export function SceneVersionHistoryButton({
                                 <div className="px-9 pb-3">
                                   <button
                                     type="button"
-                                    onClick={() => handleRestore(version)}
+                                    onClick={() => setPendingRestoreVersion(version)}
                                     className="inline-flex items-center gap-1.5 rounded-md bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-gray-800 active:scale-95 transition dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
                                   >
                                     <RotateCcw className="size-3.5" />
-                                    确认加载此版本
+                                    还原此历史记录
                                   </button>
                                 </div>
                               ) : null}
@@ -297,6 +329,42 @@ export function SceneVersionHistoryButton({
           </motion.aside>
         ) : null}
       </AnimatePresence>
+
+      <AlertDialog
+        open={pendingRestoreVersion !== null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setPendingRestoreVersion(null);
+        }}
+      >
+        <AlertDialogContent className="max-w-sm rounded-lg bg-white p-0 shadow-xl dark:bg-gray-950">
+          <div className="px-7 pt-6 pb-4">
+            <AlertDialogTitle className="text-base font-medium text-gray-900 dark:text-gray-100">
+              还原此记录?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="mt-7 text-sm text-gray-900 dark:text-gray-100">
+              将当前页面还原至{' '}
+              {pendingRestoreVersion ? formatVersionTime(pendingRestoreVersion.timestamp) : ''}{' '}
+              的状态
+            </AlertDialogDescription>
+          </div>
+          <AlertDialogFooter className="flex-row justify-end gap-3 px-7 pb-7 pt-1">
+            <AlertDialogCancel
+              onClick={() => setPendingRestoreVersion(null)}
+              className="mt-0 h-9 min-w-24 rounded-md border-gray-200"
+            >
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingRestoreVersion) handleRestore(pendingRestoreVersion);
+              }}
+              className="h-9 min-w-24 rounded-md bg-blue-600 text-white hover:bg-blue-700"
+            >
+              还原
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
