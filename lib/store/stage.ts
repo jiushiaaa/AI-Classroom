@@ -18,18 +18,18 @@ export const PENDING_SCENE_ID = '__pending__';
  * @param func Function to debounce
  * @param delay Delay in milliseconds
  */
-function debounce<T extends (...args: Parameters<T>) => ReturnType<T>>(
-  func: T,
+function debounce(
+  func: () => void,
   delay: number,
-): ((...args: Parameters<T>) => void) & { flush: () => void } {
+): (() => void) & { flush: () => void } {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
-  const debounced = (...args: Parameters<T>) => {
+  const debounced = () => {
     if (timeoutId) {
       clearTimeout(timeoutId);
     }
     timeoutId = setTimeout(() => {
-      func(...args);
+      func();
       timeoutId = null;
     }, delay);
   };
