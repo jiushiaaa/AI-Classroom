@@ -201,10 +201,17 @@ export function Stage({
   // (full Roundtable with avatars + mic + chat input, etc.) so the
   // publisher can preview the student experience.
   const togglePublisherEditView = useCallback(() => {
-    setPublisherEditView((prev) => !prev);
+    setPublisherEditView((prev) => {
+      if (prev) {
+        useEditModeStore.getState().setEditing(false);
+      }
+      return !prev;
+    });
   }, []);
   /** Lecture notes are editable only in publisher edit view (not student preview). */
   const lectureNotesReadOnly = isPreviewMode || !publisherEditView;
+  /** Sidebar / canvas: read-only in device preview or student-facing preview. */
+  const workspaceReadOnly = isPreviewMode || !publisherEditView;
 
   // Selected agents from settings store (Zustand)
   const selectedAgentIds = useSettingsStore((s) => s.selectedAgentIds);
@@ -1214,7 +1221,9 @@ export function Stage({
           readOnly={isPreviewMode}
           publisherEditView={publisherEditView}
           onTogglePublisherEditView={togglePublisherEditView}
-          showSlideInsertTools={!isPreviewMode && currentScene?.type === 'slide'}
+          showSlideInsertTools={
+            publisherEditView && !isPreviewMode && currentScene?.type === 'slide'
+          }
         />
       )}
 
@@ -1225,7 +1234,7 @@ export function Stage({
           onSceneSelect={gatedSceneSwitch}
           onRetryOutline={onRetryOutline}
           isCourseComplete={isCourseComplete}
-          readOnly={isPreviewMode}
+          readOnly={workspaceReadOnly}
         />
 
         <div className="flex-1 flex flex-col overflow-hidden min-w-0 relative">
@@ -1272,8 +1281,8 @@ export function Stage({
                 ? () => onRetryOutline(generatingOutlines[0].id)
                 : undefined
             }
-            readOnly={isPreviewMode}
-            hideEditToggle={isPresenting || isPreviewMode}
+            readOnly={workspaceReadOnly}
+            hideEditToggle={isPresenting || workspaceReadOnly}
             persistentEdit={publisherEditView}
             publisherWorkflow
           />

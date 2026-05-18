@@ -73,7 +73,7 @@ export function Header({
   const stage = useStageStore((s) => s.stage);
   const patchStage = useStageStore((s) => s.patchStage);
   const titleRef = useRef<HTMLHeadingElement>(null);
-  const titleEditable = !readOnly && !!stage;
+  const titleEditable = publisherEditView && !readOnly && !!stage;
 
   useEffect(() => {
     const node = titleRef.current;
