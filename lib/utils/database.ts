@@ -1,5 +1,11 @@
 import Dexie, { type EntityTable } from 'dexie';
-import type { Scene, SceneType, SceneContent, Whiteboard } from '@/lib/types/stage';
+import type {
+  Scene,
+  SceneType,
+  SceneContent,
+  SceneVersion,
+  Whiteboard,
+} from '@/lib/types/stage';
 import type { Action } from '@/lib/types/action';
 import type {
   SessionType,
@@ -65,6 +71,7 @@ export interface SceneRecord {
   content: SceneContent; // Stored as JSON
   actions?: Action[]; // Stored as JSON
   whiteboard?: Whiteboard[]; // Stored as JSON
+  versions?: SceneVersion[]; // Stored as JSON
   createdAt: number;
   updatedAt: number;
 }

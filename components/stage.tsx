@@ -1504,7 +1504,6 @@ export function Stage({
         onStopSession={doSessionCleanup}
         onSegmentSealed={discussionTTS.handleSegmentSealed}
         shouldHoldAfterReveal={discussionTTS.shouldHold}
-        hideTabBar
       />
 
       </div>

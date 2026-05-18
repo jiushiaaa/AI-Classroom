@@ -26,6 +26,8 @@ import { useI18n } from '@/lib/hooks/use-i18n';
 import { Button } from '@/components/ui/button';
 import { extractSlidePlainText } from '@/lib/utils/extract-slide-plain-text';
 import type { SpeechAction } from '@/lib/types/action';
+import { buildSceneVersion, mergeSceneVersion } from '@/lib/utils/scene-version-history';
+import { useUserProfileStore } from '@/lib/store/user-profile';
 
 const SLIDE_AI_MARKER = '<!--openmaic-ai-tuned-->';
 
@@ -73,6 +75,7 @@ export function AIModifyPanel({
   const { t } = useI18n();
   const updateScene = useStageStore.use.updateScene();
   const scene = useStageStore((s) => s.scenes.find((sc) => sc.id === sceneId));
+  const nickname = useUserProfileStore((s) => s.nickname);
   const [draft, setDraft] = useState('');
 
   const commands = useMemo(() => resolveAiCommands(scene), [scene]);
@@ -178,13 +181,27 @@ export function AIModifyPanel({
         }
       }
 
+      const version = buildSceneVersion({
+        id: `scene-version-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        timestamp: Date.now(),
+        source: 'ai',
+        title: updates.title ?? current.title,
+        content: updates.content ?? current.content,
+        actions: updates.actions ?? current.actions,
+        instruction: trimmed,
+        summary,
+        authorName: nickname.trim() || '少华',
+      });
+
+      updates.versions = mergeSceneVersion(current.versions, version);
+
       updateScene(sceneId, updates);
       useStageStore.getState().setCurrentSceneId(sceneId);
       useEditModeStore.getState().setEditing(true);
       onClose();
       toast.success(t('aiModify.toastAutoApplied'));
     },
-    [sceneId, t, updateScene, onClose],
+    [sceneId, t, updateScene, onClose, nickname],
   );
 
   const send = useCallback(

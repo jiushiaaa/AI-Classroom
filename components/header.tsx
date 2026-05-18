@@ -30,6 +30,8 @@ import { useExportClassroom } from '@/lib/export/use-export-classroom';
 import { DevicePreviewTabs } from './preview/device-preview-tabs';
 import { PublishButton } from './publish/publish-button';
 import { EditModeToggleButton } from '@/components/canvas/edit-mode-toggle-button';
+import { SceneVersionHistoryButton } from '@/components/scene-version-history-panel';
+import { useSceneVersionAutosave } from '@/lib/hooks/use-scene-version-autosave';
 
 interface HeaderProps {
   /** AI-summarised course / classroom name (stage.name), editable in the header. */
@@ -71,7 +73,12 @@ export function Header({
   const { t } = useI18n();
   const router = useRouter();
   const stage = useStageStore((s) => s.stage);
+  const currentSceneId = useStageStore((s) => s.currentSceneId);
   const patchStage = useStageStore((s) => s.patchStage);
+  const versionSaveStatus = useSceneVersionAutosave(
+    currentSceneId,
+    !readOnly && showSlideInsertTools,
+  );
   const titleRef = useRef<HTMLHeadingElement>(null);
   const titleEditable = publisherEditView && !readOnly && !!stage;
 
@@ -269,6 +276,10 @@ export function Header({
               className="h-9 mx-0.5 shrink-0 bg-gray-200/90 dark:bg-gray-700/80"
             />
             <SlideEditHistoryButtons placement="title" />
+            <SceneVersionHistoryButton
+              sceneId={currentSceneId}
+              saveStatus={versionSaveStatus}
+            />
           </>
         )}
       </div>

@@ -131,9 +131,31 @@ export interface Scene {
    */
   aiCommands?: AICommand[];
 
+  /**
+   * Page-level version history for publisher edits. Unlike `aiCommands`,
+   * this stores restorable content snapshots, covering both manual edits and
+   * AI optimizations.
+   */
+  versions?: SceneVersion[];
+
   // Metadata
   createdAt?: number;
   updatedAt?: number;
+}
+
+export type SceneVersionSource = 'manual' | 'ai' | 'restore';
+
+export interface SceneVersion {
+  id: string;
+  timestamp: number;
+  source: SceneVersionSource;
+  title: string;
+  content: SceneContent;
+  actions?: Action[];
+  instruction?: string;
+  summary?: string;
+  authorName?: string;
+  signature: string;
 }
 
 /**

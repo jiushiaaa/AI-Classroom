@@ -47,6 +47,14 @@ function debounce(
 
 type ToolbarState = 'design' | 'ai';
 
+interface SceneVersionPreview {
+  sceneId: string;
+  versionId: string;
+  title: Scene['title'];
+  content: Scene['content'];
+  actions?: Scene['actions'];
+}
+
 interface StageState {
   // Stage info
   stage: Stage | null;
@@ -70,6 +78,12 @@ interface StageState {
    * is intentionally session-local so it doesn't survive a hard reload.
    */
   sceneClipboard: Scene | null;
+
+  /**
+   * Transient preview of a version-history item. This never persists to
+   * storage; confirming "加载此版本" writes through `updateScene` instead.
+   */
+  sceneVersionPreview: SceneVersionPreview | null;
 
   // Transient generation state (not persisted)
   generatingOutlines: SceneOutline[];
@@ -118,6 +132,7 @@ interface StageState {
   reorderScenes: (fromIndex: number, toIndex: number) => void;
   /** Set or clear the scene clipboard (used by the right-click menu). */
   setSceneClipboard: (scene: Scene | null) => void;
+  setSceneVersionPreview: (preview: SceneVersionPreview | null) => void;
   setCurrentSceneId: (sceneId: string | null) => void;
   setChats: (chats: ChatSession[]) => void;
   setMode: (mode: StageMode) => void;
@@ -151,6 +166,7 @@ const useStageStoreBase = create<StageState>()((set, get) => ({
   mode: 'playback',
   toolbarState: 'ai',
   sceneClipboard: null,
+  sceneVersionPreview: null,
   generatingOutlines: [],
   outlines: [],
   generationEpoch: 0,
@@ -168,6 +184,7 @@ const useStageStoreBase = create<StageState>()((set, get) => ({
       // Drop the clipboard when switching stages — pasting a scene cloned
       // from a different stage would fail the stageId mismatch check anyway.
       sceneClipboard: null,
+      sceneVersionPreview: null,
       generationEpoch: s.generationEpoch + 1,
     }));
     debouncedSave();
@@ -181,7 +198,7 @@ const useStageStoreBase = create<StageState>()((set, get) => ({
   },
 
   setScenes: (scenes) => {
-    set({ scenes });
+    set({ scenes, sceneVersionPreview: null });
     // Auto-select first scene if no current scene
     if (!get().currentSceneId && scenes.length > 0) {
       set({ currentSceneId: scenes[0].id });
@@ -216,7 +233,7 @@ const useStageStoreBase = create<StageState>()((set, get) => ({
     const scenes = get().scenes.map((scene) =>
       scene.id === sceneId ? { ...scene, ...updates } : scene,
     );
-    set({ scenes });
+    set({ scenes, sceneVersionPreview: null });
     debouncedSave();
   },
 
@@ -231,9 +248,10 @@ const useStageStoreBase = create<StageState>()((set, get) => ({
       set({
         scenes,
         currentSceneId: scenes[newIndex]?.id || null,
+        sceneVersionPreview: null,
       });
     } else {
-      set({ scenes });
+      set({ scenes, sceneVersionPreview: null });
     }
     debouncedSave();
   },
@@ -263,7 +281,7 @@ const useStageStoreBase = create<StageState>()((set, get) => ({
     next.splice(sourceIndex + 1, 0, inserted);
     const normalised = next.map((s, i) => ({ ...s, order: i }));
 
-    set({ scenes: normalised, currentSceneId: inserted.id });
+    set({ scenes: normalised, currentSceneId: inserted.id, sceneVersionPreview: null });
     debouncedSave();
   },
 
@@ -279,7 +297,7 @@ const useStageStoreBase = create<StageState>()((set, get) => ({
     [next[idx], next[swapWith]] = [next[swapWith], next[idx]];
     const normalised = next.map((s, i) => ({ ...s, order: i }));
 
-    set({ scenes: normalised });
+    set({ scenes: normalised, sceneVersionPreview: null });
     debouncedSave();
   },
 
@@ -299,13 +317,17 @@ const useStageStoreBase = create<StageState>()((set, get) => ({
     next.splice(adjustedTo, 0, moved);
     const normalised = next.map((s, i) => ({ ...s, order: i }));
 
-    set({ scenes: normalised });
+    set({ scenes: normalised, sceneVersionPreview: null });
     debouncedSave();
   },
 
   setSceneClipboard: (scene) => {
     // Not persisted — see field doc.
     set({ sceneClipboard: scene });
+  },
+
+  setSceneVersionPreview: (sceneVersionPreview) => {
+    set({ sceneVersionPreview });
   },
 
   insertSceneAt: (scene, index) => {
@@ -325,12 +347,12 @@ const useStageStoreBase = create<StageState>()((set, get) => ({
     // Pull this insertion off any pending generating outline matched by order
     const generatingOutlines = get().generatingOutlines.filter((o) => o.order !== scene.order);
 
-    set({ scenes: normalised, generatingOutlines });
+    set({ scenes: normalised, generatingOutlines, sceneVersionPreview: null });
     debouncedSave();
   },
 
   setCurrentSceneId: (sceneId) => {
-    set({ currentSceneId: sceneId });
+    set({ currentSceneId: sceneId, sceneVersionPreview: null });
     debouncedSave();
   },
 
@@ -383,9 +405,17 @@ const useStageStoreBase = create<StageState>()((set, get) => ({
 
   // Getters
   getCurrentScene: () => {
-    const { scenes, currentSceneId } = get();
+    const { scenes, currentSceneId, sceneVersionPreview } = get();
     if (!currentSceneId) return null;
-    return scenes.find((s) => s.id === currentSceneId) || null;
+    const scene = scenes.find((s) => s.id === currentSceneId) || null;
+    if (!scene) return null;
+    if (sceneVersionPreview?.sceneId !== scene.id) return scene;
+    return {
+      ...scene,
+      title: sceneVersionPreview.title,
+      content: sceneVersionPreview.content,
+      actions: sceneVersionPreview.actions,
+    };
   },
 
   getSceneById: (sceneId) => {
@@ -441,6 +471,7 @@ const useStageStoreBase = create<StageState>()((set, get) => ({
           scenes: data.scenes,
           currentSceneId: data.currentSceneId,
           chats: data.chats,
+          sceneVersionPreview: null,
           outlines,
           // Compute generatingOutlines from persisted outlines minus completed scenes
           generatingOutlines: outlines.filter((o) => !data.scenes.some((s) => s.order === o.order)),
@@ -461,6 +492,7 @@ const useStageStoreBase = create<StageState>()((set, get) => ({
       scenes: [],
       currentSceneId: null,
       chats: [],
+      sceneVersionPreview: null,
       outlines: [],
       generationEpoch: s.generationEpoch + 1,
       generationStatus: 'idle' as const,
