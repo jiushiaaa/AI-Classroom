@@ -1157,7 +1157,7 @@
     "disabledReason": "Classroom is still generating — please wait.",
     "eyebrow": "Publish to bookln",
     "title": "Publish classroom to bookln",
-    "description": "The classroom will be linked to its book on the bookln platform — bookln mints and prints the QR code.",
+    "description": "Copy the AI classroom link below, then open bookln to bind the book and mint the QR code.",
     "unknownClassroom": "Untitled classroom",
     "downloadPrintQr": "Download preview QR (HD)",
     "downloadPreviewQrTooltip": "Downloads a high-res preview of the permanent course link (same URL bookln's official QR will use). For distribution and analytics, use the code minted on bookln.",
@@ -1183,7 +1183,7 @@
     "linkCard": {
       "eyebrow": "Permanent course link",
       "qrCaption": "On-page preview (local)",
-      "hint": "The small QR simply encodes the link below for a quick test scan or mock-up; bookln's official QR will resolve to the same URL — use bookln for printing and analytics."
+      "hint": "After copying, create or select the matching entry in bookln's QR list and paste this link to mint the official code."
     },
     "trail": {
       "step1": "Classroom ready",

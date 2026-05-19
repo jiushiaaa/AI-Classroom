@@ -3,16 +3,15 @@
 /**
  * PublishDialog
  * -------------
- * Minimal "发布到书链" handoff dialog.
+ * "发布到书链" handoff dialog.
  *
- * Shows only what the publisher is handing off (classroom summary + bound
- * book) and a single CTA to open bookln — no local QR, link copy, or
- * download. QR minting and the canonical course URL live entirely on 书链.
+ * Surfaces the permanent AI classroom URL for copy, then hands off to
+ * bookln for QR minting on the B-end platform.
  */
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { ExternalLink, Sparkles, BookOpen, Link2 } from 'lucide-react';
+import { ExternalLink, Sparkles, BookOpen, Link2, Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -80,6 +79,23 @@ export function PublishDialog({ open, onOpenChange }: PublishDialogProps) {
     },
     [onOpenChange],
   );
+
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const handleCopyLink = useCallback(async () => {
+    if (typeof globalThis.navigator?.clipboard?.writeText !== 'function') {
+      toast.error(t('publish.toastClipboardError'));
+      return;
+    }
+    try {
+      await globalThis.navigator.clipboard.writeText(courseLink);
+      setLinkCopied(true);
+      toast.success(t('publish.toastLinkCopied'));
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      toast.error(t('publish.toastClipboardError'));
+    }
+  }, [courseLink, t]);
 
   const handleOpenBookln = useCallback(() => {
     globalThis.open(booklnUrl, '_blank', 'noopener,noreferrer');
@@ -172,6 +188,38 @@ export function PublishDialog({ open, onOpenChange }: PublishDialogProps) {
               </div>
             </div>
           )}
+
+          <motion.div
+            className="rounded-xl bg-gray-50/80 dark:bg-gray-900/40 ring-1 ring-gray-200/60 dark:ring-gray-700/40 px-4 py-3 space-y-2"
+          >
+            <div className="text-[11px] uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400">
+              {t('publish.linkCard.eyebrow')}
+            </div>
+            <div className="flex items-stretch gap-2">
+              <div className="flex-1 min-w-0 rounded-lg bg-white dark:bg-gray-950 px-3 py-2 ring-1 ring-gray-200/80 dark:ring-gray-700/50 flex items-center">
+                <p className="text-xs font-mono text-gray-700 dark:text-gray-300 truncate select-all w-full">
+                  {courseLink}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void handleCopyLink()}
+                className="shrink-0 h-auto px-3 gap-1.5"
+              >
+                {linkCopied ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                ) : (
+                  <Copy className="w-3.5 h-3.5" />
+                )}
+                {t('publish.copyLink')}
+              </Button>
+            </div>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-snug">
+              {t('publish.linkCard.hint')}
+            </p>
+          </motion.div>
         </motion.div>
 
         <DialogFooter className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 gap-2 sm:flex-row sm:justify-end">
