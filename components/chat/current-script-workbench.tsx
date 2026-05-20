@@ -1,10 +1,17 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Gauge, Loader2, Mic2, Pause, Play, Send } from 'lucide-react';
+import { Gauge, Loader2, Mic2, Pause, Play, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Slider } from '@/components/ui/slider';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -12,9 +19,12 @@ import { cn } from '@/lib/utils';
 import { DEFAULT_TEACHER_AVATAR } from '@/components/roundtable/constants';
 import { useAgentRegistry } from '@/lib/orchestration/registry/store';
 import { useSettingsStore } from '@/lib/store/settings';
-import { TeacherVoicePill } from '@/components/agent/agent-bar';
-import { getAvailableProvidersWithVoices } from '@/lib/audio/voice-resolver';
-import { useVoxCPMVoiceProfiles } from '@/lib/audio/voxcpm-voices';
+import { useI18n } from '@/lib/hooks/use-i18n';
+import {
+  LectureAudioSeekBar,
+  computeLectureSeekStripVisibility,
+  type LectureAudioProgress,
+} from '@/components/playback/lecture-audio-seek-bar';
 import type { LectureNoteEntry } from '@/lib/types/chat';
 import type { EngineMode } from '@/lib/playback';
 import type { AgentConfig } from '@/lib/orchestration/registry/types';
@@ -27,7 +37,18 @@ interface CurrentScriptWorkbenchProps {
   readonly onUploadTeacherVoice?: (sceneId: string, file: File) => Promise<void> | void;
   readonly onRemoveTeacherVoice?: (sceneId: string) => void;
   readonly onPlayPause?: () => void;
+  readonly lectureAudioProgress?: LectureAudioProgress | null;
+  readonly onLectureAudioSeek?: (ratio: number) => void;
+  readonly speechProgress?: number | null;
+  readonly isOpenmaicDemoClassroom?: boolean;
+  readonly lectureSeekBlocked?: boolean;
 }
+
+const AI_OPTIMIZE_PLACEHOLDER =
+  '可选：输入优化需求，比如更像老师讲课、更生动、更简洁、增加互动提问。不填写则根据当前页面内容生成优化稿。';
+
+const toolBtnClass =
+  'flex size-8 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-900 dark:hover:text-gray-100';
 
 export function CurrentScriptWorkbench({
   note,
@@ -37,7 +58,13 @@ export function CurrentScriptWorkbench({
   onUploadTeacherVoice,
   onRemoveTeacherVoice: _onRemoveTeacherVoice,
   onPlayPause,
+  lectureAudioProgress,
+  onLectureAudioSeek,
+  speechProgress,
+  isOpenmaicDemoClassroom = false,
+  lectureSeekBlocked = false,
 }: CurrentScriptWorkbenchProps) {
+  const { t } = useI18n();
   const speechItems = useMemo(
     () =>
       note?.items.filter(
@@ -52,8 +79,8 @@ export function CurrentScriptWorkbench({
   );
   const [draft, setDraft] = useState('');
   const [aiInstruction, setAiInstruction] = useState('');
+  const [aiOptimizeOpen, setAiOptimizeOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [teacherControlsOpen, setTeacherControlsOpen] = useState(false);
   const [demoPlaying, setDemoPlaying] = useState(false);
   const demoStopRef = useRef<(() => void) | null>(null);
   const agentsRecord = useAgentRegistry((state) => state.agents);
@@ -62,9 +89,6 @@ export function CurrentScriptWorkbench({
   const presetAgentOverrides = useSettingsStore((state) => state.presetAgentOverrides);
   const ttsSpeed = useSettingsStore((state) => state.ttsSpeed);
   const setTTSSpeed = useSettingsStore((state) => state.setTTSSpeed);
-  const ttsEnabled = useSettingsStore((state) => state.ttsEnabled);
-  const ttsProvidersConfig = useSettingsStore((state) => state.ttsProvidersConfig);
-  const { profiles: voxcpmProfiles } = useVoxCPMVoiceProfiles();
 
   useEffect(() => {
     setDraft(scriptText);
@@ -89,29 +113,58 @@ export function CurrentScriptWorkbench({
     presetAgentOverrides,
   );
   const selectedTeacherAvatar = selectedTeacher?.avatar || DEFAULT_TEACHER_AVATAR;
-  const availableProviders = useMemo(
-    () => getAvailableProvidersWithVoices(ttsProvidersConfig, voxcpmProfiles),
-    [ttsProvidersConfig, voxcpmProfiles],
-  );
+
+  const engineStateForSeek: 'idle' | 'playing' | 'paused' =
+    engineMode === 'playing' || engineMode === 'live'
+      ? 'playing'
+      : engineMode === 'paused'
+        ? 'paused'
+        : 'idle';
+
+  const { showHtmlAudioSeek, showDemoTranscriptProgress } = computeLectureSeekStripVisibility({
+    lectureAudioProgress,
+    onLectureAudioSeek,
+    lectureSeekBlocked,
+    isOpenmaicDemoClassroom,
+    engineState: engineStateForSeek,
+    speechProgress,
+  });
+
+  const seekProgress: LectureAudioProgress = showHtmlAudioSeek
+    ? lectureAudioProgress!
+    : showDemoTranscriptProgress
+      ? {
+          currentMs: (speechProgress ?? 0) * 60000,
+          durationMs: 60000,
+        }
+      : {
+          currentMs: lectureAudioProgress?.currentMs ?? 0,
+          durationMs: lectureAudioProgress?.durationMs ?? 60000,
+        };
+
+  const seekEnabled =
+    Boolean(onLectureAudioSeek) &&
+    !lectureSeekBlocked &&
+    (showHtmlAudioSeek || showDemoTranscriptProgress);
 
   const syncDraftToScene = useCallback(
     (nextDraft: string) => {
       if (!note || speechItems.length === 0 || nextDraft.trim() === scriptText.trim()) return;
-    if (speechItems.length === 1) {
+      if (speechItems.length === 1) {
         onEditSpeech?.(note.sceneId, speechItems[0].actionId, nextDraft);
-      return;
-    }
+        return;
+      }
 
       const nextTexts = nextDraft
-      .split(/\n+/)
-      .map((text) => text.trim())
-      .filter(Boolean);
-    speechItems.forEach((speech, index) => {
-      const nextText = nextTexts[index] ?? speech.text;
-      if (nextText !== speech.text) {
-        onEditSpeech?.(note.sceneId, speech.actionId, nextText);
-      }
-    });
+        .split(/\n+/)
+        .map((text) => text.trim())
+        .filter(Boolean);
+      speechItems.forEach((speech, index) => {
+        const nextText = nextTexts[index] ?? speech.text;
+        if (nextText !== speech.text) {
+          onEditSpeech?.(note.sceneId, speech.actionId, nextText);
+        }
+      });
     },
     [note, onEditSpeech, scriptText, speechItems],
   );
@@ -148,8 +201,8 @@ export function CurrentScriptWorkbench({
     const text = draft.trim() || scriptText.trim();
     setDemoPlaying(true);
 
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window && text) {
-      window.speechSynthesis.cancel();
+    if (typeof globalThis.window !== 'undefined' && 'speechSynthesis' in globalThis.window && text) {
+      globalThis.window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = ttsSpeed;
       utterance.onend = () => {
@@ -161,20 +214,33 @@ export function CurrentScriptWorkbench({
         setDemoPlaying(false);
       };
       demoStopRef.current = () => {
-        window.speechSynthesis.cancel();
+        globalThis.window.speechSynthesis.cancel();
       };
-      window.speechSynthesis.speak(utterance);
+      globalThis.window.speechSynthesis.speak(utterance);
       return;
     }
 
-    const timer = window.setTimeout(() => {
+    const timer = globalThis.window.setTimeout(() => {
       demoStopRef.current = null;
       setDemoPlaying(false);
     }, Math.max(1200, Math.min(6000, text.length * 120)));
-    demoStopRef.current = () => window.clearTimeout(timer);
+    demoStopRef.current = () => globalThis.window.clearTimeout(timer);
   }, [demoPlaying, draft, engineIsPlaying, onPlayPause, scriptText, stopDemoSpeech, ttsSpeed]);
 
   useEffect(() => () => stopDemoSpeech(), [stopDemoSpeech]);
+
+  const handleAiOptimizeConfirm = () => {
+    if (!note) return;
+    onAiGenerateScene?.(
+      note.sceneId,
+      aiInstruction.trim().length > 0 ? aiInstruction.trim() : undefined,
+    );
+    setAiOptimizeOpen(false);
+  };
+
+  const closeAiOptimizeDialog = () => {
+    setAiOptimizeOpen(false);
+  };
 
   if (!note) {
     return (
@@ -187,59 +253,43 @@ export function CurrentScriptWorkbench({
   }
 
   return (
-    <section className="min-h-[188px] shrink-0 border-t border-gray-100/60 bg-white/95 px-4 py-3 shadow-[0_-8px_20px_rgba(15,23,42,0.025)] dark:border-gray-800/60 dark:bg-gray-950">
-      <div className="flex h-full gap-3">
-        <div
-          className="relative flex w-[72px] shrink-0 items-start px-2.5 py-2.5"
-          onMouseEnter={() => setTeacherControlsOpen(true)}
-          onMouseLeave={() => setTeacherControlsOpen(false)}
-          onFocus={() => setTeacherControlsOpen(true)}
-          onBlur={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget)) {
-              setTeacherControlsOpen(false);
-            }
-          }}
-        >
-          <div className="flex min-w-0 items-start gap-2">
-            <button
-              type="button"
-              className="group flex shrink-0 flex-col items-start rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-purple-200"
-              aria-label="AI老师设置"
-              aria-expanded={teacherControlsOpen}
-            >
-              <AvatarImage
-                src={selectedTeacherAvatar}
-                alt={selectedTeacherName}
-                className="size-9 shadow-sm ring-1 ring-purple-100/70 transition-transform group-hover:scale-105 dark:ring-purple-900/30"
-              />
-              {!teacherControlsOpen && (
-                <span className="mt-1.5 max-w-[54px] truncate text-[11px] font-semibold text-gray-700 dark:text-gray-200">
-                  AI老师
-                </span>
-              )}
-            </button>
+    <section className="flex min-h-[200px] shrink-0 flex-col border-t border-gray-100/60 bg-white/95 shadow-[0_-8px_20px_rgba(15,23,42,0.025)] dark:border-gray-800/60 dark:bg-gray-950">
+      {/* 与预览页 Roundtable 一致：进度条在底部面板顶部 */}
+      <div className="shrink-0 border-b border-gray-100/40 px-3 pb-1.5 pt-0 dark:border-gray-700/30">
+        <LectureAudioSeekBar
+          progress={seekProgress}
+          onSeek={onLectureAudioSeek ?? (() => {})}
+          disabled={!seekEnabled}
+          smoothFollow={showDemoTranscriptProgress}
+          aria-label={
+            showHtmlAudioSeek
+              ? t('roundtable.lectureSeekBar')
+              : t('roundtable.demoRevealProgress')
+          }
+        />
+      </div>
 
-            <div
-              className={cn(
-                'absolute left-[62px] top-2 z-30 flex h-10 min-w-0 items-center overflow-hidden rounded-xl border border-gray-100/80 bg-white/95 shadow-[0_8px_24px_rgba(15,23,42,0.13)] backdrop-blur transition-all duration-200 dark:border-gray-800 dark:bg-gray-950/95',
-                teacherControlsOpen
-                  ? 'w-[226px] opacity-100'
-                  : 'w-0 border-transparent opacity-0 shadow-none pointer-events-none',
-              )}
-            >
-              <div className="min-w-0 flex-1 pl-1.5">
-                <TeacherVoicePill
-                  availableProviders={availableProviders}
-                  disabled={!ttsEnabled}
-                  previewDisplayName={selectedTeacherName}
-                />
-              </div>
-              <div className="mx-1 h-5 w-px bg-gray-100 dark:bg-gray-800" />
+      <div className="flex min-h-0 flex-1 gap-3 px-4 py-3">
+        <div className="flex w-[72px] shrink-0 flex-col items-center px-1 pt-0.5">
+          <AvatarImage
+            src={selectedTeacherAvatar}
+            alt={selectedTeacherName}
+            className="size-9 shadow-sm ring-1 ring-purple-100/70 dark:ring-purple-900/30"
+          />
+          <span className="mt-1.5 max-w-[64px] truncate text-center text-[11px] font-semibold text-gray-700 dark:text-gray-200">
+            AI老师
+          </span>
+        </div>
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="relative mb-2 flex min-h-8 shrink-0 items-center">
+            <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <label
                     className={cn(
-                      'flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-900',
+                      toolBtnClass,
+                      'cursor-pointer',
                       uploading && 'pointer-events-none opacity-70',
                     )}
                     aria-label="上传真人语音替换当前页"
@@ -269,13 +319,32 @@ export function CurrentScriptWorkbench({
                 </TooltipTrigger>
                 <TooltipContent side="top">上传真人语音替换当前页</TooltipContent>
               </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={handleDemoPlayPause}
+                    aria-label={isPlaying ? '暂停语音' : '播放语音'}
+                    className={cn(toolBtnClass, isPlaying && 'text-gray-900 dark:text-gray-100')}
+                  >
+                    {isPlaying ? (
+                      <Pause className="size-4 fill-current" />
+                    ) : (
+                      <Play className="size-4" />
+                    )}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">{isPlaying ? '暂停语音' : '播放语音'}</TooltipContent>
+              </Tooltip>
+
               <Popover>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <PopoverTrigger asChild>
                       <button
                         type="button"
-                        className="mr-1 flex size-8 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-900"
+                        className={toolBtnClass}
                         aria-label="设置老师语速"
                       >
                         <Gauge className="size-4" />
@@ -284,9 +353,9 @@ export function CurrentScriptWorkbench({
                   </TooltipTrigger>
                   <TooltipContent side="top">设置老师语速</TooltipContent>
                 </Tooltip>
-                <PopoverContent side="top" align="end" sideOffset={8} className="w-64 rounded-xl p-3">
+                <PopoverContent side="top" align="center" sideOffset={8} className="w-64 rounded-xl p-3">
                   <div className="flex items-center gap-3">
-                    <span className="text-sm text-gray-500">Speed</span>
+                    <span className="text-sm text-gray-500">语速</span>
                     <Slider
                       value={[ttsSpeed]}
                       min={0.6}
@@ -294,24 +363,13 @@ export function CurrentScriptWorkbench({
                       step={0.05}
                       onValueChange={(value) => setTTSSpeed(value[0] ?? 1)}
                     />
-                    <span className="w-12 text-right text-sm text-gray-700">{ttsSpeed.toFixed(2)}x</span>
+                    <span className="w-12 text-right text-sm text-gray-700 dark:text-gray-300">
+                      {ttsSpeed.toFixed(2)}x
+                    </span>
                   </div>
                 </PopoverContent>
               </Popover>
             </div>
-          </div>
-        </div>
-
-        <Tabs defaultValue="edit" className="min-w-0 flex-1">
-          <div className="mb-2 flex items-center justify-end gap-2">
-            <TabsList className="h-8 rounded-lg bg-gray-100 p-1 dark:bg-gray-900">
-              <TabsTrigger value="edit" className="h-6 gap-1 rounded-md px-2 text-xs">
-                编辑讲稿
-              </TabsTrigger>
-              <TabsTrigger value="ai" className="h-6 gap-1 rounded-md px-2 text-xs">
-                AI优化
-              </TabsTrigger>
-            </TabsList>
 
             <Tooltip>
               <TooltipTrigger asChild>
@@ -319,69 +377,53 @@ export function CurrentScriptWorkbench({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  onClick={handleDemoPlayPause}
-                  aria-label={isPlaying ? '暂停语音' : '播放语音'}
-                  className={cn(
-                    'h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-900 dark:hover:text-gray-100',
-                    isPlaying && 'text-gray-900 dark:text-gray-100',
-                  )}
+                  onClick={() => setAiOptimizeOpen(true)}
+                  aria-label="AI 优化讲稿"
+                  className="ml-auto size-8 rounded-lg text-purple-600 hover:bg-purple-50 hover:text-purple-700 dark:text-purple-300 dark:hover:bg-purple-950/30"
                 >
-                  {isPlaying ? (
-                    <Pause className="size-4 fill-current" />
-                  ) : (
-                    <Play className="size-4" />
-                  )}
+                  <Sparkles className="size-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="top">{isPlaying ? '暂停语音' : '播放语音'}</TooltipContent>
+              <TooltipContent side="top">AI 优化讲稿</TooltipContent>
             </Tooltip>
           </div>
 
-          <TabsContent value="edit" className="mt-0 min-h-[124px]">
-            <Textarea
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              onBlur={commitDraft}
-              disabled={!canEdit}
-              placeholder="输入当前页 AI 老师要讲的话"
-              className="min-h-[124px] resize-y border-0 bg-transparent px-1 pt-1 font-mono text-[18px] leading-[2.15] tracking-normal text-gray-950 shadow-none focus-visible:ring-0 dark:text-gray-100"
-            />
-          </TabsContent>
-
-          <TabsContent value="ai" className="mt-0 min-h-[124px]">
-            <div
-              className={cn(
-                'relative min-h-[124px] rounded-lg border border-gray-200/35 bg-gray-50/40 p-2 transition-[border-color,box-shadow]',
-                'focus-within:border-gray-300/50 focus-within:ring-1 focus-within:ring-gray-200/40',
-                'dark:border-gray-700/40 dark:bg-gray-900/25 dark:focus-within:border-gray-600/50 dark:focus-within:ring-gray-700/30',
-              )}
-            >
-              <Textarea
-                value={aiInstruction}
-                onChange={(event) => setAiInstruction(event.target.value)}
-                placeholder="可选：输入优化需求，比如更像老师讲课、更生动、更简洁、增加互动提问。不填写则根据当前页面内容生成优化稿。"
-                className="min-h-[108px] resize-y border-0 bg-transparent px-1.5 pb-10 pt-1 font-mono text-[17px] leading-[2] tracking-normal text-gray-950 shadow-none placeholder:text-gray-400 focus-visible:ring-0 dark:text-gray-100 dark:placeholder:text-gray-500"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() =>
-                  onAiGenerateScene?.(
-                    note.sceneId,
-                    aiInstruction.trim().length > 0 ? aiInstruction : undefined,
-                  )
-                }
-                aria-label="生成优化稿"
-                className="absolute bottom-2 right-2 size-8 rounded-lg text-purple-600 hover:bg-purple-50 hover:text-purple-700 dark:text-purple-300 dark:hover:bg-purple-950/30"
-              >
-                <Send className="size-5" />
-              </Button>
-            </div>
-          </TabsContent>
-
-        </Tabs>
+          <Textarea
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onBlur={commitDraft}
+            disabled={!canEdit}
+            placeholder="输入当前页 AI 老师要讲的话"
+            className="min-h-[100px] flex-1 resize-y border-0 bg-transparent px-1 pt-0 font-mono text-[18px] leading-[2.15] tracking-normal text-gray-950 shadow-none focus-visible:ring-0 dark:text-gray-100"
+          />
+        </div>
       </div>
+
+      <Dialog open={aiOptimizeOpen} onOpenChange={setAiOptimizeOpen}>
+        <DialogContent className="max-w-md gap-4 sm:max-w-md" showCloseButton>
+          <DialogHeader>
+            <DialogTitle>AI 优化讲稿</DialogTitle>
+            <DialogDescription className="text-sm leading-relaxed">
+              可填写优化方向，也可留空直接根据当前页内容生成优化稿。
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={aiInstruction}
+            onChange={(event) => setAiInstruction(event.target.value)}
+            placeholder={AI_OPTIMIZE_PLACEHOLDER}
+            rows={4}
+            className="min-h-[88px] resize-y text-sm"
+          />
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={closeAiOptimizeDialog}>
+              取消
+            </Button>
+            <Button type="button" onClick={handleAiOptimizeConfirm}>
+              开始优化
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

@@ -1267,7 +1267,7 @@ export function Stage({
     // Roundtable stays mounted for the merged toolbar; publisher edit reserves
     // space for the compact teacher speech strip (avatar + bubble + inline play).
     const roundtableHeight =
-      mode === 'playback' && !isPresenting ? (publisherEditView ? 188 : 192) : 0;
+      mode === 'playback' && !isPresenting ? (publisherEditView ? 200 : 192) : 0;
     return `calc(100% - ${headerHeight + roundtableHeight}px)`;
   })();
 
@@ -1383,6 +1383,11 @@ export function Stage({
                 onUploadTeacherVoice={handleUploadTeacherVoice}
                 onRemoveTeacherVoice={handleRemoveTeacherVoice}
                 onPlayPause={handlePlayPause}
+                lectureAudioProgress={lectureAudioProgress}
+                onLectureAudioSeek={handleLectureAudioSeek}
+                speechProgress={speechProgress}
+                isOpenmaicDemoClassroom={isOpenmaicDemoClassroom}
+                lectureSeekBlocked={isTopicPending || engineMode === 'live'}
               />
             ) : (
               <Roundtable
