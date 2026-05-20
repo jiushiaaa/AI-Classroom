@@ -239,8 +239,8 @@ export function Header({
     );
   }
 
-  // Publisher ToB: edit view = 预览 + 发布 + 下载；网页预览 = 字幕 + 设备 preview（无发布/导出）
-  const showSubtitlesToggle = !readOnly && (!showPublisherChrome || !publisherEditView);
+  // Publisher ToB: edit view = 字幕开关 + 预览 + 发布 + 下载；网页预览 = 设备 preview（无发布/导出）
+  const showSubtitlesToggle = !readOnly && (!showPublisherChrome || publisherEditView);
   const showDevicePreviewTabs = !readOnly && (!showPublisherChrome || !publisherEditView);
   const showPublishExport = !readOnly && (!showPublisherChrome || publisherEditView);
 

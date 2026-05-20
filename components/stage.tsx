@@ -240,6 +240,7 @@ export function Stage({
   const previewPlaybackSpeed = useSettingsStore((s) => s.playbackSpeed);
   const previewAutoPlayLecture = useSettingsStore((s) => s.autoPlayLecture);
   const teacherSubtitlesVisible = useSettingsStore((s) => s.teacherSubtitlesVisible);
+  const realtimeQAEnabled = useSettingsStore((s) => s.realtimeQAEnabled);
   const teacherCustomDisplayName = useSettingsStore((s) => s.teacherCustomDisplayName);
   const presetAgentOverrides = useSettingsStore((s) => s.presetAgentOverrides);
 
@@ -934,7 +935,11 @@ export function Stage({
     ],
   );
 
-  const showTeacherSpeechInChrome = publisherEditView || teacherSubtitlesVisible;
+  /** Publisher configures subtitles in edit view; preview/students respect the toggle. */
+  const showTeacherSpeechInChrome = teacherSubtitlesVisible;
+  const hideLectureNotesInPanel = !publisherEditView && !teacherSubtitlesVisible;
+  const collapseChatPanelForSubtitles =
+    hideLectureNotesInPanel && !realtimeQAEnabled && !isDeviceFramePreview;
 
   const studentPlaybackView = useMemo(
     () =>
@@ -1544,7 +1549,6 @@ export function Stage({
         ref={chatAreaRef}
         width={chatAreaWidth}
         onWidthChange={setChatAreaWidth}
-        collapsed={pinLayoutPanels ? false : chatAreaCollapsed}
         onCollapseChange={setChatAreaCollapsed}
         activeBubbleId={activeBubbleId}
         onActiveBubble={(id) => setActiveBubbleId(id)}
@@ -1552,6 +1556,14 @@ export function Stage({
         onLectureNoteSceneSelect={gatedSceneSwitch}
         readOnly={publisherEditView ? true : lectureNotesReadOnly}
         hideChatTab={publisherEditView}
+        hideLectureNotes={hideLectureNotesInPanel}
+        collapsed={
+          collapseChatPanelForSubtitles
+            ? true
+            : pinLayoutPanels
+              ? false
+              : chatAreaCollapsed
+        }
         lectureTabLabel={publisherEditView ? '讲稿预览' : undefined}
         onLiveSpeech={(text, agentId) => {
           // Capture epoch at call time — discard if scene has changed since

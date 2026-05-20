@@ -233,7 +233,7 @@ export function Roundtable({
   // Publisher edit keeps the teacher speech strip (inline play on the bubble) so
   // publishers can audition narration while editing. Non-publisher slide edit still
   // hides the strip to maximize canvas space.
-  const hideLectureSurface = isEditing && !persistentEdit;
+  const hideLectureSurface = (isEditing && !persistentEdit) || !showSubtitles;
   const [isInputOpen, setIsInputOpen] = useState(false);
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');

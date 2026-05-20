@@ -61,6 +61,10 @@ interface ChatAreaProps {
    */
   hideChatTab?: boolean;
   /**
+   * When true, hide lecture notes (publisher turned off subtitles for student preview).
+   */
+  hideLectureNotes?: boolean;
+  /**
    * When true, hide the tab header row. Lecture / chat content still
    * switches via switchToTab; used by Stage so the side panel reads as a
    * single surface without redundant single-tab chrome.
@@ -117,6 +121,7 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
       onLectureNoteSceneSelect,
       readOnly = false,
       hideChatTab = false,
+      hideLectureNotes = false,
       hideTabBar = false,
       lectureTabLabel,
     },
@@ -163,7 +168,13 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
     // Force-back to the lecture tab whenever the chat tab is hidden — the
     // panel would otherwise show an empty selection.
     useEffect(() => {
-      if (!showChatTab && activeTab === 'chat') {
+      if (hideLectureNotes && activeTab === 'lecture' && showChatTab) {
+        setActiveTab('chat');
+      }
+    }, [hideLectureNotes, activeTab, showChatTab]);
+
+    useEffect(() => {
+      if (!showChatTab && activeTab === 'chat' && !hideLectureNotes) {
         setActiveTab('lecture');
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to tab visibility
@@ -299,13 +310,15 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
                 When real-time Q&A is disabled, the chat / discussion tab
                 is suppressed entirely so the panel reads as a focused
                 lecture-notes surface. */}
-            {!hideTabBar && (
+            {!hideTabBar && (showChatTab || !hideLectureNotes) && (
             <div className="h-10 flex items-center gap-1 shrink-0 mt-3 mb-1 px-3">
               <TabsList variant="line" className="h-full flex-1 w-0">
+                {!hideLectureNotes && (
                 <TabsTrigger value="lecture" className="text-xs gap-1 flex-1">
                   <BookOpen className="w-3.5 h-3.5" />
                   {lectureTabLabel ?? t('chat.tabs.lecture')}
                 </TabsTrigger>
+                )}
                 {showChatTab && (
                   <TabsTrigger value="chat" className="text-xs gap-1 flex-1 relative">
                     <MessageSquare className="w-3.5 h-3.5" />
@@ -324,6 +337,7 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
             )}
 
             {/* Notes Tab */}
+            {!hideLectureNotes && (
             <TabsContent value="lecture" className="flex-1 overflow-hidden flex flex-col">
               <LectureNotesView
                 notes={lectureNotes}
@@ -335,6 +349,7 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
                 onSelectScene={onLectureNoteSceneSelect}
               />
             </TabsContent>
+            )}
 
             {/* Chat Tab — gated by real-time Q&A toggle */}
             {showChatTab && (
