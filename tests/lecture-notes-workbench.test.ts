@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   getCurrentLectureNote,
+  getLectureNoteTeacherVoiceInfo,
   getLectureNoteVoiceStatus,
 } from '@/lib/utils/lecture-notes';
 import type { LectureNoteEntry } from '@/lib/types/chat';
@@ -49,5 +50,16 @@ describe('lecture notes workbench helpers', () => {
   it('marks notes with uploaded teacher voice separately from AI voice', () => {
     expect(getLectureNoteVoiceStatus(notes[0])).toBe('ai');
     expect(getLectureNoteVoiceStatus(notes[1])).toBe('teacher');
+  });
+
+  it('exposes uploaded teacher voice details for restore controls', () => {
+    expect(getLectureNoteTeacherVoiceInfo(notes[0])).toEqual({
+      hasPublisherVoice: false,
+      voiceName: '',
+    });
+    expect(getLectureNoteTeacherVoiceInfo(notes[1])).toEqual({
+      hasPublisherVoice: true,
+      voiceName: 'teacher.wav',
+    });
   });
 });

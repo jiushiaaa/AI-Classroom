@@ -16,3 +16,21 @@ export function getLectureNoteVoiceStatus(note: LectureNoteEntry): LectureNoteVo
   if (!firstSpeech || firstSpeech.kind !== 'speech') return 'empty';
   return firstSpeech.publisherVoiceUploadedAt ? 'teacher' : 'ai';
 }
+
+export function getLectureNoteTeacherVoiceInfo(note: LectureNoteEntry): {
+  hasPublisherVoice: boolean;
+  voiceName: string;
+} {
+  const firstSpeech = note.items.find((item) => item.kind === 'speech');
+  if (!firstSpeech || firstSpeech.kind !== 'speech' || !firstSpeech.publisherVoiceUploadedAt) {
+    return {
+      hasPublisherVoice: false,
+      voiceName: '',
+    };
+  }
+
+  return {
+    hasPublisherVoice: true,
+    voiceName: firstSpeech.publisherVoiceName?.trim() ?? '',
+  };
+}

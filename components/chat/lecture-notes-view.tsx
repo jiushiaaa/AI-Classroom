@@ -35,7 +35,10 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { getLectureNoteVoiceStatus } from '@/lib/utils/lecture-notes';
+import {
+  getLectureNoteTeacherVoiceInfo,
+  getLectureNoteVoiceStatus,
+} from '@/lib/utils/lecture-notes';
 
 const ACTION_ICON_ONLY: Record<string, { Icon: typeof Flashlight; style: string }> = {
   spotlight: {
@@ -195,9 +198,8 @@ export function LectureNotesView({
         const pageLabel = t('chat.lectureNotes.pageLabel', { n: pageNum });
 
         const showHeaderActions = Boolean(onAiGenerateScene || onEditSpeech);
-        const firstSpeech = note.items.find((item) => item.kind === 'speech');
-        const hasPublisherVoice =
-          firstSpeech?.kind === 'speech' && Boolean(firstSpeech.publisherVoiceUploadedAt);
+        const teacherVoiceInfo = getLectureNoteTeacherVoiceInfo(note);
+        const hasPublisherVoice = teacherVoiceInfo.hasPublisherVoice;
         const speechUnlocked = editable && editingSceneId === note.sceneId;
         const voiceStatus = getLectureNoteVoiceStatus(note);
 
@@ -323,10 +325,10 @@ export function LectureNotesView({
                       )}
                       title={
                         hasPublisherVoice
-                          ? `已上传真人老师人声：${firstSpeech?.kind === 'speech' ? firstSpeech.publisherVoiceName : ''}`
+                          ? `已上传真人老师人声：${teacherVoiceInfo.voiceName || '未命名音频'}`
                           : '上传真人老师人声'
                       }
-                      aria-label="上传真人老师人声"
+                      aria-label={hasPublisherVoice ? '替换真人老师人声' : '上传真人老师人声'}
                     >
                       {uploadingVoiceSceneId === note.sceneId ? (
                         <Loader2 className="size-3.5 animate-spin" />
@@ -364,8 +366,8 @@ export function LectureNotesView({
                         }
                       }}
                       className="size-6 inline-flex items-center justify-center rounded-md text-emerald-600/80 dark:text-emerald-400/80 hover:bg-red-100/80 dark:hover:bg-red-900/35 hover:text-red-600 dark:hover:text-red-300 transition-colors"
-                      title="取消真人老师人声覆盖"
-                      aria-label="取消真人老师人声覆盖"
+                      title="移除真人老师人声，恢复 AI 老师声音"
+                      aria-label="移除真人老师人声，恢复 AI 老师声音"
                     >
                       <Trash2 className="size-3.5" />
                     </button>

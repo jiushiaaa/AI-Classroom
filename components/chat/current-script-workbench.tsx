@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Gauge, Loader2, Mic2, Pause, Play, Sparkles } from 'lucide-react';
+import { Gauge, Loader2, Mic2, Pause, Play, RotateCcw, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -28,6 +28,7 @@ import {
 import type { LectureNoteEntry } from '@/lib/types/chat';
 import type { EngineMode } from '@/lib/playback';
 import type { AgentConfig } from '@/lib/orchestration/registry/types';
+import { getLectureNoteTeacherVoiceInfo } from '@/lib/utils/lecture-notes';
 
 interface CurrentScriptWorkbenchProps {
   readonly note: LectureNoteEntry | null;
@@ -56,7 +57,7 @@ export function CurrentScriptWorkbench({
   onEditSpeech,
   onAiGenerateScene,
   onUploadTeacherVoice,
-  onRemoveTeacherVoice: _onRemoveTeacherVoice,
+  onRemoveTeacherVoice,
   onPlayPause,
   lectureAudioProgress,
   onLectureAudioSeek,
@@ -76,6 +77,16 @@ export function CurrentScriptWorkbench({
   const scriptText = useMemo(
     () => speechItems.map((item) => item.text).join('\n'),
     [speechItems],
+  );
+  const teacherVoiceInfo = useMemo(
+    () =>
+      note
+        ? getLectureNoteTeacherVoiceInfo(note)
+        : {
+            hasPublisherVoice: false,
+            voiceName: '',
+          },
+    [note],
   );
   const [draft, setDraft] = useState('');
   const [aiInstruction, setAiInstruction] = useState('');
@@ -290,9 +301,15 @@ export function CurrentScriptWorkbench({
                     className={cn(
                       toolBtnClass,
                       'cursor-pointer',
+                      teacherVoiceInfo.hasPublisherVoice &&
+                        'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 dark:bg-emerald-950/25 dark:text-emerald-300 dark:hover:bg-emerald-900/35',
                       uploading && 'pointer-events-none opacity-70',
                     )}
-                    aria-label="上传真人语音替换当前页"
+                    aria-label={
+                      teacherVoiceInfo.hasPublisherVoice
+                        ? '替换真人语音'
+                        : '上传真人语音替换当前页'
+                    }
                   >
                     {uploading ? (
                       <Loader2 className="size-4 animate-spin" />
@@ -317,8 +334,42 @@ export function CurrentScriptWorkbench({
                     />
                   </label>
                 </TooltipTrigger>
-                <TooltipContent side="top">上传真人语音替换当前页</TooltipContent>
+                <TooltipContent side="top">
+                  {teacherVoiceInfo.hasPublisherVoice ? '替换真人语音' : '上传真人语音替换当前页'}
+                </TooltipContent>
               </Tooltip>
+
+              {teacherVoiceInfo.hasPublisherVoice && onRemoveTeacherVoice && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!note) return;
+                        setUploading(true);
+                        try {
+                          await onRemoveTeacherVoice(note.sceneId);
+                        } finally {
+                          setUploading(false);
+                        }
+                      }}
+                      disabled={uploading}
+                      aria-label="移除真人语音，恢复 AI 老师声音"
+                      className={cn(
+                        toolBtnClass,
+                        'bg-emerald-50 text-emerald-700 hover:bg-red-50 hover:text-red-600 disabled:pointer-events-none disabled:opacity-70 dark:bg-emerald-950/25 dark:text-emerald-300 dark:hover:bg-red-950/25 dark:hover:text-red-300',
+                      )}
+                    >
+                      {uploading ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <RotateCcw className="size-4" />
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">移除真人语音，恢复 AI 老师声音</TooltipContent>
+                </Tooltip>
+              )}
 
               <Tooltip>
                 <TooltipTrigger asChild>
