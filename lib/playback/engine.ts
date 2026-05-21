@@ -23,6 +23,10 @@
  *                                 └────────────────────┘
  */
 
+import {
+  speechScriptToDisplayPlain,
+  speechScriptToTtsPlain,
+} from '@/lib/utils/speech-script-markup';
 import type { Scene } from '@/lib/types/stage';
 import type { Action, SpeechAction, DiscussionAction } from '@/lib/types/action';
 import type {
@@ -455,7 +459,9 @@ export class PlaybackEngine {
     switch (action.type) {
       case 'speech': {
         const speechAction = action as SpeechAction;
-        this.callbacks.onSpeechStart?.(speechAction.text);
+        const displayText = speechScriptToDisplayPlain(speechAction.text);
+        const ttsText = speechScriptToTtsPlain(speechAction.text);
+        this.callbacks.onSpeechStart?.(displayText);
 
         // onEnded → processNext; if paused, resume() will call processNext
         this.audioPlayer.onEnded(() => {
@@ -470,7 +476,7 @@ export class PlaybackEngine {
         // Non-CJK text: ~240ms/word (≈250 WPM).
         // Min 2s. Cancelled on pause; resume() calls processNext directly.
         const scheduleReadingTimer = () => {
-          const text = speechAction.text;
+          const text = displayText;
           const cjkCount = (
             text.match(/[\u4e00-\u9fff\u3400-\u4dbf\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/g) || []
           ).length;
@@ -502,7 +508,7 @@ export class PlaybackEngine {
                 typeof window !== 'undefined' &&
                 window.speechSynthesis
               ) {
-                this.playBrowserTTS(speechAction);
+                this.playBrowserTTS(speechAction, ttsText);
               } else {
                 scheduleReadingTimer();
               }
@@ -620,8 +626,10 @@ export class PlaybackEngine {
    * Splits text into sentence-level chunks to avoid Chrome's ~15s cutoff.
    * Uses cancel+re-speak for pause/resume (Firefox compatibility).
    */
-  private playBrowserTTS(speechAction: SpeechAction): void {
-    this.browserTTSChunks = this.splitIntoChunks(speechAction.text);
+  private playBrowserTTS(speechAction: SpeechAction, spokenText?: string): void {
+    this.browserTTSChunks = this.splitIntoChunks(
+      spokenText ?? speechScriptToTtsPlain(speechAction.text),
+    );
     this.browserTTSChunkIndex = 0;
     this.browserTTSPausedChunks = [];
     this.browserTTSActive = true;

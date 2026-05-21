@@ -298,8 +298,8 @@
         },
         "testQuestions": {
           "name": "测试题",
-          "desc": "选择/判断/简答题",
-          "unit": "题"
+          "desc": "测验场景页数，每页题数单独配置",
+          "unit": "页"
         },
         "simulation": {
           "name": "模拟实验",
@@ -326,6 +326,12 @@
           "desc": "知识结构梳理与发散",
           "unit": "个"
         }
+      },
+      "questionsPerPage": {
+        "name": "每页题数",
+        "desc": "每个测验页包含的题目数量",
+        "descDisabled": "测试题页数为 0 时不可配置",
+        "unit": "题"
       }
     },
     "customRoles": {

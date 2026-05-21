@@ -11,6 +11,7 @@ import {
   Code,
   Target,
   Brain,
+  ListOrdered,
   Minus,
   Plus,
   MessagesSquare,
@@ -60,11 +61,7 @@ interface GenerationItemDef {
   defaultValue: number;
   min: number;
   max: number;
-  /**
-   * How many configured units can fit into one page budget slot.
-   * Example: 5 quiz questions can be shown on one page, so their quantity
-   * should not consume 5 total pages in the planner.
-   */
+  /** How many configured units consume one page budget slot (usually 1). */
   unitsPerPage: number;
   /** Stepper increment when bumping a single value. */
   step: number;
@@ -85,10 +82,10 @@ const ITEMS: GenerationItemDef[] = [
   {
     id: 'testQuestions',
     icon: CircleHelp,
-    defaultValue: 5,
+    defaultValue: 1,
     min: 0,
     max: 30,
-    unitsPerPage: 5,
+    unitsPerPage: 1,
     step: 1,
     activeColor: 'text-amber-600 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/30',
   },
@@ -158,12 +155,23 @@ export interface GenerationSlot {
 export interface GenerationConfigState {
   totalPages: GenerationSlot;
   items: Record<GenerationItemId, GenerationSlot>;
+  /** Questions per quiz page — does not consume page budget. */
+  questionsPerPage: GenerationSlot;
 }
+
+const CONFIG_VERSION = 3;
+/** v2 stored test question *counts*; 5 questions ≈ 1 page in the old planner. */
+const LEGACY_QUESTIONS_PER_PAGE = 5;
 
 const TOTAL_PAGES_DEFAULT = 20;
 const TOTAL_PAGES_MIN = 1;
 const TOTAL_PAGES_MAX = 50;
 const TOTAL_PAGES_STEP = 1;
+
+const QUESTIONS_PER_PAGE_DEFAULT = 3;
+const QUESTIONS_PER_PAGE_MIN = 1;
+const QUESTIONS_PER_PAGE_MAX = 10;
+const QUESTIONS_PER_PAGE_STEP = 1;
 
 function clampInt(value: unknown, min: number, max: number, fallback: number): number {
   const n = typeof value === 'number' && Number.isFinite(value) ? value : fallback;
@@ -188,7 +196,31 @@ function getDefaultConfig(): GenerationConfigState {
   return {
     totalPages: { mode: 'auto', value: TOTAL_PAGES_DEFAULT },
     items,
+    questionsPerPage: { mode: 'auto', value: QUESTIONS_PER_PAGE_DEFAULT },
   };
+}
+
+function parseQuestionsPerPageSlot(raw: unknown): GenerationSlot {
+  if (!raw || typeof raw !== 'object') {
+    return { mode: 'auto', value: QUESTIONS_PER_PAGE_DEFAULT };
+  }
+  const slot = raw as Record<string, unknown>;
+  return {
+    mode: slot.mode === 'custom' ? 'custom' : 'auto',
+    value: clampInt(
+      slot.value,
+      QUESTIONS_PER_PAGE_MIN,
+      QUESTIONS_PER_PAGE_MAX,
+      QUESTIONS_PER_PAGE_DEFAULT,
+    ),
+  };
+}
+
+/** v2 stored quiz quantity as question count; v3 stores quiz pages (1 page = 1 budget). */
+function migrateTestQuestionsSlot(slot: GenerationSlot): GenerationSlot {
+  if (slot.mode !== 'custom' || slot.value <= 0) return slot;
+  const pages = Math.max(1, Math.ceil(slot.value / LEGACY_QUESTIONS_PER_PAGE));
+  return { mode: 'custom', value: Math.min(pages, 30) };
 }
 
 function parseItemSlot(
@@ -232,13 +264,21 @@ function normalizeConfig(parsed: unknown): GenerationConfigState {
     for (const item of ITEMS) {
       const lk = LEGACY_STORAGE_KEY[item.id];
       const wasEnabled = enabledMap[lk] === true;
-      const value = clampInt(countsMap[lk], item.min, item.max, item.defaultValue);
-      items[item.id] = { mode: wasEnabled ? 'custom' : 'auto', value };
+      let value = clampInt(countsMap[lk], item.min, item.max, item.defaultValue);
+      let slot: GenerationSlot = { mode: wasEnabled ? 'custom' : 'auto', value };
+      if (item.id === 'testQuestions') slot = migrateTestQuestionsSlot(slot);
+      items[item.id] = slot;
     }
-    return { totalPages: { mode: totalMode, value: totalNumeric }, items };
+    return {
+      totalPages: { mode: totalMode, value: totalNumeric },
+      items,
+      questionsPerPage: parseQuestionsPerPageSlot(raw.questionsPerPage),
+    };
   }
 
   // New format
+  const configVersion =
+    typeof raw.version === 'number' && Number.isFinite(raw.version) ? raw.version : 0;
   const totalRaw = (raw.totalPages ?? {}) as Record<string, unknown>;
   const totalMode: SlotMode = totalRaw.mode === 'custom' ? 'custom' : 'auto';
   const totalValue = clampInt(
@@ -250,9 +290,17 @@ function normalizeConfig(parsed: unknown): GenerationConfigState {
   const itemsRaw = (raw.items ?? {}) as Record<string, Record<string, unknown>>;
   const items = {} as Record<GenerationItemId, GenerationSlot>;
   for (const item of ITEMS) {
-    items[item.id] = parseItemSlot(itemsRaw, item);
+    let slot = parseItemSlot(itemsRaw, item);
+    if (item.id === 'testQuestions' && configVersion < CONFIG_VERSION) {
+      slot = migrateTestQuestionsSlot(slot);
+    }
+    items[item.id] = slot;
   }
-  return { totalPages: { mode: totalMode, value: totalValue }, items };
+  return {
+    totalPages: { mode: totalMode, value: totalValue },
+    items,
+    questionsPerPage: parseQuestionsPerPageSlot(raw.questionsPerPage),
+  };
 }
 
 export function readPublisherGenerationConfig(): GenerationConfigState {
@@ -263,6 +311,20 @@ export function readPublisherGenerationConfig(): GenerationConfigState {
   } catch {
     return getDefaultConfig();
   }
+}
+
+/** Quiz scene pages + per-page question count from publisher generation config. */
+export function resolveQuizGenerationFromConfig(config: GenerationConfigState): {
+  pages: number | null;
+  questionsPerPage: number;
+} {
+  const pagesSlot = config.items.testQuestions;
+  const qppSlot = config.questionsPerPage;
+  return {
+    pages: pagesSlot.mode === 'custom' ? pagesSlot.value : null,
+    questionsPerPage:
+      qppSlot.mode === 'custom' ? qppSlot.value : QUESTIONS_PER_PAGE_DEFAULT,
+  };
 }
 
 interface SummaryInfo {
@@ -326,6 +388,8 @@ interface SteppedRowProps {
   /** Hide the leading icon block — used by the "total pages" row to keep the
    *  header visually clean (the row is already differentiated by `emphasis`). */
   hideIcon?: boolean;
+  /** Grey out controls — e.g. per-page question count when quiz pages are 0. */
+  disabled?: boolean;
 }
 
 function StepperRow({
@@ -343,6 +407,7 @@ function StepperRow({
   emphasis = false,
   disableIncrement = false,
   hideIcon = false,
+  disabled = false,
 }: Readonly<SteppedRowProps>) {
   const { t } = useI18n();
   const isAuto = slot.mode === 'auto';
@@ -369,13 +434,18 @@ function StepperRow({
     }
   }, [isAuto]);
 
-  const setAuto = () => onChange({ mode: 'auto', value: slot.value });
+  const setAuto = () => {
+    if (disabled) return;
+    onChange({ mode: 'auto', value: slot.value });
+  };
   const setCustom = (n: number) => {
+    if (disabled) return;
     const v = clampInt(n, min, max, defaultValue);
     onChange({ mode: 'custom', value: v });
   };
 
   const enterCustomFromAuto = () => {
+    if (disabled) return;
     focusInputAfterCustomRef.current = true;
     setCustom(leaveAutoValue);
   };
@@ -395,6 +465,7 @@ function StepperRow({
   };
 
   const handleMinus = () => {
+    if (disabled) return;
     if (isAuto) {
       enterCustomFromAuto();
       return;
@@ -407,6 +478,7 @@ function StepperRow({
   };
 
   const handlePlus = () => {
+    if (disabled) return;
     if (isAuto) {
       enterCustomFromAuto();
       return;
@@ -433,7 +505,8 @@ function StepperRow({
       className={cn(
         'flex items-center gap-2.5 px-3 py-1.5 transition-colors',
         emphasis && 'bg-gradient-to-r from-violet-50/60 to-transparent dark:from-violet-950/20',
-        !emphasis && !isAuto && 'bg-violet-50/30 dark:bg-violet-950/10',
+        !emphasis && !isAuto && !disabled && 'bg-violet-50/30 dark:bg-violet-950/10',
+        disabled && 'opacity-45 pointer-events-none',
       )}
     >
       {!hideIcon && (
@@ -719,7 +792,10 @@ export function GenerationConfigPopover({ locked = false }: Readonly<{ locked?: 
   const persist = (next: GenerationConfigState) => {
     setConfig(next);
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ version: CONFIG_VERSION, ...next }),
+      );
     } catch {
       /* ignore */
     }
@@ -755,10 +831,32 @@ export function GenerationConfigPopover({ locked = false }: Readonly<{ locked?: 
     persist({ ...config, items: { ...config.items, [id]: nextSlot } });
   };
 
+  const setQuestionsPerPageSlot = (slot: GenerationSlot) => {
+    const value = clampInt(
+      slot.value,
+      QUESTIONS_PER_PAGE_MIN,
+      QUESTIONS_PER_PAGE_MAX,
+      QUESTIONS_PER_PAGE_DEFAULT,
+    );
+    persist({
+      ...config,
+      questionsPerPage:
+        slot.mode === 'custom'
+          ? { mode: 'custom', value }
+          : { mode: 'auto', value: config.questionsPerPage.value },
+    });
+  };
+
+  const quizPagesSlot = config.items.testQuestions;
+  const quizPagesInactive =
+    quizPagesSlot.mode === 'custom' && quizPagesSlot.value <= 0;
+
   const totalUnit = t('toolbar.generationConfig.totalPagesUnit');
   const totalAuto = config.totalPages.mode === 'auto';
   const hasCustomGenerationConfig =
-    config.totalPages.mode === 'custom' || summary.customCount > 0;
+    config.totalPages.mode === 'custom'
+    || summary.customCount > 0
+    || config.questionsPerPage.mode === 'custom';
 
   let tooltipText = t('toolbar.generationConfig.subtitle');
   if (locked) tooltipText = t('toolbar.generationConfig.lockedHint');
@@ -882,21 +980,42 @@ export function GenerationConfigPopover({ locked = false }: Readonly<{ locked?: 
                   ? estimatePagesForItem(item, slot.value + item.step) > remainingBudget
                   : remainingBudget <= 0);
               return (
-                <StepperRow
-                  key={item.id}
-                  Icon={Icon}
-                  iconActiveClass={item.activeColor}
-                  name={name}
-                  desc={desc}
-                  unit={unit}
-                  slot={slot}
-                  min={item.min}
-                  max={item.max}
-                  step={item.step}
-                  defaultValue={item.defaultValue}
-                  onChange={(slot) => setItemSlot(item.id, slot)}
-                  disableIncrement={disableIncrement}
-                />
+                <div key={item.id}>
+                  <StepperRow
+                    Icon={Icon}
+                    iconActiveClass={item.activeColor}
+                    name={name}
+                    desc={desc}
+                    unit={unit}
+                    slot={slot}
+                    min={item.min}
+                    max={item.max}
+                    step={item.step}
+                    defaultValue={item.defaultValue}
+                    onChange={(next) => setItemSlot(item.id, next)}
+                    disableIncrement={disableIncrement}
+                  />
+                  {item.id === 'testQuestions' && (
+                    <StepperRow
+                      Icon={ListOrdered}
+                      iconActiveClass="text-amber-600 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/30"
+                      name={t('toolbar.generationConfig.questionsPerPage.name')}
+                      desc={
+                        quizPagesInactive
+                          ? t('toolbar.generationConfig.questionsPerPage.descDisabled')
+                          : t('toolbar.generationConfig.questionsPerPage.desc')
+                      }
+                      unit={t('toolbar.generationConfig.questionsPerPage.unit')}
+                      slot={config.questionsPerPage}
+                      min={QUESTIONS_PER_PAGE_MIN}
+                      max={QUESTIONS_PER_PAGE_MAX}
+                      step={QUESTIONS_PER_PAGE_STEP}
+                      defaultValue={QUESTIONS_PER_PAGE_DEFAULT}
+                      onChange={setQuestionsPerPageSlot}
+                      disabled={quizPagesInactive}
+                    />
+                  )}
+                </div>
               );
             })}
           </div>

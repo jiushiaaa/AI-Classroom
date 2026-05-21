@@ -1,9 +1,24 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Gauge, Loader2, Mic2, Pause, Play, RotateCcw, Sparkles } from 'lucide-react';
+import {
+  Captions,
+  CaptionsOff,
+  Gauge,
+  Loader2,
+  Mic2,
+  Pause,
+  Play,
+  RotateCcw,
+  Sparkles,
+  Timer,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  SpeechScriptEditor,
+  type SpeechScriptEditorHandle,
+} from '@/components/chat/speech-script-editor';
 import {
   Dialog,
   DialogContent,
@@ -16,7 +31,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Slider } from '@/components/ui/slider';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { TeacherVoicePill } from '@/components/agent/agent-bar';
 import { DEFAULT_TEACHER_AVATAR } from '@/components/roundtable/constants';
+import { getAvailableProvidersWithVoices } from '@/lib/audio/voice-resolver';
+import type { ProviderWithVoices } from '@/lib/audio/voice-resolver';
+import type { TTSProviderId } from '@/lib/audio/types';
+import { useVoxCPMVoiceProfiles } from '@/lib/audio/voxcpm-voices';
 import { useAgentRegistry } from '@/lib/orchestration/registry/store';
 import { useSettingsStore } from '@/lib/store/settings';
 import { useI18n } from '@/lib/hooks/use-i18n';
@@ -29,6 +49,7 @@ import type { LectureNoteEntry } from '@/lib/types/chat';
 import type { EngineMode } from '@/lib/playback';
 import type { AgentConfig } from '@/lib/orchestration/registry/types';
 import { getLectureNoteTeacherVoiceInfo } from '@/lib/utils/lecture-notes';
+import { speechScriptToTtsPlain } from '@/lib/utils/speech-script-markup';
 
 interface CurrentScriptWorkbenchProps {
   readonly note: LectureNoteEntry | null;
@@ -94,12 +115,47 @@ export function CurrentScriptWorkbench({
   const [uploading, setUploading] = useState(false);
   const [demoPlaying, setDemoPlaying] = useState(false);
   const demoStopRef = useRef<(() => void) | null>(null);
+  const scriptEditorRef = useRef<SpeechScriptEditorHandle>(null);
   const agentsRecord = useAgentRegistry((state) => state.agents);
   const selectedAgentIds = useSettingsStore((state) => state.selectedAgentIds);
   const teacherCustomDisplayName = useSettingsStore((state) => state.teacherCustomDisplayName);
   const presetAgentOverrides = useSettingsStore((state) => state.presetAgentOverrides);
   const ttsSpeed = useSettingsStore((state) => state.ttsSpeed);
   const setTTSSpeed = useSettingsStore((state) => state.setTTSSpeed);
+  const ttsEnabled = useSettingsStore((state) => state.ttsEnabled);
+  const ttsProvidersConfig = useSettingsStore((state) => state.ttsProvidersConfig);
+  const teacherSubtitlesVisible = useSettingsStore((state) => state.teacherSubtitlesVisible);
+  const setTeacherSubtitlesVisible = useSettingsStore((state) => state.setTeacherSubtitlesVisible);
+  const { profiles: voxcpmProfiles } = useVoxCPMVoiceProfiles();
+  const [browserVoices, setBrowserVoices] = useState<SpeechSynthesisVoice[]>([]);
+
+  useEffect(() => {
+    if (typeof globalThis.window === 'undefined' || !globalThis.speechSynthesis) return;
+    const loadVoices = () => setBrowserVoices(globalThis.speechSynthesis.getVoices());
+    loadVoices();
+    globalThis.speechSynthesis.addEventListener('voiceschanged', loadVoices);
+    return () => globalThis.speechSynthesis.removeEventListener('voiceschanged', loadVoices);
+  }, []);
+
+  const availableProviders = useMemo((): ProviderWithVoices[] => {
+    const serverProviders = getAvailableProvidersWithVoices(ttsProvidersConfig, voxcpmProfiles);
+    if (browserVoices.length === 0) return serverProviders;
+    return [
+      ...serverProviders,
+      {
+        providerId: 'browser-native-tts' as TTSProviderId,
+        providerName: 'Browser Native',
+        voices: browserVoices.map((v) => ({ id: v.voiceURI, name: v.name })),
+        modelGroups: [
+          {
+            modelId: '',
+            modelName: 'Browser Native',
+            voices: browserVoices.map((v) => ({ id: v.voiceURI, name: v.name })),
+          },
+        ],
+      },
+    ];
+  }, [browserVoices, ttsProvidersConfig, voxcpmProfiles]);
 
   useEffect(() => {
     setDraft(scriptText);
@@ -209,7 +265,7 @@ export function CurrentScriptWorkbench({
       return;
     }
 
-    const text = draft.trim() || scriptText.trim();
+    const text = speechScriptToTtsPlain(draft.trim() || scriptText.trim());
     setDemoPlaying(true);
 
     if (typeof globalThis.window !== 'undefined' && 'speechSynthesis' in globalThis.window && text) {
@@ -281,20 +337,63 @@ export function CurrentScriptWorkbench({
       </div>
 
       <div className="flex min-h-0 flex-1 gap-3 px-4 py-3">
-        <div className="flex w-[72px] shrink-0 flex-col items-center px-1 pt-0.5">
-          <AvatarImage
-            src={selectedTeacherAvatar}
-            alt={selectedTeacherName}
-            className="size-9 shadow-sm ring-1 ring-purple-100/70 dark:ring-purple-900/30"
-          />
-          <span className="mt-1.5 max-w-[64px] truncate text-center text-[11px] font-semibold text-gray-700 dark:text-gray-200">
+        <div className="group/teacher-voice relative flex w-[88px] shrink-0 flex-col items-center px-1 pt-0.5">
+          <div className="relative">
+            <AvatarImage
+              src={selectedTeacherAvatar}
+              alt={selectedTeacherName}
+              className="size-9 shadow-sm ring-1 ring-purple-100/70 transition-shadow group-hover/teacher-voice:ring-purple-200/90 dark:ring-purple-900/30 dark:group-hover/teacher-voice:ring-purple-700/50"
+            />
+            {availableProviders.length > 0 && (
+              <div
+                className={cn(
+                  'pointer-events-none absolute left-[calc(100%+6px)] top-1/2 z-30 flex -translate-y-1/2 items-center gap-1.5',
+                  'rounded-lg border border-gray-200/90 bg-white/98 px-2 py-1 shadow-md shadow-gray-900/8',
+                  'opacity-0 transition-opacity duration-150',
+                  'dark:border-gray-700/80 dark:bg-gray-950/98 dark:shadow-black/30',
+                  'group-hover/teacher-voice:pointer-events-auto group-hover/teacher-voice:opacity-100',
+                  'focus-within:pointer-events-auto focus-within:opacity-100',
+                )}
+              >
+                <span className="shrink-0 text-[10px] font-medium text-gray-500 dark:text-gray-400">
+                  声音
+                </span>
+                <TeacherVoicePill
+                  availableProviders={availableProviders}
+                  disabled={!ttsEnabled}
+                  previewDisplayName={selectedTeacherName}
+                />
+              </div>
+            )}
+          </div>
+          <span className="mt-1.5 max-w-[72px] truncate text-center text-[11px] font-semibold text-gray-700 dark:text-gray-200">
             AI老师
           </span>
+          {teacherVoiceInfo.hasPublisherVoice && (
+            <span className="mt-0.5 max-w-[72px] truncate text-center text-[9px] text-emerald-600 dark:text-emerald-400">
+              本页真人
+            </span>
+          )}
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="relative mb-2 flex min-h-8 shrink-0 items-center">
             <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    disabled={!canEdit}
+                    onClick={() => scriptEditorRef.current?.insertPause()}
+                    aria-label="插入停顿"
+                    className={toolBtnClass}
+                  >
+                    <Timer className="size-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">插入停顿（选中后按 Delete 可删除）</TooltipContent>
+              </Tooltip>
+
               <Tooltip>
                 <TooltipTrigger asChild>
                   <label
@@ -420,6 +519,29 @@ export function CurrentScriptWorkbench({
                   </div>
                 </PopoverContent>
               </Popover>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => setTeacherSubtitlesVisible(!teacherSubtitlesVisible)}
+                    aria-pressed={teacherSubtitlesVisible}
+                    aria-label={
+                      teacherSubtitlesVisible ? '关闭 AI 老师字幕' : '开启 AI 老师字幕'
+                    }
+                    className={toolBtnClass}
+                  >
+                    {teacherSubtitlesVisible ? (
+                      <Captions className="size-4" />
+                    ) : (
+                      <CaptionsOff className="size-4" />
+                    )}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  {teacherSubtitlesVisible ? '关闭 AI 老师字幕' : '开启 AI 老师字幕'}
+                </TooltipContent>
+              </Tooltip>
             </div>
 
             <Tooltip>
@@ -439,13 +561,14 @@ export function CurrentScriptWorkbench({
             </Tooltip>
           </div>
 
-          <Textarea
+          <SpeechScriptEditor
+            ref={scriptEditorRef}
             value={draft}
-            onChange={(event) => setDraft(event.target.value)}
+            onChange={setDraft}
             onBlur={commitDraft}
             disabled={!canEdit}
-            placeholder="输入当前页 AI 老师要讲的话"
-            className="min-h-[100px] flex-1 resize-y border-0 bg-transparent px-1 pt-0 font-mono text-[18px] leading-[2.15] tracking-normal text-gray-950 shadow-none focus-visible:ring-0 dark:text-gray-100"
+            placeholder="输入当前页 AI 老师要讲的话；选中文字可设置同音读法"
+            className="min-h-[100px] flex-1 resize-y border-0 bg-transparent shadow-none"
           />
         </div>
       </div>

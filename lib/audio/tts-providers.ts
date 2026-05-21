@@ -134,6 +134,10 @@ export async function generateTTS(
   config: TTSModelConfig,
   text: string,
 ): Promise<TTSGenerationResult> {
+  const { prepareSpeechTextForTts } = await import('@/lib/utils/speech-script-markup');
+  const prepared = prepareSpeechTextForTts(text, config.providerId);
+  const ttsText = prepared.plainText;
+
   const provider = TTS_PROVIDERS[config.providerId as keyof typeof TTS_PROVIDERS];
 
   // Validate API key if required (only for built-in providers with known config)
@@ -143,26 +147,26 @@ export async function generateTTS(
 
   switch (config.providerId) {
     case 'openai-tts':
-      return await generateOpenAITTS(config, text);
+      return await generateOpenAITTS(config, ttsText);
 
     case 'azure-tts':
-      return await generateAzureTTS(config, text);
+      return await generateAzureTTS(config, text, prepared.ssmlBody);
 
     case 'glm-tts':
-      return await generateGLMTTS(config, text);
+      return await generateGLMTTS(config, ttsText);
 
     case 'qwen-tts':
-      return await generateQwenTTS(config, text);
+      return await generateQwenTTS(config, ttsText);
 
     case 'voxcpm-tts':
-      return await generateVoxCPMTTS(config, text);
+      return await generateVoxCPMTTS(config, ttsText);
 
     case 'minimax-tts':
-      return await generateMiniMaxTTS(config, text);
+      return await generateMiniMaxTTS(config, ttsText);
     case 'doubao-tts':
-      return await generateDoubaoTTS(config, text);
+      return await generateDoubaoTTS(config, ttsText);
     case 'elevenlabs-tts':
-      return await generateElevenLabsTTS(config, text);
+      return await generateElevenLabsTTS(config, ttsText);
 
     case 'browser-native-tts':
       throw new Error(
@@ -171,7 +175,7 @@ export async function generateTTS(
 
     default:
       if (isCustomTTSProvider(config.providerId)) {
-        return await generateOpenAITTS(config, text);
+        return await generateOpenAITTS(config, ttsText);
       }
       throw new Error(`Unsupported TTS provider: ${config.providerId}`);
   }
@@ -491,15 +495,19 @@ async function readTTSApiError(response: Response): Promise<string> {
 async function generateAzureTTS(
   config: TTSModelConfig,
   text: string,
+  ssmlBody?: string,
 ): Promise<TTSGenerationResult> {
   const baseUrl = config.baseUrl || TTS_PROVIDERS['azure-tts'].defaultBaseUrl;
 
-  // Build SSML
+  // Build SSML (inline pause / homophone markup when present)
   const rate = config.speed ? `${((config.speed - 1) * 100).toFixed(0)}%` : '0%';
+  const inner = ssmlBody?.trim()
+    ? `<prosody rate='${rate}'>${ssmlBody}</prosody>`
+    : `<prosody rate='${rate}'>${escapeXml(text)}</prosody>`;
   const ssml = `
     <speak version='1.0' xml:lang='zh-CN'>
       <voice xml:lang='zh-CN' name='${config.voice}'>
-        <prosody rate='${rate}'>${escapeXml(text)}</prosody>
+        ${inner}
       </voice>
     </speak>
   `.trim();

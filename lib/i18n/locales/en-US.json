@@ -298,8 +298,8 @@
         },
         "testQuestions": {
           "name": "Tests",
-          "desc": "MCQ / true-false / short answer",
-          "unit": "questions"
+          "desc": "Quiz scene pages; questions per page configured separately",
+          "unit": "pages"
         },
         "simulation": {
           "name": "Lab simulation",
@@ -326,6 +326,12 @@
           "desc": "Structure and branch ideas",
           "unit": "items"
         }
+      },
+      "questionsPerPage": {
+        "name": "Questions per page",
+        "desc": "How many questions each quiz page contains",
+        "descDisabled": "Unavailable when quiz pages are set to 0",
+        "unit": "questions"
       }
     }
   },

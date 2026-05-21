@@ -239,8 +239,8 @@ export function Header({
     );
   }
 
-  // Publisher ToB: edit view = 字幕开关 + 预览 + 发布 + 下载；网页预览 = 设备 preview（无发布/导出）
-  const showSubtitlesToggle = !readOnly && (!showPublisherChrome || publisherEditView);
+  // Publisher ToB: edit view 字幕开关在讲稿工作台工具栏；网页预览 = 设备 preview（无发布/导出）
+  const showSubtitlesToggle = !readOnly && !showPublisherChrome;
   const showDevicePreviewTabs = !readOnly && (!showPublisherChrome || !publisherEditView);
   const showPublishExport = !readOnly && (!showPublisherChrome || publisherEditView);
 
@@ -351,12 +351,7 @@ export function Header({
               onClick={() => setTeacherSubtitlesVisible(!teacherSubtitlesVisible)}
               aria-pressed={teacherSubtitlesVisible}
               title={teacherSubtitlesVisible ? '关闭 AI 老师字幕' : '开启 AI 老师字幕'}
-              className={cn(
-                'shrink-0 p-2 rounded-full transition-all',
-                teacherSubtitlesVisible
-                  ? 'text-purple-600 bg-purple-50 ring-1 ring-purple-100 hover:bg-purple-100 dark:text-purple-300 dark:bg-purple-950/40 dark:ring-purple-800/60'
-                  : 'text-gray-400 hover:bg-white hover:text-gray-700 hover:shadow-sm dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-200',
-              )}
+              className="shrink-0 p-2 rounded-full text-gray-500 transition-all hover:bg-white hover:text-gray-700 hover:shadow-sm dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
             >
               {teacherSubtitlesVisible ? (
                 <Captions className="w-4 h-4" />
