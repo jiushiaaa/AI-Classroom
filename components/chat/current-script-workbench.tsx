@@ -384,6 +384,7 @@ export function CurrentScriptWorkbench({
                   <button
                     type="button"
                     disabled={!canEdit}
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => scriptEditorRef.current?.insertPause()}
                     aria-label="插入停顿"
                     className={toolBtnClass}

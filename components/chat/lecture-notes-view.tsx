@@ -39,6 +39,7 @@ import {
   getLectureNoteTeacherVoiceInfo,
   getLectureNoteVoiceStatus,
 } from '@/lib/utils/lecture-notes';
+import { speechScriptToDisplayPlain } from '@/lib/utils/speech-script-markup';
 
 const ACTION_ICON_ONLY: Record<string, { Icon: typeof Flashlight; style: string }> = {
   spotlight: {
@@ -573,6 +574,7 @@ function EditableSpeech({
   onEditSpeech,
   editHintLabel,
 }: EditableSpeechProps) {
+  const displayText = speechScriptToDisplayPlain(text);
   const [isEditing, setIsEditing] = useState(false);
   const [polishState, setPolishState] = useState<{
     rect: DOMRect;
@@ -588,20 +590,20 @@ function EditableSpeech({
         setPolishState(null);
       });
       if (spanRef.current) {
-        spanRef.current.textContent = text;
+        spanRef.current.textContent = displayText;
       }
     }
-  }, [editable, text]);
+  }, [displayText, editable]);
 
   // Reset DOM content when the source text changes (e.g. another component
   // updated the action). Skip while the user is actively editing to avoid
   // clobbering in-progress changes.
   useEffect(() => {
     if (isEditing) return;
-    if (spanRef.current && spanRef.current.textContent !== text) {
-      spanRef.current.textContent = text;
+    if (spanRef.current && spanRef.current.textContent !== displayText) {
+      spanRef.current.textContent = displayText;
     }
-  }, [text, isEditing]);
+  }, [displayText, isEditing]);
 
   // Track selection while editing — only show the polish menu when the user
   // has highlighted a meaningful (non-empty, not whole-text-or-just-whitespace)
@@ -648,10 +650,10 @@ function EditableSpeech({
 
   const commitEdit = (next: string) => {
     const trimmed = next.trim();
-    if (!trimmed || trimmed === text) {
+    if (!trimmed || trimmed === displayText.trim()) {
       // No change — restore original text in the DOM in case whitespace was
       // edited.
-      if (spanRef.current) spanRef.current.textContent = text;
+      if (spanRef.current) spanRef.current.textContent = displayText;
       return;
     }
     onEditSpeech?.(sceneId, actionId, trimmed);
@@ -681,7 +683,7 @@ function EditableSpeech({
         setPolishState(null);
         return;
       }
-      if (spanRef.current) spanRef.current.textContent = text;
+      if (spanRef.current) spanRef.current.textContent = displayText;
       e.currentTarget.blur();
     }
   };
@@ -754,10 +756,10 @@ function EditableSpeech({
               'border-violet-300/55 dark:border-violet-600/35 bg-white/95 dark:bg-zinc-900/45',
           )}
         >
-          {text}
+          {displayText}
         </span>
       ) : (
-        <span className="select-text">{text}</span>
+        <span className="select-text">{displayText}</span>
       )}
 
       <AnimatePresence>

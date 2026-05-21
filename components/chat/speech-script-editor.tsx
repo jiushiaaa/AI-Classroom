@@ -10,12 +10,6 @@ import {
   useState,
 } from 'react';
 import { Check, Clock, Loader2, Play } from 'lucide-react';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
-import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import { playBrowserTTSPreview } from '@/lib/audio/browser-tts-preview';
 import { getVoxCPMProviderOptions } from '@/lib/audio/voxcpm-voices';
@@ -23,6 +17,7 @@ import { useI18n } from '@/lib/hooks/use-i18n';
 import { useSettingsStore } from '@/lib/store/settings';
 import {
   mergeAdjacentTextSegments,
+  normalizeHomophoneSelection,
   parseSpeechScript,
   serializeSpeechScript,
   type SpeechScriptSegment,
@@ -47,11 +42,46 @@ interface HomophonePopoverState {
   end: number;
   word: string;
   speak: string;
+  /** Plain text snapshot from the contenteditable at selection time. */
+  sourceText: string;
   /** Existing homophone segment being edited (no text splice). */
   homophoneSegmentIndex?: number;
 }
 
 const DEFAULT_BREAK_SECONDS = 0.2;
+const MIN_BREAK_SECONDS = 0.1;
+const MAX_BREAK_SECONDS = 5;
+
+function clampBreakSeconds(seconds: number): number {
+  if (!Number.isFinite(seconds)) return DEFAULT_BREAK_SECONDS;
+  return Math.max(MIN_BREAK_SECONDS, Math.min(MAX_BREAK_SECONDS, seconds));
+}
+
+function formatBreakSecondsLabel(seconds: number): string {
+  const clamped = clampBreakSeconds(seconds);
+  const rounded = Math.round(clamped * 10) / 10;
+  if (Number.isInteger(rounded)) return String(rounded);
+  return rounded.toFixed(1).replace(/\.0$/, '');
+}
+
+function parseBreakSecondsInput(raw: string, fallback: number): number {
+  const cleaned = raw.replace(/s$/i, '').trim();
+  if (!cleaned) return fallback;
+  const parsed = Number.parseFloat(cleaned);
+  if (!Number.isFinite(parsed)) return fallback;
+  return clampBreakSeconds(parsed);
+}
+
+function getCaretOffsetInContentEditable(el: HTMLElement): number {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return 0;
+  const range = selection.getRangeAt(0);
+  if (!el.contains(range.commonAncestorContainer)) return 0;
+  const preRange = range.cloneRange();
+  preRange.selectNodeContents(el);
+  preRange.setEnd(range.startContainer, range.startOffset);
+  return preRange.toString().length;
+}
 
 function findLastTextSegmentIndex(segs: SpeechScriptSegment[]): number {
   for (let i = segs.length - 1; i >= 0; i -= 1) {
@@ -64,21 +94,30 @@ interface TextSelectionPayload {
   start: number;
   end: number;
   text: string;
+  sourceText: string;
   rect: DOMRect;
 }
 
 function EditableTextSpan({
+  segmentIndex,
   value,
   disabled,
   onChange,
   onTextSelect,
   onFocus,
+  onCaretChange,
+  onBackspaceAtStart,
+  onDeleteAtEnd,
 }: {
+  readonly segmentIndex: number;
   readonly value: string;
   readonly disabled: boolean;
   readonly onChange: (text: string) => void;
   readonly onTextSelect: (selection: TextSelectionPayload) => void;
   readonly onFocus?: () => void;
+  readonly onCaretChange?: (offset: number) => void;
+  readonly onBackspaceAtStart?: () => void;
+  readonly onDeleteAtEnd?: () => void;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
   const focusedRef = useRef(false);
@@ -91,21 +130,51 @@ function EditableTextSpan({
     }
   }, [value]);
 
+  const reportCaret = useCallback(
+    (el: HTMLElement) => {
+      onCaretChange?.(getCaretOffsetInContentEditable(el));
+    },
+    [onCaretChange],
+  );
+
   return (
     <span
       ref={ref}
+      data-text-segment-index={segmentIndex}
       contentEditable={!disabled}
       suppressContentEditableWarning
       className="whitespace-pre-wrap outline-none"
-      onFocus={() => {
+      onFocus={(event) => {
         focusedRef.current = true;
         onFocus?.();
+        reportCaret(event.currentTarget);
       }}
       onBlur={(event) => {
         focusedRef.current = false;
+        const related = event.relatedTarget as HTMLElement | null;
+        if (related?.closest?.('[data-homophone-bar]')) return;
         onChange(event.currentTarget.innerText.replace(/\u00a0/g, ' '));
       }}
+      onKeyUp={(event) => reportCaret(event.currentTarget)}
+      onKeyDown={(event) => {
+        if (disabled) return;
+        if (event.key !== 'Backspace' && event.key !== 'Delete') return;
+        const selection = window.getSelection();
+        if (!selection?.isCollapsed) return;
+        const el = event.currentTarget;
+        const text = el.innerText.replace(/\u00a0/g, ' ');
+        const offset = getCaretOffsetInContentEditable(el);
+        if (event.key === 'Backspace' && offset === 0 && onBackspaceAtStart) {
+          event.preventDefault();
+          onBackspaceAtStart();
+        }
+        if (event.key === 'Delete' && offset >= text.length && onDeleteAtEnd) {
+          event.preventDefault();
+          onDeleteAtEnd();
+        }
+      }}
       onMouseUp={(event) => {
+        reportCaret(event.currentTarget);
         if (disabled) return;
         const selection = window.getSelection();
         if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
@@ -113,18 +182,138 @@ function EditableTextSpan({
         if (!event.currentTarget.contains(range.commonAncestorContainer)) return;
         const selectedText = range.toString();
         if (!selectedText.trim()) return;
+        const sourceText = event.currentTarget.innerText.replace(/\u00a0/g, ' ');
         const preRange = range.cloneRange();
         preRange.selectNodeContents(event.currentTarget);
         preRange.setEnd(range.startContainer, range.startOffset);
         const start = preRange.toString().length;
+        const normalized = normalizeHomophoneSelection(sourceText, start, selectedText);
+        if (!normalized) return;
         onTextSelect({
-          start,
-          end: start + selectedText.length,
-          text: selectedText,
+          start: normalized.start,
+          end: normalized.end,
+          text: normalized.word,
+          sourceText,
           rect: range.getBoundingClientRect(),
         });
       }}
     />
+  );
+}
+
+function BreakPauseToken({
+  index,
+  seconds,
+  disabled,
+  isEditing,
+  onFocus,
+  onBlurFocus,
+  onCommit,
+  onRemove,
+}: {
+  readonly index: number;
+  readonly seconds: number;
+  readonly disabled: boolean;
+  readonly isEditing: boolean;
+  readonly onFocus: () => void;
+  readonly onBlurFocus: () => void;
+  readonly onCommit: (seconds: number) => void;
+  readonly onRemove: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [draft, setDraft] = useState(() => formatBreakSecondsLabel(seconds));
+
+  useEffect(() => {
+    if (!isEditing) {
+      setDraft(formatBreakSecondsLabel(seconds));
+    }
+  }, [isEditing, seconds]);
+
+  useEffect(() => {
+    if (!isEditing || disabled) return;
+    const input = inputRef.current;
+    input?.focus();
+    input?.select();
+  }, [disabled, isEditing]);
+
+  const commitDraft = useCallback(() => {
+    const next = parseBreakSecondsInput(draft, seconds);
+    onCommit(next);
+    setDraft(formatBreakSecondsLabel(next));
+  }, [draft, onCommit, seconds]);
+
+  return (
+    <span
+      data-break-index={index}
+      contentEditable={false}
+      tabIndex={disabled ? -1 : 0}
+      onFocus={onFocus}
+      onBlur={(event) => {
+        const next = event.relatedTarget as Node | null;
+        if (next && event.currentTarget.contains(next)) return;
+        if (isEditing) commitDraft();
+        onBlurFocus();
+      }}
+      onKeyDown={(e) => {
+        if (!isEditing && (e.key === 'Delete' || e.key === 'Backspace')) {
+          e.preventDefault();
+          onRemove();
+        }
+      }}
+      className={cn(
+        'mx-0.5 inline-flex h-[22px] translate-y-[1px] items-center gap-0.5 rounded-md border px-1 align-middle text-[11px] font-medium focus:outline-none',
+        isEditing
+          ? 'border-[#8B9DC3] bg-white shadow-[0_0_0_1px_rgba(139,157,195,0.28)] text-gray-700 dark:border-slate-500 dark:bg-gray-900 dark:text-gray-200'
+          : 'border-sky-200/90 bg-sky-50 text-sky-700 hover:bg-sky-100 dark:border-sky-800/60 dark:bg-sky-950/40 dark:text-sky-300 dark:hover:bg-sky-900/50',
+      )}
+      aria-label={`停顿 ${formatBreakSecondsLabel(seconds)} 秒，点击输入时长，Delete 键删除`}
+      title="点击输入停顿时长（最长 5 秒），Delete 键删除"
+    >
+      <Clock className="size-3 shrink-0 text-gray-500 opacity-90 dark:text-gray-400" />
+      {isEditing ? (
+        <>
+          <input
+            ref={inputRef}
+            type="text"
+            inputMode="decimal"
+            disabled={disabled}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onMouseDown={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitDraft();
+                inputRef.current?.blur();
+                return;
+              }
+              if (e.key !== 'Backspace' && e.key !== 'Delete') return;
+              const input = e.currentTarget;
+              const start = input.selectionStart ?? 0;
+              const end = input.selectionEnd ?? 0;
+              if (end > start) {
+                if (start === 0 && end === input.value.length) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onRemove();
+                }
+                return;
+              }
+              if (e.key === 'Backspace' && start > 0) return;
+              if (e.key === 'Delete' && start < input.value.length) return;
+              e.preventDefault();
+              e.stopPropagation();
+              onRemove();
+            }}
+            className="h-[16px] w-[28px] rounded-[3px] border-0 bg-[#E6EDFF] px-0.5 text-center text-[11px] font-medium text-gray-800 outline-none tabular-nums dark:bg-sky-950/60 dark:text-sky-100"
+            aria-label="停顿时长（秒）"
+          />
+          <span className="text-[11px] text-gray-500 dark:text-gray-400">s</span>
+        </>
+      ) : (
+        <span className="tabular-nums">{formatBreakSecondsLabel(seconds)}s</span>
+      )}
+    </span>
   );
 }
 
@@ -139,6 +328,7 @@ export const SpeechScriptEditor = forwardRef<
   const containerRef = useRef<HTMLDivElement>(null);
   const homophoneBarRef = useRef<HTMLDivElement>(null);
   const lastTextSegmentIndexRef = useRef(0);
+  const lastCaretOffsetRef = useRef(0);
   const [segments, setSegments] = useState(() => parseSpeechScript(value));
   const [homophonePopover, setHomophonePopover] = useState<HomophonePopoverState | null>(
     null,
@@ -147,9 +337,7 @@ export const SpeechScriptEditor = forwardRef<
     top: number;
     left: number;
   } | null>(null);
-  const [breakEditIndex, setBreakEditIndex] = useState<number | null>(null);
   const [focusedBreakIndex, setFocusedBreakIndex] = useState<number | null>(null);
-  const [breakDraftSeconds, setBreakDraftSeconds] = useState(DEFAULT_BREAK_SECONDS);
   const [previewingHomophone, setPreviewingHomophone] = useState(false);
 
   const ttsProviderId = useSettingsStore((s) => s.ttsProviderId);
@@ -204,13 +392,14 @@ export const SpeechScriptEditor = forwardRef<
     (segmentIndex: number, selection: TextSelectionPayload) => {
       const word = selection.text.trim();
       if (!word) return;
-      setBreakEditIndex(null);
+      setFocusedBreakIndex(null);
       setHomophonePopover({
         segmentIndex,
         start: selection.start,
         end: selection.end,
         word: selection.text,
         speak: word,
+        sourceText: selection.sourceText,
       });
       const container = containerRef.current;
       if (container) {
@@ -266,17 +455,28 @@ export const SpeechScriptEditor = forwardRef<
       return;
     }
 
-    const display = homophonePopover.word;
+    const segment = segments[homophonePopover.segmentIndex];
+    if (!segment || segment.type !== 'text') return;
+
+    const sourceText = homophonePopover.sourceText || segment.value;
+    const range = normalizeHomophoneSelection(
+      sourceText,
+      homophonePopover.start,
+      homophonePopover.word,
+    );
+    if (!range) {
+      closeHomophonePopover();
+      return;
+    }
+
+    const display = range.word;
     if (speak === display.trim()) {
       closeHomophonePopover();
       return;
     }
 
-    const segment = segments[homophonePopover.segmentIndex];
-    if (!segment || segment.type !== 'text') return;
-
-    const before = segment.value.slice(0, homophonePopover.start);
-    const after = segment.value.slice(homophonePopover.end);
+    const before = sourceText.slice(0, range.start);
+    const after = sourceText.slice(range.end);
     const rebuilt: SpeechScriptSegment[] = [];
 
     for (let i = 0; i < segments.length; i += 1) {
@@ -362,53 +562,115 @@ export const SpeechScriptEditor = forwardRef<
     ttsVoice,
   ]);
 
-  const applyBreakSeconds = useCallback(() => {
-    if (breakEditIndex === null) return;
-    const next = segments.map((segment, i) =>
-      i === breakEditIndex && segment.type === 'break'
-        ? {
-            ...segment,
-            seconds: Math.max(0.1, Math.min(3, breakDraftSeconds)),
-          }
-        : segment,
-    );
-    emitChange(next);
-    setBreakEditIndex(null);
-  }, [breakDraftSeconds, breakEditIndex, emitChange, segments]);
+  const updateBreakSegment = useCallback(
+    (index: number, seconds: number) => {
+      const next = segments.map((segment, i) =>
+        i === index && segment.type === 'break'
+          ? { ...segment, seconds: clampBreakSeconds(seconds) }
+          : segment,
+      );
+      emitChange(next);
+    },
+    [emitChange, segments],
+  );
 
   const removeBreakSegment = useCallback(
     (index: number) => {
-      const next = segments.filter((_, i) => i !== index);
-      emitChange(next.length > 0 ? next : [{ type: 'text', value: '' }]);
-      setBreakEditIndex(null);
+      const next = mergeAdjacentTextSegments(segments.filter((_, i) => i !== index));
+      emitChange(next);
       setFocusedBreakIndex(null);
     },
     [emitChange, segments],
   );
 
+  const removeAdjacentBreak = useCallback(
+    (textIndex: number, side: 'before' | 'after') => {
+      const breakIndex = side === 'before' ? textIndex - 1 : textIndex + 1;
+      if (breakIndex < 0 || breakIndex >= segments.length) return;
+      if (segments[breakIndex]?.type !== 'break') return;
+      removeBreakSegment(breakIndex);
+    },
+    [removeBreakSegment, segments],
+  );
+
   const insertPause = useCallback(() => {
-    const anchor = Math.min(
-      Math.max(0, lastTextSegmentIndexRef.current),
-      Math.max(0, segments.length - 1),
-    );
-    let insertAt = segments.length;
-    if (segments[anchor]?.type === 'text') {
-      insertAt = anchor + 1;
-    } else {
-      const lastText = findLastTextSegmentIndex(segments);
-      insertAt = lastText >= 0 ? lastText + 1 : 0;
+    let textIndex = lastTextSegmentIndexRef.current;
+    let caretOffset = lastCaretOffsetRef.current;
+
+    const container = containerRef.current;
+    const active = document.activeElement;
+    if (
+      container &&
+      active instanceof HTMLElement &&
+      active.dataset.textSegmentIndex !== undefined
+    ) {
+      const parsedIndex = Number.parseInt(active.dataset.textSegmentIndex, 10);
+      if (!Number.isNaN(parsedIndex)) {
+        textIndex = parsedIndex;
+        caretOffset = getCaretOffsetInContentEditable(active);
+        lastTextSegmentIndexRef.current = textIndex;
+        lastCaretOffsetRef.current = caretOffset;
+      }
     }
-    const next = [...segments];
-    next.splice(insertAt, 0, { type: 'break', seconds: DEFAULT_BREAK_SECONDS });
+
+    const insertBreakIntoText = (
+      sourceSegments: SpeechScriptSegment[],
+      atTextIndex: number,
+      offset: number,
+    ): { segments: SpeechScriptSegment[]; breakIndex: number } => {
+      const segment = sourceSegments[atTextIndex];
+      if (!segment || segment.type !== 'text') {
+        const lastText = findLastTextSegmentIndex(sourceSegments);
+        if (lastText < 0) {
+          return {
+            segments: [{ type: 'break', seconds: DEFAULT_BREAK_SECONDS }],
+            breakIndex: 0,
+          };
+        }
+        const lastSegment = sourceSegments[lastText];
+        if (lastSegment.type !== 'text') {
+          return {
+            segments: [{ type: 'break', seconds: DEFAULT_BREAK_SECONDS }],
+            breakIndex: 0,
+          };
+        }
+        return insertBreakIntoText(sourceSegments, lastText, lastSegment.value.length);
+      }
+
+      const clampedOffset = Math.max(0, Math.min(offset, segment.value.length));
+      const before = segment.value.slice(0, clampedOffset);
+      const after = segment.value.slice(clampedOffset);
+      const rebuilt: SpeechScriptSegment[] = [];
+      let breakIndex = -1;
+
+      for (let i = 0; i < sourceSegments.length; i += 1) {
+        if (i !== atTextIndex) {
+          rebuilt.push(sourceSegments[i]);
+          continue;
+        }
+        if (before) rebuilt.push({ type: 'text', value: before });
+        breakIndex = rebuilt.length;
+        rebuilt.push({ type: 'break', seconds: DEFAULT_BREAK_SECONDS });
+        if (after) rebuilt.push({ type: 'text', value: after });
+      }
+
+      return { segments: rebuilt, breakIndex };
+    };
+
+    const { segments: next, breakIndex } = insertBreakIntoText(
+      segments,
+      textIndex,
+      caretOffset,
+    );
     emitChange(next);
-    setBreakEditIndex(insertAt);
-    setBreakDraftSeconds(DEFAULT_BREAK_SECONDS);
+    setFocusedBreakIndex(breakIndex);
     closeHomophonePopover();
     queueMicrotask(() => {
-      const el = containerRef.current?.querySelector<HTMLButtonElement>(
-        `[data-break-index="${insertAt}"]`,
+      const input = containerRef.current?.querySelector<HTMLInputElement>(
+        `[data-break-index="${breakIndex}"] input`,
       );
-      el?.focus();
+      input?.focus();
+      input?.select();
     });
   }, [closeHomophonePopover, emitChange, segments]);
 
@@ -439,6 +701,7 @@ export const SpeechScriptEditor = forwardRef<
       {homophonePopover && (
         <div
           ref={homophoneBarRef}
+          data-homophone-bar
           className="absolute z-30 flex -translate-y-full items-center gap-2 rounded-lg border border-gray-200/90 bg-white px-2 py-1.5 shadow-[0_2px_8px_rgba(0,0,0,0.08)] dark:border-gray-600 dark:bg-gray-900"
           style={
             homophonePopoverPos
@@ -517,6 +780,7 @@ export const SpeechScriptEditor = forwardRef<
             return (
               <EditableTextSpan
                 key={`text-${index}-${segment.value.length}`}
+                segmentIndex={index}
                 value={segment.value}
                 disabled={disabled}
                 onChange={(text) => updateTextSegment(index, text)}
@@ -524,6 +788,12 @@ export const SpeechScriptEditor = forwardRef<
                   lastTextSegmentIndexRef.current = index;
                   setFocusedBreakIndex(null);
                 }}
+                onCaretChange={(offset) => {
+                  lastTextSegmentIndexRef.current = index;
+                  lastCaretOffsetRef.current = offset;
+                }}
+                onBackspaceAtStart={() => removeAdjacentBreak(index, 'before')}
+                onDeleteAtEnd={() => removeAdjacentBreak(index, 'after')}
                 onTextSelect={(selection) =>
                   openHomophoneForSelection(index, selection)
                 }
@@ -533,86 +803,22 @@ export const SpeechScriptEditor = forwardRef<
 
           if (segment.type === 'break') {
             return (
-              <Popover
-                key={`break-${index}`}
-                open={breakEditIndex === index}
-                onOpenChange={(open) => {
-                  if (!open) setBreakEditIndex(null);
-                  else {
-                    setBreakEditIndex(index);
-                    setBreakDraftSeconds(segment.seconds);
-                    closeHomophonePopover();
-                  }
+              <BreakPauseToken
+                key={`break-${index}-${segment.seconds}`}
+                index={index}
+                seconds={segment.seconds}
+                disabled={disabled}
+                isEditing={focusedBreakIndex === index}
+                onFocus={() => {
+                  setFocusedBreakIndex(index);
+                  closeHomophonePopover();
                 }}
-              >
-                <PopoverTrigger asChild>
-                  <button
-                    type="button"
-                    data-break-index={index}
-                    contentEditable={false}
-                    tabIndex={0}
-                    onClick={(e) => e.preventDefault()}
-                    onFocus={() => {
-                      setFocusedBreakIndex(index);
-                      closeHomophonePopover();
-                    }}
-                    onBlur={() => {
-                      setFocusedBreakIndex((current) =>
-                        current === index ? null : current,
-                      );
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Delete' || e.key === 'Backspace') {
-                        e.preventDefault();
-                        removeBreakSegment(index);
-                      }
-                    }}
-                    className={cn(
-                      'mx-0.5 inline-flex h-[22px] translate-y-[1px] items-center gap-0.5 rounded-md border border-sky-200/90 bg-sky-50 px-1.5 text-[11px] font-medium text-sky-700 align-middle hover:bg-sky-100 focus:outline-none dark:border-sky-800/60 dark:bg-sky-950/40 dark:text-sky-300 dark:hover:bg-sky-900/50',
-                      focusedBreakIndex === index &&
-                        'ring-2 ring-sky-400/80 ring-offset-1 dark:ring-sky-500/70',
-                    )}
-                    aria-label={`停顿 ${segment.seconds} 秒，按 Delete 键删除`}
-                    title="点击调整时长，Delete 键删除"
-                  >
-                    <Clock className="size-3 shrink-0 opacity-80" />
-                    {segment.seconds}s
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent
-                  side="top"
-                  align="center"
-                  className="w-56 rounded-xl p-3"
-                  onOpenAutoFocus={(e) => e.preventDefault()}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Delete' || e.key === 'Backspace') {
-                      e.preventDefault();
-                      removeBreakSegment(index);
-                    }
-                  }}
-                >
-                  <p className="mb-2 text-xs text-muted-foreground">停顿时长</p>
-                  <div className="flex items-center gap-2">
-                    <Slider
-                      value={[breakDraftSeconds]}
-                      min={0.1}
-                      max={3}
-                      step={0.1}
-                      onValueChange={(v) => setBreakDraftSeconds(v[0] ?? DEFAULT_BREAK_SECONDS)}
-                    />
-                    <span className="w-10 text-right text-sm tabular-nums">
-                      {breakDraftSeconds.toFixed(1)}s
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    className="mt-2 w-full rounded-md bg-violet-600 px-2 py-1 text-xs text-white"
-                    onClick={applyBreakSeconds}
-                  >
-                    确定
-                  </button>
-                </PopoverContent>
-              </Popover>
+                onBlurFocus={() => {
+                  setFocusedBreakIndex((current) => (current === index ? null : current));
+                }}
+                onCommit={(nextSeconds) => updateBreakSegment(index, nextSeconds)}
+                onRemove={() => removeBreakSegment(index)}
+              />
             );
           }
 
@@ -626,7 +832,7 @@ export const SpeechScriptEditor = forwardRef<
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                setBreakEditIndex(null);
+                setFocusedBreakIndex(null);
                 window.getSelection()?.removeAllRanges();
                 const el = e.currentTarget as HTMLElement;
                 const container = containerRef.current;
@@ -647,6 +853,7 @@ export const SpeechScriptEditor = forwardRef<
                   end: segment.display.length,
                   word: segment.display,
                   speak: segment.speak,
+                  sourceText: segment.display,
                 });
               }}
               onKeyDown={(e) => {

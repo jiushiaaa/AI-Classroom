@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   getWordRangeAt,
   mergeAdjacentTextSegments,
+  normalizeHomophoneSelection,
   parseSpeechScript,
   prepareSpeechTextForTts,
   serializeSpeechScript,
@@ -27,6 +28,10 @@ describe('speech-script-markup', () => {
     expect(serializeSpeechScript(parseSpeechScript(raw))).toBe(
       'A[[break:0.5]][[词|读音]]B',
     );
+  });
+
+  it('strips homophone markup for display-only surfaces', () => {
+    expect(speechScriptToDisplayPlain('形状[[测验|111]]、互动')).toBe('形状测验、互动');
   });
 
   it('converts for display and TTS plain text', () => {
@@ -56,6 +61,18 @@ describe('speech-script-markup', () => {
         { type: 'text', value: '后' },
       ]),
     ).toEqual([{ type: 'text', value: '前动模后' }]);
+  });
+
+  it('normalizes homophone selection when DOM end offset is short by one', () => {
+    const sourceText = '形状公式、';
+    expect(normalizeHomophoneSelection(sourceText, 2, '公式')).toEqual({
+      start: 2,
+      end: 4,
+      word: '公式',
+    });
+    // Simulates slice(3) leaving a trailing char — normalization fixes end.
+    expect(sourceText.slice(2, 4)).toBe('公式');
+    expect(sourceText.slice(4)).toBe('、');
   });
 
   it('finds word at caret offset', () => {

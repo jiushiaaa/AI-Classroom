@@ -195,6 +195,31 @@ export function replaceTextSegment(
   return text.slice(0, start) + replacement + text.slice(end);
 }
 
+/** Align DOM selection offsets with the plain-text source before homophone splice. */
+export function normalizeHomophoneSelection(
+  sourceText: string,
+  start: number,
+  selectedText: string,
+): { start: number; end: number; word: string } | null {
+  if (!selectedText) return null;
+
+  const word = selectedText;
+  let normalizedStart = Math.max(0, Math.min(start, sourceText.length));
+  let normalizedEnd = normalizedStart + word.length;
+
+  if (sourceText.slice(normalizedStart, normalizedEnd) === word) {
+    return { start: normalizedStart, end: normalizedEnd, word };
+  }
+
+  const searchFrom = Math.max(0, normalizedStart - word.length);
+  const idx = sourceText.indexOf(word, searchFrom);
+  if (idx >= 0) {
+    return { start: idx, end: idx + word.length, word };
+  }
+
+  return null;
+}
+
 export function prepareSpeechTextForTts(
   raw: string,
   providerId: string,
