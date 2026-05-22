@@ -32,3 +32,11 @@ export function getCurrentModelConfig() {
     thinkingConfig,
   };
 }
+
+/** Whether the app can call /api/chat with the current settings. */
+export function isChatModelReady(): boolean {
+  const mc = getCurrentModelConfig();
+  if (!mc.modelId) return false;
+  if (mc.requiresApiKey && !mc.apiKey && !mc.isServerConfigured) return false;
+  return true;
+}

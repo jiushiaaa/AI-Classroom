@@ -71,6 +71,8 @@ interface ChatAreaProps {
    */
   hideTabBar?: boolean;
   lectureTabLabel?: string;
+  /** Publisher student preview — simulate Q&A without a configured model. */
+  usePreviewMockChat?: boolean;
 }
 
 export interface ChatAreaRef {
@@ -124,6 +126,7 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
       hideLectureNotes = false,
       hideTabBar = false,
       lectureTabLabel,
+      usePreviewMockChat = false,
     },
     ref,
   ) => {
@@ -152,6 +155,7 @@ export const ChatArea = forwardRef<ChatAreaRef, ChatAreaProps>(
       pauseActiveLiveBuffer,
       resumeActiveLiveBuffer,
     } = useChatSessions({
+      usePreviewMockChat,
       onLiveSpeech,
       onSpeechProgress,
       onThinking,

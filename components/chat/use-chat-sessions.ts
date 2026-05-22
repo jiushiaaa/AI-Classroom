@@ -22,11 +22,12 @@ import {
   mergeTeacherAgentConfigForChatRequest,
 } from '@/lib/orchestration/teacher-request-override';
 import { useI18n } from '@/lib/hooks/use-i18n';
-import { getCurrentModelConfig } from '@/lib/utils/model-config';
+import { getCurrentModelConfig, isChatModelReady } from '@/lib/utils/model-config';
 import { USER_AVATAR } from '@/lib/types/roundtable';
 import { StreamBuffer } from '@/lib/buffer/stream-buffer';
 import type { AgentStartItem, ActionItem } from '@/lib/buffer/stream-buffer';
 import { runAgentLoop, type AgentLoopStoreState } from '@/lib/chat/agent-loop';
+import { createPreviewMockChatFetch } from '@/lib/chat/mock-preview-chat';
 import { ActionEngine } from '@/lib/action/engine';
 import { toast } from 'sonner';
 import { createLogger } from '@/lib/logger';
@@ -34,6 +35,8 @@ import { createLogger } from '@/lib/logger';
 const log = createLogger('ChatSessions');
 
 interface UseChatSessionsOptions {
+  /** Publisher student preview — use simulated /api/chat SSE (no model required). */
+  usePreviewMockChat?: boolean;
   onLiveSpeech?: (text: string | null, agentId?: string | null) => void;
   onSpeechProgress?: (ratio: number | null) => void;
   onThinking?: (state: { stage: string; agentId?: string } | null) => void;
@@ -53,6 +56,11 @@ interface UseChatSessionsOptions {
 }
 
 export function useChatSessions(options: UseChatSessionsOptions = {}) {
+  const usePreviewMockChatRef = useRef(options.usePreviewMockChat ?? false);
+  const shouldUsePreviewMockChat = useCallback(
+    () => usePreviewMockChatRef.current && !isChatModelReady(),
+    [],
+  );
   const onLiveSpeechRef = useRef(options.onLiveSpeech);
   const onSpeechProgressRef = useRef(options.onSpeechProgress);
   const onThinkingRef = useRef(options.onThinking);
@@ -63,6 +71,7 @@ export function useChatSessions(options: UseChatSessionsOptions = {}) {
   const onSegmentSealedRef = useRef(options.onSegmentSealed);
   const shouldHoldAfterRevealRef = useRef(options.shouldHoldAfterReveal);
   useEffect(() => {
+    usePreviewMockChatRef.current = options.usePreviewMockChat ?? false;
     onLiveSpeechRef.current = options.onLiveSpeech;
     onSpeechProgressRef.current = options.onSpeechProgress;
     onThinkingRef.current = options.onThinking;
@@ -73,6 +82,7 @@ export function useChatSessions(options: UseChatSessionsOptions = {}) {
     onSegmentSealedRef.current = options.onSegmentSealed;
     shouldHoldAfterRevealRef.current = options.shouldHoldAfterReveal;
   }, [
+    options.usePreviewMockChat,
     options.onLiveSpeech,
     options.onSpeechProgress,
     options.onThinking,
@@ -552,12 +562,14 @@ export function useChatSessions(options: UseChatSessionsOptions = {}) {
           },
 
           fetchChat: (body, signal) =>
-            fetch('/api/chat', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(body),
-              signal,
-            }),
+            shouldUsePreviewMockChat()
+              ? createPreviewMockChatFetch()(body, signal)
+              : fetch('/api/chat', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(body),
+                  signal,
+                }),
 
           onEvent: (event) => {
             // Create buffer on first event of each iteration
@@ -672,7 +684,7 @@ export function useChatSessions(options: UseChatSessionsOptions = {}) {
         }
       }
     },
-    [createBufferForSession],
+    [createBufferForSession, shouldUsePreviewMockChat],
   );
 
   /**
@@ -1029,17 +1041,19 @@ export function useChatSessions(options: UseChatSessionsOptions = {}) {
         }
       }
 
-      // Validate model configuration before sending
-      const modelConfig = getCurrentModelConfig();
-      if (!modelConfig.modelId) {
-        toast.error(t('settings.modelNotConfigured'));
-        return;
-      }
-      if (modelConfig.requiresApiKey && !modelConfig.apiKey && !modelConfig.isServerConfigured) {
-        toast.error(t('settings.setupNeeded'), {
-          description: t('settings.apiKeyDesc'),
-        });
-        return;
+      // Validate model configuration before sending (skipped in preview mock mode)
+      if (!shouldUsePreviewMockChat()) {
+        const modelConfig = getCurrentModelConfig();
+        if (!modelConfig.modelId) {
+          toast.error(t('settings.modelNotConfigured'));
+          return;
+        }
+        if (modelConfig.requiresApiKey && !modelConfig.apiKey && !modelConfig.isServerConfigured) {
+          toast.error(t('settings.setupNeeded'), {
+            description: t('settings.apiKeyDesc'),
+          });
+          return;
+        }
       }
 
       // Create a new session when there's no active QA session to append to.
@@ -1207,17 +1221,19 @@ export function useChatSessions(options: UseChatSessionsOptions = {}) {
       // but being explicit guards against future refactors)
       livePausedRef.current = false;
 
-      // Validate model configuration before starting discussion
-      const modelConfig = getCurrentModelConfig();
-      if (!modelConfig.modelId) {
-        toast.error(t('settings.modelNotConfigured'));
-        return;
-      }
-      if (modelConfig.requiresApiKey && !modelConfig.apiKey && !modelConfig.isServerConfigured) {
-        toast.error(t('settings.setupNeeded'), {
-          description: t('settings.apiKeyDesc'),
-        });
-        return;
+      // Validate model configuration before starting discussion (skipped in preview mock)
+      if (!shouldUsePreviewMockChat()) {
+        const modelConfig = getCurrentModelConfig();
+        if (!modelConfig.modelId) {
+          toast.error(t('settings.modelNotConfigured'));
+          return;
+        }
+        if (modelConfig.requiresApiKey && !modelConfig.apiKey && !modelConfig.isServerConfigured) {
+          toast.error(t('settings.setupNeeded'), {
+            description: t('settings.apiKeyDesc'),
+          });
+          return;
+        }
       }
 
       // Auto-end previous active QA/Discussion sessions to ensure only one is active

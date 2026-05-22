@@ -927,6 +927,10 @@
     "orientation": {
       "toggleToPortrait": "Switch to portrait",
       "toggleToLandscape": "Switch to landscape"
+    },
+    "mockChat": {
+      "replyWithQuestion": "Thanks for your question! About \"{{question}}\" — here's a brief preview-mode reply to demonstrate the full Q&A flow (thinking → streamed answer → sidebar and roundtable in sync). After publish and model setup, the AI teacher will answer from your lecture script and context.",
+      "replyGeneric": "Hello! This is a preview-mode simulated reply showing how AI teacher Q&A works. Keep typing to try send, streaming, and stop — configure a model for real answers."
     }
   },
   "mobile": {

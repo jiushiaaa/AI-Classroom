@@ -230,6 +230,8 @@ export function Stage({
   const lectureNotesReadOnly = isDeviceFramePreview || !publisherEditView;
   /** Sidebar / canvas: read-only in device preview or student-facing preview. */
   const workspaceReadOnly = isDeviceFramePreview || !publisherEditView;
+  /** Publisher student preview (web / phone / iPad) — enables mock Q&A when no model. */
+  const usePreviewMockChat = !publisherEditView;
 
   // Selected agents from settings store (Zustand)
   const selectedAgentIds = useSettingsStore((s) => s.selectedAgentIds);
@@ -1547,6 +1549,7 @@ export function Stage({
           (hover pencil / AI / voice upload) are gated by lectureNotesReadOnly. */}
       <ChatArea
         ref={chatAreaRef}
+        usePreviewMockChat={usePreviewMockChat}
         width={chatAreaWidth}
         onWidthChange={setChatAreaWidth}
         onCollapseChange={setChatAreaCollapsed}
@@ -1782,6 +1785,7 @@ export function Stage({
         >
           <ChatArea
             ref={chatAreaRef}
+            usePreviewMockChat={usePreviewMockChat}
             width={0}
             collapsed
             currentSceneId={currentSceneId}
