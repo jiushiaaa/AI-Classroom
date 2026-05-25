@@ -69,6 +69,7 @@ interface HeaderProps {
    */
   readonly publisherEditView?: boolean;
   readonly onTogglePublisherEditView?: () => void;
+  readonly onOpenPublisherPreview?: () => void;
   /** Slide insert tools (text / image / video / …) in the top bar centre. */
   readonly showSlideInsertTools?: boolean;
 }
@@ -78,6 +79,7 @@ export function Header({
   readOnly = false,
   publisherEditView = false,
   onTogglePublisherEditView,
+  onOpenPublisherPreview,
   hideEditToggle = false,
   deviceTabsVariant = 'iconRail',
   showSlideInsertTools = false,
@@ -209,14 +211,14 @@ export function Header({
     editViewToggle = (
       <button
         type="button"
-        onClick={onTogglePublisherEditView}
+        onClick={onOpenPublisherPreview ?? onTogglePublisherEditView}
         className={cn(
           'shrink-0 p-2 rounded-full transition-all cursor-pointer',
           'text-violet-600 bg-violet-50 ring-1 ring-violet-100 hover:bg-violet-100',
           'dark:text-violet-300 dark:bg-violet-950/40 dark:ring-violet-800/60 dark:hover:bg-violet-900/50',
         )}
-        title="预览完整网页版（含 AI 老师对话）"
-        aria-label="预览"
+        title="刷新预览：在新标签页打开完整网页版"
+        aria-label="刷新预览"
       >
         <Play className="w-4 h-4 fill-current" strokeWidth={0} />
       </button>

@@ -26,7 +26,6 @@ import {
   loadPublisherFontTemplates,
   type PublisherFontTemplate,
 } from '@/lib/utils/publisher-font-library-storage';
-import { MAX_PUBLISHER_FONT_TEMPLATES } from '@/lib/constants/publisher-font';
 import {
   applyPublisherFontFacesStyle,
   dispatchPublisherFontsChanged,
@@ -39,9 +38,9 @@ export interface PublisherResourceLibraryDialogProps {
   /** Background template id selected for this generation run (at most one). */
   sessionTemplateId: string | null;
   onSessionTemplateChange: (id: string | null, dataUrl: string | null) => void;
-  /** Font template ids selected for this generation run (multi). */
-  fontSessionIds: string[];
-  onFontSessionChange: (ids: string[]) => void;
+  /** Font template id selected for this generation run (at most one). */
+  fontSessionId: string | null;
+  onFontSessionChange: (id: string | null) => void;
   /** Called after templates are added or removed (refresh toolbar badge). */
   onLibraryMutation?: () => void;
   children: React.ReactNode;
@@ -54,7 +53,7 @@ export function PublisherResourceLibraryDialog({
   onOpenChange,
   sessionTemplateId,
   onSessionTemplateChange,
-  fontSessionIds,
+  fontSessionId,
   onFontSessionChange,
   onLibraryMutation,
   children,
@@ -115,30 +114,34 @@ export function PublisherResourceLibraryDialog({
   };
 
   const handleFontUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const files = e.target.files;
     e.target.value = '';
-    if (!file) return;
+    if (!files?.length) return;
     setFontUploadBusy(true);
+    let addedCount = 0;
     try {
-      const res = await readFileAsPublisherFontDataUrl(file);
-      if (!res.ok) {
-        toast.error(
-          res.error === 'size' ? t('home.publisherFont.tooLarge') : t('home.publisherFont.badType'),
+      for (const file of Array.from(files)) {
+        const res = await readFileAsPublisherFontDataUrl(file);
+        if (!res.ok) {
+          toast.error(
+            res.error === 'size' ? t('home.publisherFont.tooLarge') : t('home.publisherFont.badType'),
+          );
+          continue;
+        }
+        const added = addPublisherFontTemplate(res.dataUrl, res.fileName);
+        if (!added) continue;
+        addedCount += 1;
+      }
+      if (addedCount > 0) {
+        reloadFonts();
+        onLibraryMutation?.();
+        dispatchPublisherFontsChanged();
+        toast.success(
+          addedCount > 1
+            ? t('home.publisherFont.savedManyToLibrary', { count: addedCount })
+            : t('home.publisherFont.savedToLibrary'),
         );
-        return;
       }
-      const added = addPublisherFontTemplate(res.dataUrl, res.fileName);
-      if (!added) {
-        toast.error(t('home.publisherFont.libraryFull', { max: MAX_PUBLISHER_FONT_TEMPLATES }));
-        return;
-      }
-      reloadFonts();
-      onLibraryMutation?.();
-      dispatchPublisherFontsChanged();
-      if (!fontSessionIds.includes(added.id)) {
-        onFontSessionChange([...fontSessionIds, added.id]);
-      }
-      toast.success(t('home.publisherFont.savedToLibrary'));
     } finally {
       setFontUploadBusy(false);
     }
@@ -154,9 +157,9 @@ export function PublisherResourceLibraryDialog({
 
   const handleToggleFontSession = (id: string, checked: boolean) => {
     if (checked) {
-      if (!fontSessionIds.includes(id)) onFontSessionChange([...fontSessionIds, id]);
-    } else {
-      onFontSessionChange(fontSessionIds.filter((x) => x !== id));
+      onFontSessionChange(id);
+    } else if (fontSessionId === id) {
+      onFontSessionChange(null);
     }
   };
 
@@ -175,7 +178,7 @@ export function PublisherResourceLibraryDialog({
     ev.preventDefault();
     ev.stopPropagation();
     deletePublisherFontTemplate(id);
-    onFontSessionChange(fontSessionIds.filter((x) => x !== id));
+    if (fontSessionId === id) onFontSessionChange(null);
     reloadFonts();
     onLibraryMutation?.();
     dispatchPublisherFontsChanged();
@@ -186,7 +189,7 @@ export function PublisherResourceLibraryDialog({
   };
 
   const clearFontSession = () => {
-    onFontSessionChange([]);
+    onFontSessionChange(null);
   };
 
   return (
@@ -342,6 +345,7 @@ export function PublisherResourceLibraryDialog({
                 <input
                   ref={fontFileRef}
                   type="file"
+                  multiple
                   accept=".woff2,.woff,.ttf,.otf,font/woff2,font/woff,font/ttf,font/otf"
                   className="hidden"
                   onChange={(ev) => void handleFontUpload(ev)}
@@ -378,7 +382,7 @@ export function PublisherResourceLibraryDialog({
                       key={f.id}
                       className={cn(
                         'flex items-stretch gap-3 rounded-xl border p-3',
-                        fontSessionIds.includes(f.id)
+                        fontSessionId === f.id
                           ? 'border-violet-500 ring-2 ring-violet-400/40 bg-violet-50/40 dark:bg-violet-950/20'
                           : 'border-border/60 bg-muted/15',
                       )}
@@ -398,7 +402,7 @@ export function PublisherResourceLibraryDialog({
                       <div className="flex flex-col items-end justify-between shrink-0 gap-2">
                         <label className="inline-flex items-center gap-1.5 cursor-pointer text-[11px] text-muted-foreground">
                           <Checkbox
-                            checked={fontSessionIds.includes(f.id)}
+                            checked={fontSessionId === f.id}
                             onCheckedChange={(v) => handleToggleFontSession(f.id, v === true)}
                             aria-label={t('home.publisherFont.useThisRun')}
                             className="border-violet-400 data-[state=checked]:bg-violet-600"
@@ -419,7 +423,7 @@ export function PublisherResourceLibraryDialog({
                 )}
               </div>
 
-              {fontSessionIds.length > 0 ? (
+              {fontSessionId ? (
                 <div className="px-0 py-2.5 border-t border-border/50 bg-muted/20 -mx-4 px-4">
                   <button
                     type="button"

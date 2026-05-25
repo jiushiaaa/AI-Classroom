@@ -10,4 +10,5 @@ export const PUBLISHER_FONT_TEMPLATES_STORAGE_KEY = 'openmaic_publisher_font_tem
 /** Session: font template ids selected for the next generation run (sessionStorage). */
 export const PUBLISHER_FONTS_SESSION_KEY = 'openmaic_publisher_fonts_session_v1';
 
-export const MAX_PUBLISHER_FONT_TEMPLATES = 8;
+/** @deprecated No template count cap; kept for backward-compatible imports only. */
+export const MAX_PUBLISHER_FONT_TEMPLATES = Number.POSITIVE_INFINITY;

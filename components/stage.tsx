@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { useStageStore } from '@/lib/store';
-import { PENDING_SCENE_ID } from '@/lib/store/stage';
+import { flushStageSave, PENDING_SCENE_ID } from '@/lib/store/stage';
 import { isOpenmaicDemoClassroomId } from '@/lib/mock/openmaic-demo-classroom';
 import { ensureStudySessionStarted } from '@/lib/utils/study-session';
 import { useCanvasStore } from '@/lib/store/canvas';
@@ -46,6 +46,10 @@ import { toast } from 'sonner';
 import { generateTTSForScene } from '@/lib/hooks/use-scene-generator';
 import { useLectureNotesEditor } from '@/lib/hooks/use-lecture-notes-editor';
 import { getCurrentLectureNote } from '@/lib/utils/lecture-notes';
+import {
+  buildClassroomPreviewPath,
+  buildClassroomPreviewWindowName,
+} from '@/lib/utils/classroom-preview-url';
 
 /**
  * Stage Component
@@ -56,8 +60,10 @@ import { getCurrentLectureNote } from '@/lib/utils/lecture-notes';
  */
 export function Stage({
   onRetryOutline,
+  initialPublisherEditView = true,
 }: {
   onRetryOutline?: (outlineId: string) => Promise<void>;
+  initialPublisherEditView?: boolean;
 }) {
   const { t } = useI18n();
   const {
@@ -114,7 +120,7 @@ export function Stage({
   const webCollapsePrefsRef = useRef<{ sidebar: boolean; chat: boolean } | null>(null);
   const wasDeviceFramePreviewRef = useRef(isDeviceFramePreview);
   // Publisher edit view defaults to on; publisher preview (web) is toggled via header.
-  const [publisherEditView, setPublisherEditView] = useState(true);
+  const [publisherEditView, setPublisherEditView] = useState(initialPublisherEditView);
 
   // Device preview (phone / iPad) is only available in publisher preview — not edit.
   useEffect(() => {
@@ -226,6 +232,33 @@ export function Stage({
       return !prev;
     });
   }, []);
+
+  const openPublisherPreview = useCallback(async () => {
+    if (!stage?.id) {
+      toast.error('课堂尚未加载完成，暂时无法预览');
+      return;
+    }
+
+    const editStore = useEditModeStore.getState();
+    try {
+      if (editStore.isEditing) {
+        await editStore.saveEdits();
+      }
+      editStore.setEditing(false);
+      useCanvasStore.getState().setWhiteboardOpen(false);
+      await flushStageSave();
+    } catch {
+      toast.error('保存失败，请稍后重试预览');
+      return;
+    }
+
+    const previewWindow = window.open(
+      buildClassroomPreviewPath(stage.id),
+      buildClassroomPreviewWindowName(stage.id),
+    );
+    previewWindow?.focus();
+  }, [stage?.id]);
+
   /** Lecture notes are editable only in publisher edit view (not student preview). */
   const lectureNotesReadOnly = isDeviceFramePreview || !publisherEditView;
   /** Sidebar / canvas: read-only in device preview or student-facing preview. */
@@ -1298,6 +1331,7 @@ export function Stage({
           classroomTitle={stage?.name ?? ''}
           publisherEditView={publisherEditView}
           onTogglePublisherEditView={togglePublisherEditView}
+          onOpenPublisherPreview={openPublisherPreview}
           hideEditToggle={isDeviceFramePreview}
           deviceTabsVariant="pill"
           showSlideInsertTools={
@@ -1754,6 +1788,7 @@ export function Stage({
           classroomTitle={stage?.name ?? ''}
           publisherEditView={publisherEditView}
           onTogglePublisherEditView={togglePublisherEditView}
+          onOpenPublisherPreview={openPublisherPreview}
           hideEditToggle
           deviceTabsVariant="pill"
         />

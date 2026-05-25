@@ -169,11 +169,11 @@
     },
     "resourceLib": {
       "title": "资源库",
-      "subtitle": "管理幻灯片背景与出版方字体；勾选「本次生成使用」后，将在 AI 生成幻灯片时写入版式与提示词。",
+      "subtitle": "管理幻灯片背景与字体；上传的字体可在编辑模式中直接使用，勾选「本次生成使用」的字体将用于 AI 生成幻灯片。",
       "tabBackground": "背景模板",
       "tabFonts": "字体库",
       "hubTrigger": "资源库",
-      "hubHint": "上传并管理背景图与字体文件；勾选的资源会在后续课堂生成（幻灯片）中生效。"
+      "hubHint": "上传背景与字体；字体入库后编辑模式即可选用，仅勾选一个字体用于本次 AI 生成。"
     },
     "publisherFont": {
       "uploadAdd": "上传并保存到字体库",
@@ -181,7 +181,8 @@
       "useThisRun": "本次生成使用",
       "deleteTemplate": "从字体库删除",
       "clearThisRun": "取消本次选用的字体",
-      "savedToLibrary": "已保存到字体库并勾选本次使用",
+      "savedToLibrary": "已保存到字体库",
+      "savedManyToLibrary": "已保存 {{count}} 个字体到字体库",
       "libraryFull": "字体库已满（最多 {{max}} 个），请先删除旧字体",
       "tooLarge": "字体文件需小于 2MB，请压缩后重试",
       "badType": "仅支持 WOFF2、WOFF、TTF、OTF",

@@ -51,8 +51,8 @@ import { REFERENCE_BACKGROUND_SESSION_KEY } from '@/lib/constants/reference-back
 import { loadReferenceBackgroundTemplates } from '@/lib/utils/reference-background-library-storage';
 import { loadPublisherFontTemplates } from '@/lib/utils/publisher-font-library-storage';
 import {
-  readPublisherFontSessionIds,
-  writePublisherFontSessionIds,
+  readPublisherFontSessionId,
+  writePublisherFontSessionId,
 } from '@/lib/utils/publisher-fonts-session';
 
 const log = createLogger('Home');
@@ -126,15 +126,15 @@ function HomePage() {
   const [referenceSession, setReferenceSession] = useState<{ id: string; dataUrl: string } | null>(
     null,
   );
-  const [fontSessionIds, setFontSessionIds] = useState<string[]>([]);
+  const [fontSessionId, setFontSessionId] = useState<string | null>(null);
 
   useEffect(() => {
-    setFontSessionIds(readPublisherFontSessionIds());
+    setFontSessionId(readPublisherFontSessionId());
   }, []);
 
-  const handleFontSessionChange = useCallback((ids: string[]) => {
-    setFontSessionIds(ids);
-    writePublisherFontSessionIds(ids);
+  const handleFontSessionChange = useCallback((id: string | null) => {
+    setFontSessionId(id);
+    writePublisherFontSessionId(id);
   }, []);
 
   const refreshResourceLibCount = useCallback(() => {
@@ -616,7 +616,7 @@ function HomePage() {
                     if (id && dataUrl) setReferenceSession({ id, dataUrl });
                     else setReferenceSession(null);
                   }}
-                  fontSessionIds={fontSessionIds}
+                  fontSessionId={fontSessionId}
                   onFontSessionChange={handleFontSessionChange}
                   onLibraryMutation={refreshResourceLibCount}
                   side="top"
@@ -628,7 +628,7 @@ function HomePage() {
                       aria-label={t('home.resourceLib.hubTrigger')}
                       className={cn(
                         'relative inline-flex items-center justify-center rounded-full border size-8 shrink-0 transition-all cursor-pointer',
-                        referenceSession || fontSessionIds.length > 0
+                        referenceSession || fontSessionId
                           ? 'border-violet-400/70 bg-violet-100 dark:bg-violet-900/35 text-violet-700 dark:text-violet-300'
                           : 'bg-white border-border/60 text-muted-foreground/70 hover:bg-muted/40 hover:text-foreground',
                       )}
