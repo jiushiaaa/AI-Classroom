@@ -6,6 +6,7 @@ import { Sparkles } from 'lucide-react';
 import { useI18n } from '@/lib/hooks/use-i18n';
 import { useStageStore } from '@/lib/store';
 import { extractSlidePlainText } from '@/lib/utils/extract-slide-plain-text';
+import { findPendingAiOptimization } from '@/lib/utils/scene-ai-commands';
 import { db } from '@/lib/utils/database';
 import type { Action, DiscussionAction, SpeechAction } from '@/lib/types/action';
 import type { LectureNoteEntry } from '@/lib/types/chat';
@@ -89,6 +90,11 @@ export function useLectureNotesEditor() {
 
   const handleAiGenerateTeacherScript = useCallback(
     (sceneId: string, userInstructions?: string) => {
+      if (findPendingAiOptimization(scenes)) {
+        toast.error(t('aiModify.globalBusyToast'));
+        return;
+      }
+
       const scene = scenes.find((s) => s.id === sceneId);
       if (!scene || !scene.actions?.length) {
         toast.error(t('chat.lectureNotes.aiGenerateNoSpeech'));

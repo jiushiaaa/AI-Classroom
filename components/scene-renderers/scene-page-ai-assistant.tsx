@@ -21,6 +21,8 @@ import { useI18n } from '@/lib/hooks/use-i18n';
 import { useStageStore } from '@/lib/store/stage';
 import { cn } from '@/lib/utils';
 import { AIModifyPanel } from './ai-modify-panel';
+import { useAiOptimizationMutex } from '@/lib/hooks/use-ai-optimization-mutex';
+import { toast } from 'sonner';
 
 interface ScenePageAIAssistantProps {
   readonly sceneId: string;
@@ -29,6 +31,7 @@ interface ScenePageAIAssistantProps {
 export function ScenePageAIAssistant({ sceneId }: ScenePageAIAssistantProps) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
+  const { canStart, isCurrentScenePending } = useAiOptimizationMutex(sceneId);
 
   // Subscribe to applied-count for the badge — uses scene-level aiCommands
   // first, falls back to content-level for legacy data.
@@ -44,7 +47,14 @@ export function ScenePageAIAssistant({ sceneId }: ScenePageAIAssistantProps) {
     return commands.filter((c) => c.status === 'applied').length;
   });
 
-  const handleToggle = useCallback(() => setOpen((p) => !p), []);
+  const handleToggle = useCallback(() => {
+    if (!canStart && !open) {
+      toast.error(t('aiModify.globalBusyToast'));
+      return;
+    }
+    if (isCurrentScenePending && !open) return;
+    setOpen((p) => !p);
+  }, [canStart, isCurrentScenePending, open, t]);
   const handleClose = useCallback(() => setOpen(false), []);
 
   return (
@@ -57,11 +67,13 @@ export function ScenePageAIAssistant({ sceneId }: ScenePageAIAssistantProps) {
         whileHover={{ scale: 1.04 }}
         whileTap={{ scale: 0.96 }}
         transition={{ type: 'spring', stiffness: 320, damping: 22 }}
+        disabled={!canStart}
         className={cn(
           'absolute top-4 right-4 z-[60] flex items-center gap-1.5 rounded-full',
-          'bg-gradient-to-br from-purple-500 to-violet-600 px-3.5 py-2 text-white',
-          'shadow-xl shadow-purple-500/30 ring-1 ring-white/20 hover:shadow-purple-500/50',
-          'transition-shadow duration-200',
+          'px-3.5 py-2 text-white shadow-xl ring-1 ring-white/20 transition-shadow duration-200',
+          canStart || isCurrentScenePending
+            ? 'bg-gradient-to-br from-purple-500 to-violet-600 hover:shadow-purple-500/50 shadow-purple-500/30'
+            : 'bg-gradient-to-br from-purple-400/50 to-violet-500/50 cursor-not-allowed opacity-70 shadow-purple-500/10',
         )}
         title={t('aiModify.pageAssistantTooltip')}
         aria-label={t('aiModify.pageAssistantAriaLabel')}

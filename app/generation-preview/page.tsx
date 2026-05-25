@@ -37,6 +37,11 @@ import { StepVisualizer } from './components/visualizers';
 import { defaultCourseNameFromPdfAndRequirement } from '@/lib/utils/course-display-name';
 import { publisherFontForPromptFromId } from '@/lib/utils/publisher-font-library-storage';
 import { readPublisherFontSessionId } from '@/lib/utils/publisher-fonts-session';
+import {
+  buildPublisherCreationInputSnapshot,
+  consumePendingPublisherCreationInput,
+  savePublisherCreationInput,
+} from '@/lib/publisher/publisher-creation-input-storage';
 
 const log = createLogger('GenerationPreview');
 
@@ -367,6 +372,18 @@ function GenerationPreviewContent() {
 
       // Create stage client-side
       const stageId = nanoid(10);
+      if (!consumePendingPublisherCreationInput(stageId)) {
+        savePublisherCreationInput(
+          stageId,
+          buildPublisherCreationInputSnapshot({
+            requirement: currentSession.requirements.requirement,
+            interactiveMode: !!currentSession.requirements.interactiveMode,
+            bookSelection: null,
+            referenceTemplateId: null,
+            fontSessionId: readPublisherFontSessionId(),
+          }),
+        );
+      }
       const stage: Stage = {
         id: stageId,
         name: defaultCourseNameFromPdfAndRequirement(

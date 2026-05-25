@@ -40,6 +40,8 @@ import {
   getLectureNoteVoiceStatus,
 } from '@/lib/utils/lecture-notes';
 import { speechScriptToDisplayPlain } from '@/lib/utils/speech-script-markup';
+import { useAiOptimizationMutex } from '@/lib/hooks/use-ai-optimization-mutex';
+import { toast } from 'sonner';
 
 const ACTION_ICON_ONLY: Record<string, { Icon: typeof Flashlight; style: string }> = {
   spotlight: {
@@ -91,6 +93,7 @@ export function LectureNotesView({
   onSelectScene,
 }: LectureNotesViewProps) {
   const { t } = useI18n();
+  const { canStart: canStartAiOptimization } = useAiOptimizationMutex();
   const containerRef = useRef<HTMLDivElement>(null);
   const editable = !!onEditSpeech;
   const [editingSceneId, setEditingSceneId] = useState<string | null>(null);
@@ -182,6 +185,10 @@ export function LectureNotesView({
 
   const handleAiOptimizeConfirm = () => {
     if (!aiOptimizeTarget) return;
+    if (!canStartAiOptimization) {
+      toast.error(t('aiModify.globalBusyToast'));
+      return;
+    }
     const trimmed = aiOptimizeInstructions.trim();
     onAiGenerateScene?.(aiOptimizeTarget.sceneId, trimmed.length > 0 ? trimmed : undefined);
     closeAiOptimizeDialog();
@@ -277,16 +284,30 @@ export function LectureNotesView({
                   {onAiGenerateScene && (
                     <button
                       type="button"
+                      disabled={!canStartAiOptimization}
                       onClick={(e) => {
                         e.stopPropagation();
+                        if (!canStartAiOptimization) {
+                          toast.error(t('aiModify.globalBusyToast'));
+                          return;
+                        }
                         setAiOptimizeInstructions('');
                         setAiOptimizeTarget({
                           sceneId: note.sceneId,
                           sceneTitle: note.sceneTitle,
                         });
                       }}
-                      className="size-6 inline-flex items-center justify-center rounded-md text-muted-foreground/70 hover:bg-purple-100/80 dark:hover:bg-purple-900/35 hover:text-purple-600 dark:hover:text-purple-300 transition-colors"
-                      title={t('chat.lectureNotes.aiGenerateIconTitle')}
+                      className={cn(
+                        'size-6 inline-flex items-center justify-center rounded-md transition-colors',
+                        canStartAiOptimization
+                          ? 'text-muted-foreground/70 hover:bg-purple-100/80 dark:hover:bg-purple-900/35 hover:text-purple-600 dark:hover:text-purple-300'
+                          : 'text-muted-foreground/35 cursor-not-allowed opacity-60',
+                      )}
+                      title={
+                        canStartAiOptimization
+                          ? t('chat.lectureNotes.aiGenerateIconTitle')
+                          : t('aiModify.globalBusyTooltip')
+                      }
                       aria-label={t('chat.lectureNotes.aiGenerateIconTitle')}
                     >
                       <Sparkles className="size-3.5" />
@@ -540,7 +561,7 @@ export function LectureNotesView({
             <Button type="button" variant="outline" onClick={closeAiOptimizeDialog}>
               {t('common.cancel')}
             </Button>
-            <Button type="button" onClick={handleAiOptimizeConfirm}>
+            <Button type="button" onClick={handleAiOptimizeConfirm} disabled={!canStartAiOptimization}>
               {t('chat.lectureNotes.aiOptimizeDialogSubmit')}
             </Button>
           </DialogFooter>

@@ -79,10 +79,9 @@ const useEditModeStoreBase = create<EditModeState>()((set, get) => ({
           editSessionBaselineSnapshotCursor: null,
         };
       }
-      const baseline = useSnapshotStore.getState().snapshotCursor;
       return {
         isEditing: true,
-        editSessionBaselineSnapshotCursor: baseline,
+        editSessionBaselineSnapshotCursor: null,
       };
     }),
 

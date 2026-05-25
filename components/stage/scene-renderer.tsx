@@ -8,6 +8,7 @@ import { QuizView } from '../scene-renderers/quiz-view';
 import { InteractiveRenderer } from '../scene-renderers/interactive-renderer';
 import { PBLRenderer } from '../scene-renderers/pbl-renderer';
 import { AILoadingOverlay } from '../scene-renderers/ai-loading-overlay';
+import { resolveSceneAiCommands } from '@/lib/utils/scene-ai-commands';
 
 interface SceneRendererProps {
   readonly scene: Scene;
@@ -18,14 +19,6 @@ interface SceneRendererProps {
    * up the same flag through their own editing pathway.
    */
   readonly editing?: boolean;
-}
-
-function resolveSceneAiCommands(scene: Scene) {
-  if (scene.aiCommands) return scene.aiCommands;
-  if (scene.content.type === 'interactive' || scene.content.type === 'pbl') {
-    return scene.content.aiCommands ?? [];
-  }
-  return [];
 }
 
 export function SceneRenderer({ scene, mode, editing = false }: SceneRendererProps) {

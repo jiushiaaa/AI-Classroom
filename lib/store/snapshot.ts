@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { IndexableTypeArray } from 'dexie';
 import { db, type Snapshot } from '@/lib/utils/database';
+import { resolveSceneIndexForHistoryStep } from '@/lib/utils/snapshot-navigation';
 import { useStageStore } from './stage';
 import type { Scene } from '@/lib/types/stage';
 
@@ -17,9 +18,29 @@ export interface SnapshotState {
   setSnapshotCursor: (cursor: number) => void;
   setSnapshotLength: (length: number) => void;
   initSnapshotDatabase: () => Promise<void>;
+  /** Clear IndexedDB snapshots and seed baseline for a new edit session. */
+  resetEditSessionSnapshots: () => Promise<void>;
   addSnapshot: () => Promise<void>;
   undo: () => Promise<void>;
   redo: () => Promise<void>;
+}
+
+async function loadOrderedSnapshots(): Promise<Snapshot[]> {
+  return db.snapshots.orderBy('id').toArray();
+}
+
+function applySnapshotToStage(
+  snapshot: Snapshot,
+  sceneIndex: number,
+): void {
+  const stageStore = useStageStore.getState();
+  const { slides } = snapshot;
+  const safeIndex = sceneIndex > slides.length - 1 ? slides.length - 1 : sceneIndex;
+
+  stageStore.setScenes(slides as unknown as Scene[]);
+  if (slides[safeIndex]) {
+    stageStore.setCurrentSceneId(slides[safeIndex].id);
+  }
 }
 
 /**
@@ -46,9 +67,11 @@ export const useSnapshotStore = create<SnapshotState>((set, get) => ({
    */
   initSnapshotDatabase: async () => {
     const stageStore = useStageStore.getState();
+    const currentSceneId = stageStore.currentSceneId || '';
+    const sceneIndex = Math.max(0, stageStore.getSceneIndex(currentSceneId));
 
     const newFirstSnapshot = {
-      index: stageStore.getSceneIndex(stageStore.currentSceneId || ''),
+      index: sceneIndex,
       slides: JSON.parse(JSON.stringify(stageStore.scenes)),
     };
     await db.snapshots.add(newFirstSnapshot);
@@ -59,11 +82,21 @@ export const useSnapshotStore = create<SnapshotState>((set, get) => ({
     });
   },
 
+  resetEditSessionSnapshots: async () => {
+    await db.snapshots.clear();
+    set({ snapshotCursor: -1, snapshotLength: 0 });
+    await get().initSnapshotDatabase();
+  },
+
   /**
    * Add a new snapshot to the history
    * Handles snapshot length limit and cursor position
    */
   addSnapshot: async () => {
+    if (get().snapshotLength === 0) {
+      await get().initSnapshotDatabase();
+    }
+
     const stageStore = useStageStore.getState();
     const { snapshotCursor } = get();
 
@@ -95,15 +128,6 @@ export const useSnapshotStore = create<SnapshotState>((set, get) => ({
       snapshotLength--;
     }
 
-    // Maintain page focus after undo: set the second-to-last snapshot's index to current scene
-    // https://github.com/pipipi-pikachu/PPTist/issues/27
-    if (snapshotLength >= 2) {
-      const currentSceneIndex = stageStore.getSceneIndex(stageStore.currentSceneId || '');
-      await db.snapshots.update(allKeys[snapshotLength - 2] as number, {
-        index: currentSceneIndex,
-      });
-    }
-
     // Delete obsolete snapshots
     await db.snapshots.bulkDelete(needDeleteKeys as number[]);
 
@@ -121,20 +145,19 @@ export const useSnapshotStore = create<SnapshotState>((set, get) => ({
     if (snapshotCursor <= 0) return;
 
     const stageStore = useStageStore.getState();
-
+    const snapshots = await loadOrderedSnapshots();
+    const fromSnapshot = snapshots[snapshotCursor];
     const newSnapshotCursor = snapshotCursor - 1;
-    const snapshots: Snapshot[] = await db.snapshots.orderBy('id').toArray();
-    const snapshot = snapshots[newSnapshotCursor];
-    const { index, slides } = snapshot;
+    const targetSnapshot = snapshots[newSnapshotCursor];
 
-    const sceneIndex = index > slides.length - 1 ? slides.length - 1 : index;
+    const sceneIndex = resolveSceneIndexForHistoryStep({
+      fromSlides: fromSnapshot.slides,
+      toSlides: targetSnapshot.slides,
+      currentSceneId: stageStore.currentSceneId,
+      fallbackIndex: targetSnapshot.index,
+    });
 
-    // Restore scenes and current scene
-    stageStore.setScenes(slides as unknown as Scene[]); // Type assertion needed due to Slide vs Scene difference
-    if (slides[sceneIndex]) {
-      stageStore.setCurrentSceneId(slides[sceneIndex].id);
-    }
-
+    applySnapshotToStage(targetSnapshot, sceneIndex);
     set({ snapshotCursor: newSnapshotCursor });
   },
 
@@ -146,20 +169,19 @@ export const useSnapshotStore = create<SnapshotState>((set, get) => ({
     if (snapshotCursor >= snapshotLength - 1) return;
 
     const stageStore = useStageStore.getState();
-
+    const snapshots = await loadOrderedSnapshots();
+    const fromSnapshot = snapshots[snapshotCursor];
     const newSnapshotCursor = snapshotCursor + 1;
-    const snapshots: Snapshot[] = await db.snapshots.orderBy('id').toArray();
-    const snapshot = snapshots[newSnapshotCursor];
-    const { index, slides } = snapshot;
+    const targetSnapshot = snapshots[newSnapshotCursor];
 
-    const sceneIndex = index > slides.length - 1 ? slides.length - 1 : index;
+    const sceneIndex = resolveSceneIndexForHistoryStep({
+      fromSlides: fromSnapshot.slides,
+      toSlides: targetSnapshot.slides,
+      currentSceneId: stageStore.currentSceneId,
+      fallbackIndex: targetSnapshot.index,
+    });
 
-    // Restore scenes and current scene
-    stageStore.setScenes(slides as unknown as Scene[]); // Type assertion needed due to Slide vs Scene difference
-    if (slides[sceneIndex]) {
-      stageStore.setCurrentSceneId(slides[sceneIndex].id);
-    }
-
+    applySnapshotToStage(targetSnapshot, sceneIndex);
     set({ snapshotCursor: newSnapshotCursor });
   },
 }));

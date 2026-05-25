@@ -10,6 +10,8 @@ import { useCanvasStore } from '@/lib/store/canvas';
 import { useSettingsStore, PLAYBACK_SPEEDS } from '@/lib/store/settings';
 import { usePreviewDeviceStore } from '@/lib/store/preview-device';
 import { useEditModeStore } from '@/lib/store/edit-mode';
+import { useSnapshotStore } from '@/lib/store/snapshot';
+import { KEYS } from '@/configs/hotkey';
 import { useI18n } from '@/lib/hooks/use-i18n';
 import { SceneSidebar } from './stage/scene-sidebar';
 import { Header } from './header';
@@ -497,6 +499,7 @@ export function Stage({
   // doesn't surprise-restart audio after a long edit session.
   const isEditing = useEditModeStore.use.isEditing();
   const saveEdits = useEditModeStore.use.saveEdits();
+  const wasEditingRef = useRef(false);
   // Edit workspace: slide thumbnails + 笔记 stay pinned open (no collapse toggles).
   const pinLayoutPanels = publisherEditView || isEditing;
 
@@ -524,6 +527,56 @@ export function Stage({
     globalThis.addEventListener('keydown', onKeyDown);
     return () => globalThis.removeEventListener('keydown', onKeyDown);
   }, [publisherEditView, isEditing, saveEdits, t]);
+
+  // Seed a global undo baseline when the publisher first enters edit mode.
+  useEffect(() => {
+    const enteredEdit = isEditing && !wasEditingRef.current;
+    wasEditingRef.current = isEditing;
+    if (!enteredEdit || !publisherEditView) return;
+
+    void useSnapshotStore
+      .getState()
+      .resetEditSessionSnapshots()
+      .then(() => {
+        useEditModeStore.setState({
+          editSessionBaselineSnapshotCursor: useSnapshotStore.getState().snapshotCursor,
+        });
+      });
+  }, [isEditing, publisherEditView]);
+
+  // Global undo/redo stack (cross-slide navigation handled in snapshot store).
+  useEffect(() => {
+    if (!publisherEditView || !isEditing) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const target = e.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.closest('[data-global-edit-history-exclude]'))
+      ) {
+        return;
+      }
+
+      const key = e.key.toUpperCase();
+      const isRedo = key === KEYS.Y || (key === KEYS.Z && e.shiftKey);
+      const isUndo = key === KEYS.Z && !e.shiftKey;
+      if (!isUndo && !isRedo) return;
+
+      const { undo, redo, canUndo, canRedo } = useSnapshotStore.getState();
+      if (isUndo && !canUndo()) return;
+      if (isRedo && !canRedo()) return;
+
+      e.preventDefault();
+      void (isUndo ? undo() : redo());
+    };
+
+    globalThis.addEventListener('keydown', onKeyDown);
+    return () => globalThis.removeEventListener('keydown', onKeyDown);
+  }, [publisherEditView, isEditing]);
 
   useEffect(() => {
     if (isEditing) {

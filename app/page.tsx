@@ -54,6 +54,12 @@ import {
   readPublisherFontSessionId,
   writePublisherFontSessionId,
 } from '@/lib/utils/publisher-fonts-session';
+import {
+  buildPublisherCreationInputSnapshot,
+  loadPublisherCreationInput,
+  savePendingPublisherCreationInput,
+} from '@/lib/publisher/publisher-creation-input-storage';
+import { derivePublisherFormFromSnapshot } from '@/lib/publisher/restore-publisher-creation-input';
 
 const log = createLogger('Home');
 
@@ -78,6 +84,7 @@ const initialFormState: FormState = {
 type AttachmentEntry = PublisherAttachmentEntry;
 
 const INTERACTIVE_MODE_STORAGE_KEY = 'pubInteractiveMode';
+const RESTORE_PUBLISHER_INPUT_STAGE_KEY = 'restorePublisherInputStageId';
 
 function makeAttachmentId(file: File): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}-${file.name}`;
@@ -136,6 +143,65 @@ function HomePage() {
     setFontSessionId(id);
     writePublisherFontSessionId(id);
   }, []);
+
+  const applyPublisherFormRestore = useCallback(
+    (stageId: string): boolean => {
+      const snapshot = loadPublisherCreationInput(stageId);
+      if (!snapshot) return false;
+
+      const restored = derivePublisherFormFromSnapshot(snapshot);
+      setForm((prev) => ({
+        ...prev,
+        requirement: restored.requirement,
+        interactiveMode: restored.interactiveMode,
+      }));
+      updateRequirementCache(restored.requirement);
+      try {
+        localStorage.setItem(INTERACTIVE_MODE_STORAGE_KEY, String(restored.interactiveMode));
+      } catch {
+        /* ignore */
+      }
+
+      setBookSelection(restored.bookSelection);
+      setAttachments([]);
+      setReferenceSession(restored.referenceSession);
+      handleFontSessionChange(restored.fontSessionId);
+      setError(null);
+
+      window.requestAnimationFrame(() => {
+        requirementTextareaRef.current?.focus();
+        requirementTextareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+
+      if (restored.attachmentsSkipped) {
+        toast.info(t('classroom.reEditAttachmentsSkipped'));
+      }
+      toast.success(t('classroom.reEditSuccess'));
+      return true;
+    },
+    [handleFontSessionChange, t, updateRequirementCache],
+  );
+
+  const handleReEdit = useCallback(
+    (stageId: string, e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (applyPublisherFormRestore(stageId)) return;
+      toast.error(t('classroom.reEditNotFound'));
+    },
+    [applyPublisherFormRestore, t],
+  );
+
+  useEffect(() => {
+    try {
+      const stageId = sessionStorage.getItem(RESTORE_PUBLISHER_INPUT_STAGE_KEY);
+      if (!stageId) return;
+      sessionStorage.removeItem(RESTORE_PUBLISHER_INPUT_STAGE_KEY);
+      if (applyPublisherFormRestore(stageId)) return;
+      toast.error(t('classroom.reEditNotFound'));
+    } catch {
+      /* sessionStorage unavailable */
+    }
+  }, [applyPublisherFormRestore, t]);
 
   const refreshResourceLibCount = useCallback(() => {
     setResourceLibCount(
@@ -349,6 +415,25 @@ function HomePage() {
     }
 
     setError(null);
+    savePendingPublisherCreationInput(
+      buildPublisherCreationInputSnapshot({
+        requirement: form.requirement,
+        interactiveMode: form.interactiveMode,
+        bookSelection: bookSelection
+          ? {
+              bookId: bookSelection.book.id,
+              chapterIds: bookSelection.chapters.map((c) => c.id),
+            }
+          : null,
+        attachments: attachments.map((a) => ({
+          file: a.file,
+          detectedCategories: a.detectedCategories,
+          mockChunks: a.mockChunks,
+        })),
+        referenceTemplateId: referenceSession?.id ?? null,
+        fontSessionId,
+      }),
+    );
     try {
       if (referenceSession?.dataUrl) {
         sessionStorage.setItem(
@@ -780,6 +865,7 @@ function HomePage() {
                       }
                       onDelete={handleDelete}
                       onRename={handleRename}
+                      onReEdit={handleReEdit}
                       confirmingDelete={pendingDeleteId === classroom.id}
                       onConfirmDelete={() => confirmDelete(classroom.id)}
                       onCancelDelete={() => setPendingDeleteId(null)}

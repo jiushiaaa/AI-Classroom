@@ -58,6 +58,9 @@ import {
 import { AddScenePopover, buildBlankSlideScene } from '@/components/stage/add-scene-popover';
 import { AIGenerateSceneDialog } from '@/components/stage/ai-generate-scene-dialog';
 import { AIModifyPanel } from '@/components/scene-renderers/ai-modify-panel';
+import { useAiOptimizationMutex } from '@/lib/hooks/use-ai-optimization-mutex';
+import { sceneHasPendingAiCommand } from '@/lib/utils/scene-ai-commands';
+import { toast } from 'sonner';
 
 interface SceneSidebarProps {
   readonly collapsed: boolean;
@@ -202,6 +205,7 @@ export function SceneSidebar({
   readOnly = false,
 }: SceneSidebarProps) {
   const { t } = useI18n();
+  const { canStart: canStartAiOptimization } = useAiOptimizationMutex();
   const {
     scenes,
     deletedScenes,
@@ -427,7 +431,7 @@ export function SceneSidebar({
             const isInteractive = scene.type === 'interactive';
             const slideContent = isSlide ? (scene.content as SlideContent) : null;
             const interactiveContent = isInteractive ? (scene.content as InteractiveContent) : null;
-            const aiPending = (scene.aiCommands ?? []).some((c) => c.status === 'pending');
+            const aiPending = sceneHasPendingAiCommand(scene);
             const isDragging = draggingIndex === index;
             // Render the drop-line BELOW each tile (covers all gaps except the
             // very first one), and only render it ABOVE the first tile so we
@@ -531,14 +535,32 @@ export function SceneSidebar({
                       </button>
                       <button
                         type="button"
+                        disabled={!canStartAiOptimization || aiPending}
+                        title={
+                          !canStartAiOptimization
+                            ? t('aiModify.globalBusyTooltip')
+                            : aiPending
+                              ? t('aiModify.statusPending')
+                              : t('sceneActions.hoverAiOptimize')
+                        }
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (!canStartAiOptimization) {
+                            toast.error(t('aiModify.globalBusyToast'));
+                            return;
+                          }
+                          if (aiPending) return;
                           setAiOptimizeSceneId(scene.id);
                         }}
-                        className="inline-flex items-center gap-0.5 rounded-md bg-white/95 dark:bg-zinc-900/95 px-2 py-1 text-[10px] font-bold text-violet-700 dark:text-violet-300 shadow-sm ring-1 ring-violet-200/70 dark:ring-violet-700/40 hover:bg-violet-50 dark:hover:bg-violet-950/30 active:scale-95"
+                        className={cn(
+                          'inline-flex items-center gap-0.5 rounded-md px-2 py-1 text-[10px] font-bold shadow-sm active:scale-95',
+                          canStartAiOptimization && !aiPending
+                            ? 'bg-white/95 dark:bg-zinc-900/95 text-violet-700 dark:text-violet-300 ring-1 ring-violet-200/70 dark:ring-violet-700/40 hover:bg-violet-50 dark:hover:bg-violet-950/30'
+                            : 'bg-white/70 dark:bg-zinc-900/70 text-gray-400 dark:text-gray-500 ring-1 ring-gray-200/60 dark:ring-gray-700/40 cursor-not-allowed opacity-70',
+                        )}
                       >
                         <Sparkles className="size-3 shrink-0" />
-                        {t('sceneActions.hoverAiOptimize')}
+                        {aiPending ? t('aiModify.statusPending') : t('sceneActions.hoverAiOptimize')}
                       </button>
                     </div>
                   )}

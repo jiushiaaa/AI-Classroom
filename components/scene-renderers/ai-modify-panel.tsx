@@ -28,6 +28,11 @@ import { extractSlidePlainText } from '@/lib/utils/extract-slide-plain-text';
 import type { SpeechAction } from '@/lib/types/action';
 import { buildSceneVersion, mergeSceneVersion } from '@/lib/utils/scene-version-history';
 import { useUserProfileStore } from '@/lib/store/user-profile';
+import { useAiOptimizationMutex } from '@/lib/hooks/use-ai-optimization-mutex';
+import {
+  findPendingAiOptimization,
+  resolveSceneAiCommands,
+} from '@/lib/utils/scene-ai-commands';
 
 const SLIDE_AI_MARKER = '<!--openmaic-ai-tuned-->';
 
@@ -58,15 +63,6 @@ const MOCK_SUMMARY_KEYS = [
 
 const APPLY_DELAY_MS = 2000;
 
-function resolveAiCommands(scene: Scene | undefined): AICommand[] {
-  if (!scene) return [];
-  if (scene.aiCommands) return scene.aiCommands;
-  if (scene.content.type === 'interactive' || scene.content.type === 'pbl') {
-    return scene.content.aiCommands ?? [];
-  }
-  return [];
-}
-
 export function AIModifyPanel({
   sceneId,
   onClose,
@@ -77,15 +73,17 @@ export function AIModifyPanel({
   const scene = useStageStore((s) => s.scenes.find((sc) => sc.id === sceneId));
   const nickname = useUserProfileStore((s) => s.nickname);
   const [draft, setDraft] = useState('');
+  const { isLocked, isCurrentScenePending } = useAiOptimizationMutex(sceneId);
 
-  const commands = useMemo(() => resolveAiCommands(scene), [scene]);
+  const commands = useMemo(() => resolveSceneAiCommands(scene), [scene]);
 
   const sortedCommands = useMemo(
     () => [...commands].sort((a, b) => b.timestamp - a.timestamp),
     [commands],
   );
 
-  const isPending = sortedCommands.some((c) => c.status === 'pending');
+  const isPending = isCurrentScenePending;
+  const isBlockedByOtherScene = isLocked && !isCurrentScenePending;
 
   const sceneType: SceneType = scene?.type ?? 'slide';
   const sceneTitle = scene?.title ?? '';
@@ -106,7 +104,7 @@ export function AIModifyPanel({
 
   const readCurrentCommands = useCallback((): AICommand[] => {
     const current = useStageStore.getState().scenes.find((s) => s.id === sceneId);
-    return resolveAiCommands(current);
+    return resolveSceneAiCommands(current);
   }, [sceneId]);
 
   const finalizeCommand = useCallback(
@@ -118,7 +116,7 @@ export function AIModifyPanel({
       const summaryKey = MOCK_SUMMARY_KEYS[Math.floor(Math.random() * MOCK_SUMMARY_KEYS.length)];
       const summary = t(summaryKey, { instruction: trimmed.slice(0, 28) });
 
-      const prevCmds = resolveAiCommands(current);
+      const prevCmds = resolveSceneAiCommands(current);
       const nextCmds = prevCmds.map((c) =>
         c.id === cmdId ? { ...c, status: 'applied' as const, summary } : c,
       );
@@ -209,6 +207,12 @@ export function AIModifyPanel({
       const trimmed = instruction.trim();
       if (!trimmed || isPending) return;
 
+      const busy = findPendingAiOptimization(useStageStore.getState().scenes);
+      if (busy && busy.sceneId !== sceneId) {
+        toast.error(t('aiModify.globalBusyToast'));
+        return;
+      }
+
       const id = `aicmd-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const pending: AICommand = {
         id,
@@ -224,7 +228,7 @@ export function AIModifyPanel({
         finalizeCommand(id, trimmed);
       }, APPLY_DELAY_MS);
     },
-    [finalizeCommand, isPending, readCurrentCommands, writeCommands],
+    [finalizeCommand, isPending, readCurrentCommands, sceneId, t, writeCommands],
   );
 
   const handleSubmit = useCallback(() => {
@@ -281,7 +285,7 @@ export function AIModifyPanel({
           }}
           rows={4}
           placeholder={t(placeholderKey)}
-          disabled={isPending}
+          disabled={isPending || isBlockedByOtherScene}
           className="w-full flex-1 min-h-[96px] resize-none rounded-lg bg-zinc-50 dark:bg-zinc-800/60 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none ring-1 ring-zinc-200/70 dark:ring-zinc-700/50 focus:ring-purple-400 dark:focus:ring-purple-500 transition-shadow disabled:opacity-60"
           aria-label={t('aiModify.draftAriaLabel')}
         />
@@ -290,7 +294,7 @@ export function AIModifyPanel({
             type="button"
             size="sm"
             onClick={handleSubmit}
-            disabled={isPending || draft.trim().length === 0}
+            disabled={isPending || isBlockedByOtherScene || draft.trim().length === 0}
             className="bg-gradient-to-br from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 text-white"
           >
             {isPending ? (

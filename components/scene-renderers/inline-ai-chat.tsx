@@ -34,6 +34,7 @@ import type { AICommand } from '@/lib/types/ai-command';
 import type { Scene } from '@/lib/types/stage';
 import { useStageStore } from '@/lib/store/stage';
 import { useI18n } from '@/lib/hooks/use-i18n';
+import { findPendingAiOptimization } from '@/lib/utils/scene-ai-commands';
 
 const POPUP_WIDTH = 380;
 const POPUP_OFFSET = 8; // gap between target rect and popup
@@ -216,6 +217,13 @@ export function InlineAIChat({ sceneId, viewportRect, context, onClose }: Inline
     const trimmed = draft.trim();
     if (!trimmed || sending) return;
 
+    const busy = findPendingAiOptimization(useStageStore.getState().scenes);
+    if (busy && busy.sceneId !== sceneId) {
+      toast.error(t('aiModify.globalBusyToast'));
+      return;
+    }
+    if (busy?.sceneId === sceneId) return;
+
     const id = `aicmd-inline-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const instruction = `${buildContextPrefix()} ${trimmed}`.trim();
     const pending: AICommand = {
@@ -248,7 +256,7 @@ export function InlineAIChat({ sceneId, viewportRect, context, onClose }: Inline
       setSending(false);
       onClose();
     }, APPLY_DELAY_MS);
-  }, [buildContextPrefix, draft, onClose, readCurrentCommands, sending, t, writeCommands]);
+  }, [buildContextPrefix, draft, onClose, readCurrentCommands, sceneId, sending, t, writeCommands]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

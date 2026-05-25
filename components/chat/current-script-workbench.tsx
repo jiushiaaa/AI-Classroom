@@ -50,6 +50,8 @@ import type { EngineMode } from '@/lib/playback';
 import type { AgentConfig } from '@/lib/orchestration/registry/types';
 import { getLectureNoteTeacherVoiceInfo } from '@/lib/utils/lecture-notes';
 import { speechScriptToTtsPlain } from '@/lib/utils/speech-script-markup';
+import { useAiOptimizationMutex } from '@/lib/hooks/use-ai-optimization-mutex';
+import { toast } from 'sonner';
 
 interface CurrentScriptWorkbenchProps {
   readonly note: LectureNoteEntry | null;
@@ -87,6 +89,7 @@ export function CurrentScriptWorkbench({
   lectureSeekBlocked = false,
 }: CurrentScriptWorkbenchProps) {
   const { t } = useI18n();
+  const { canStart: canStartAiOptimization } = useAiOptimizationMutex(note?.sceneId);
   const speechItems = useMemo(
     () =>
       note?.items.filter(
@@ -298,6 +301,10 @@ export function CurrentScriptWorkbench({
 
   const handleAiOptimizeConfirm = () => {
     if (!note) return;
+    if (!canStartAiOptimization) {
+      toast.error(t('aiModify.globalBusyToast'));
+      return;
+    }
     onAiGenerateScene?.(
       note.sceneId,
       aiInstruction.trim().length > 0 ? aiInstruction.trim() : undefined,
@@ -311,7 +318,10 @@ export function CurrentScriptWorkbench({
 
   if (!note) {
     return (
-      <section className="h-[168px] shrink-0 border-t border-gray-100/60 bg-white/95 px-5 py-4 dark:border-gray-800/60 dark:bg-gray-950">
+      <section
+        data-global-edit-history-exclude
+        className="h-[168px] shrink-0 border-t border-gray-100/60 bg-white/95 px-5 py-4 dark:border-gray-800/60 dark:bg-gray-950"
+      >
         <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-gray-200/70 text-sm text-gray-400 dark:border-gray-800/70">
           当前页暂无讲稿
         </div>
@@ -320,7 +330,10 @@ export function CurrentScriptWorkbench({
   }
 
   return (
-    <section className="flex min-h-[200px] shrink-0 flex-col border-t border-gray-100/60 bg-white/95 shadow-[0_-8px_20px_rgba(15,23,42,0.025)] dark:border-gray-800/60 dark:bg-gray-950">
+    <section
+      data-global-edit-history-exclude
+      className="flex min-h-[200px] shrink-0 flex-col border-t border-gray-100/60 bg-white/95 shadow-[0_-8px_20px_rgba(15,23,42,0.025)] dark:border-gray-800/60 dark:bg-gray-950"
+    >
       {/* 与预览页 Roundtable 一致：进度条在底部面板顶部 */}
       <div className="shrink-0 border-b border-gray-100/40 px-3 pb-1.5 pt-0 dark:border-gray-700/30">
         <LectureAudioSeekBar
@@ -551,9 +564,24 @@ export function CurrentScriptWorkbench({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  onClick={() => setAiOptimizeOpen(true)}
+                  disabled={!canStartAiOptimization}
+                  onClick={() => {
+                    if (!canStartAiOptimization) {
+                      toast.error(t('aiModify.globalBusyToast'));
+                      return;
+                    }
+                    setAiOptimizeOpen(true);
+                  }}
                   aria-label="AI 优化讲稿"
-                  className="ml-auto size-8 rounded-lg text-purple-600 hover:bg-purple-50 hover:text-purple-700 dark:text-purple-300 dark:hover:bg-purple-950/30"
+                  title={
+                    canStartAiOptimization ? 'AI 优化讲稿' : t('aiModify.globalBusyTooltip')
+                  }
+                  className={cn(
+                    'ml-auto size-8 rounded-lg',
+                    canStartAiOptimization
+                      ? 'text-purple-600 hover:bg-purple-50 hover:text-purple-700 dark:text-purple-300 dark:hover:bg-purple-950/30'
+                      : 'text-purple-300 cursor-not-allowed opacity-60 dark:text-purple-500/50',
+                  )}
                 >
                   <Sparkles className="size-4" />
                 </Button>
@@ -593,7 +621,7 @@ export function CurrentScriptWorkbench({
             <Button type="button" variant="outline" onClick={closeAiOptimizeDialog}>
               取消
             </Button>
-            <Button type="button" onClick={handleAiOptimizeConfirm}>
+            <Button type="button" onClick={handleAiOptimizeConfirm} disabled={!canStartAiOptimization}>
               开始优化
             </Button>
           </DialogFooter>

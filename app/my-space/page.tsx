@@ -27,6 +27,7 @@ import { toast } from 'sonner';
 import { sortMyCourses } from '@/lib/publisher/my-course-classification';
 
 const log = createLogger('MySpace');
+const RESTORE_PUBLISHER_INPUT_STAGE_KEY = 'restorePublisherInputStageId';
 
 function titleMatchesQuery(name: string, query: string): boolean {
   const q = query.trim().toLowerCase();
@@ -82,6 +83,16 @@ export default function MySpacePage() {
       log.error('Failed to delete classroom:', err);
       toast.error('Failed to delete classroom');
     }
+  };
+
+  const handleReEdit = (stageId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      sessionStorage.setItem(RESTORE_PUBLISHER_INPUT_STAGE_KEY, stageId);
+    } catch {
+      /* sessionStorage unavailable */
+    }
+    router.push('/');
   };
 
   const handleRename = async (id: string, newName: string) => {
@@ -177,6 +188,7 @@ export default function MySpacePage() {
                         showUpdatedAt
                         onDelete={handleDelete}
                         onRename={handleRename}
+                        onReEdit={handleReEdit}
                         confirmingDelete={pendingDeleteId === classroom.id}
                         onConfirmDelete={() => confirmDelete(classroom.id)}
                         onCancelDelete={() => setPendingDeleteId(null)}

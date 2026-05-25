@@ -9,6 +9,8 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { useSceneGenerator } from '@/lib/hooks/use-scene-generator';
 import { useMediaGenerationStore } from '@/lib/store/media-generation';
 import { useWhiteboardHistoryStore } from '@/lib/store/whiteboard-history';
+import { useSnapshotStore } from '@/lib/store/snapshot';
+import { db } from '@/lib/utils/database';
 import { createLogger } from '@/lib/logger';
 import { MediaStageProvider } from '@/lib/contexts/media-stage-context';
 import { generateMediaForOutlines } from '@/lib/media/media-orchestrator';
@@ -136,6 +138,9 @@ export default function ClassroomDetailPage() {
 
     // Clear whiteboard history to prevent snapshots from a previous course leaking in.
     useWhiteboardHistoryStore.getState().clearHistory();
+    void db.snapshots.clear().then(() => {
+      useSnapshotStore.setState({ snapshotCursor: -1, snapshotLength: 0 });
+    });
 
     loadClassroom();
 

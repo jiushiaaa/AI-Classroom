@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Copy, Pencil, Trash2 } from 'lucide-react';
+import { Copy, FilePenLine, Pencil, Trash2 } from 'lucide-react';
 import { useI18n } from '@/lib/hooks/use-i18n';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -21,6 +21,7 @@ export function ClassroomCard({
   showUpdatedAt = true,
   onDelete,
   onRename,
+  onReEdit,
   confirmingDelete,
   onConfirmDelete,
   onCancelDelete,
@@ -32,6 +33,7 @@ export function ClassroomCard({
   showUpdatedAt?: boolean;
   onDelete: (id: string, e: React.MouseEvent) => void;
   onRename: (id: string, newName: string) => void;
+  onReEdit?: (id: string, e: React.MouseEvent) => void;
   confirmingDelete: boolean;
   onConfirmDelete: () => void;
   onCancelDelete: () => void;
@@ -110,6 +112,28 @@ export function ClassroomCard({
 
         {!confirmingDelete && !editing && (
           <div className="absolute top-2 right-2 z-20 flex items-center gap-1.5 opacity-0 pointer-events-none transition-opacity duration-200 group-hover:opacity-100 group-hover:pointer-events-auto">
+            {onReEdit ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="size-8 rounded-full bg-black/45 text-white shadow-md backdrop-blur-sm hover:bg-black/65 border-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onReEdit(classroom.id, e);
+                    }}
+                    aria-label={t('classroom.reEdit')}
+                  >
+                    <FilePenLine className="size-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  {t('classroom.reEdit')}
+                </TooltipContent>
+              </Tooltip>
+            ) : null}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
