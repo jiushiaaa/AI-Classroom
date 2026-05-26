@@ -1915,27 +1915,5 @@
     "title": "Enter Access Code",
     "placeholder": "Access code",
     "error": "Invalid access code. Please try again."
-  },
-  "wechatLogin": {
-    "brand": "OpenMAIC Classroom",
-    "title": "Sign in with WeChat to continue",
-    "subtitle": "Scan-to-enter requires WeChat sign-in and phone authorization for learner identity.",
-    "wechatButton": "Continue with WeChat",
-    "demoHint": "Demo: simulates the WeChat OAuth flow",
-    "phoneTitle": "Authorize phone number",
-    "phoneSubtitle": "We need your WeChat-bound phone number for progress and access security.",
-    "phoneLabel": "Get WeChat-bound phone",
-    "phonePurpose": "Used for identity, progress sync, and access checks",
-    "authorizePhone": "Authorize and enter classroom",
-    "authorizing": "Authorizing…",
-    "denyPhone": "Not now",
-    "deniedTitle": "Authorization required",
-    "deniedSubtitle": "You must authorize your phone number to enter the classroom.",
-    "retry": "Sign in again",
-    "privacy": "By authorizing you agree we use your phone only for this learning service per our privacy policy.",
-    "close": "Close",
-    "loading": "Loading…",
-    "blockedHint": "WeChat sign-in required",
-    "blockedSubhint": "Authorize your phone number to start learning"
   }
 }

@@ -1933,27 +1933,5 @@
     "title": "请输入访问码",
     "placeholder": "访问码",
     "error": "访问码错误，请重试。"
-  },
-  "wechatLogin": {
-    "brand": "云梯 AI 课堂",
-    "title": "微信登录后继续学习",
-    "subtitle": "扫码进入课堂需先完成微信登录，并授权手机号用于学习身份识别。",
-    "wechatButton": "微信一键登录",
-    "demoHint": "演示环境：点击后模拟微信授权流程",
-    "phoneTitle": "授权手机号",
-    "phoneSubtitle": "为保障学习记录与课堂访问安全，需授权微信绑定手机号。",
-    "phoneLabel": "获取微信绑定手机号",
-    "phonePurpose": "用于学习身份识别、进度关联与访问校验",
-    "authorizePhone": "授权手机号并进入课堂",
-    "authorizing": "授权中…",
-    "denyPhone": "暂不授权",
-    "deniedTitle": "需要授权后才能学习",
-    "deniedSubtitle": "未授权手机号将无法进入课堂。你可以重新发起微信登录并完成授权。",
-    "retry": "重新登录",
-    "privacy": "授权即表示同意我们按隐私政策使用手机号，仅用于本课堂学习服务。",
-    "close": "关闭",
-    "loading": "正在加载…",
-    "blockedHint": "请先完成微信登录",
-    "blockedSubhint": "登录并授权手机号后即可开始学习"
   }
 }
