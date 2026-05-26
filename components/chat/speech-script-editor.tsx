@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { Check, Clock, Loader2, Play } from 'lucide-react';
+import { Check, Clock, Loader2, Minus, Play, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { playBrowserTTSPreview } from '@/lib/audio/browser-tts-preview';
 import { getVoxCPMProviderOptions } from '@/lib/audio/voxcpm-voices';
@@ -51,6 +51,7 @@ interface HomophonePopoverState {
 const DEFAULT_BREAK_SECONDS = 0.2;
 const MIN_BREAK_SECONDS = 0.1;
 const MAX_BREAK_SECONDS = 5;
+const BREAK_STEP_SECONDS = 0.1;
 
 function clampBreakSeconds(seconds: number): number {
   if (!Number.isFinite(seconds)) return DEFAULT_BREAK_SECONDS;
@@ -70,6 +71,11 @@ function parseBreakSecondsInput(raw: string, fallback: number): number {
   const parsed = Number.parseFloat(cleaned);
   if (!Number.isFinite(parsed)) return fallback;
   return clampBreakSeconds(parsed);
+}
+
+function stepBreakSeconds(current: number, delta: number): number {
+  const next = Math.round((current + delta) * 10) / 10;
+  return clampBreakSeconds(next);
 }
 
 function getCaretOffsetInContentEditable(el: HTMLElement): number {
@@ -242,6 +248,19 @@ function BreakPauseToken({
     setDraft(formatBreakSecondsLabel(next));
   }, [draft, onCommit, seconds]);
 
+  const currentSeconds = parseBreakSecondsInput(draft, seconds);
+  const atMinSeconds = currentSeconds <= MIN_BREAK_SECONDS;
+  const atMaxSeconds = currentSeconds >= MAX_BREAK_SECONDS;
+
+  const stepSeconds = useCallback(
+    (delta: number) => {
+      const next = stepBreakSeconds(currentSeconds, delta);
+      onCommit(next);
+      setDraft(formatBreakSecondsLabel(next));
+    },
+    [currentSeconds, onCommit],
+  );
+
   return (
     <span
       data-break-index={index}
@@ -266,12 +285,25 @@ function BreakPauseToken({
           ? 'border-[#8B9DC3] bg-white shadow-[0_0_0_1px_rgba(139,157,195,0.28)] text-gray-700 dark:border-slate-500 dark:bg-gray-900 dark:text-gray-200'
           : 'border-sky-200/90 bg-sky-50 text-sky-700 hover:bg-sky-100 dark:border-sky-800/60 dark:bg-sky-950/40 dark:text-sky-300 dark:hover:bg-sky-900/50',
       )}
-      aria-label={`停顿 ${formatBreakSecondsLabel(seconds)} 秒，点击输入时长，Delete 键删除`}
-      title="点击输入停顿时长（最长 5 秒），Delete 键删除"
+      aria-label={`停顿 ${formatBreakSecondsLabel(seconds)} 秒，点击调整时长，Delete 键删除`}
+      title="点击调整停顿时长（0.1–5 秒），可用加减按钮或输入，Delete 键删除"
     >
       <Clock className="size-3 shrink-0 text-gray-500 opacity-90 dark:text-gray-400" />
       {isEditing ? (
         <>
+          <button
+            type="button"
+            disabled={disabled || atMinSeconds}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={(e) => {
+              e.stopPropagation();
+              stepSeconds(-BREAK_STEP_SECONDS);
+            }}
+            className="flex size-[18px] shrink-0 items-center justify-center rounded text-gray-500 hover:bg-sky-100/80 disabled:cursor-not-allowed disabled:opacity-35 dark:text-gray-400 dark:hover:bg-sky-900/50"
+            aria-label="减少停顿时长"
+          >
+            <Minus className="size-3" strokeWidth={2.25} />
+          </button>
           <input
             ref={inputRef}
             type="text"
@@ -285,6 +317,16 @@ function BreakPauseToken({
                 e.preventDefault();
                 commitDraft();
                 inputRef.current?.blur();
+                return;
+              }
+              if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                stepSeconds(BREAK_STEP_SECONDS);
+                return;
+              }
+              if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                stepSeconds(-BREAK_STEP_SECONDS);
                 return;
               }
               if (e.key !== 'Backspace' && e.key !== 'Delete') return;
@@ -309,6 +351,19 @@ function BreakPauseToken({
             aria-label="停顿时长（秒）"
           />
           <span className="text-[11px] text-gray-500 dark:text-gray-400">s</span>
+          <button
+            type="button"
+            disabled={disabled || atMaxSeconds}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={(e) => {
+              e.stopPropagation();
+              stepSeconds(BREAK_STEP_SECONDS);
+            }}
+            className="flex size-[18px] shrink-0 items-center justify-center rounded text-gray-500 hover:bg-sky-100/80 disabled:cursor-not-allowed disabled:opacity-35 dark:text-gray-400 dark:hover:bg-sky-900/50"
+            aria-label="增加停顿时长"
+          >
+            <Plus className="size-3" strokeWidth={2.25} />
+          </button>
         </>
       ) : (
         <span className="tabular-nums">{formatBreakSecondsLabel(seconds)}s</span>
