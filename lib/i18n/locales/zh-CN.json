@@ -165,7 +165,12 @@
       "savedToLibrary": "已保存到模版库并设为本次使用",
       "libraryFull": "模版库已满（最多 {{max}} 张），请先删除旧模版",
       "tooLarge": "图片需小于 2MB，请压缩后重试",
-      "badType": "仅支持 JPG、PNG、WebP、GIF"
+      "badType": "仅支持 JPG、PNG、WebP、GIF",
+      "crop": {
+        "title": "裁剪图片",
+        "confirm": "确认",
+        "exportFailed": "裁剪后图片仍超过 2MB，请缩小选区或换一张图"
+      }
     },
     "resourceLib": {
       "title": "资源库",
@@ -348,20 +353,6 @@
       "applied": "角色配置已应用（demo）"
     }
   },
-  "export": {
-    "pptx": "导出 PPTX",
-    "resourcePack": "导出教学资源包",
-    "resourcePackDesc": "PPTX + 交互式页面",
-    "exporting": "正在导出...",
-    "exportSuccess": "导出成功",
-    "exportFailed": "导出失败",
-    "classroomZip": "导出课堂 ZIP",
-    "classroomZipDesc": "课程结构 + 媒体文件",
-    "blockedNoScenes": "暂无幻灯片可导出",
-    "blockedOutlinesGenerating": "大纲仍在生成中，请稍后再导出",
-    "blockedOutlinesFailed": "存在生成失败的大纲，请先重试后再导出",
-    "blockedMediaGenerating": "媒体资源正在生成中，请稍后再导出"
-  },
   "import": {
     "classroom": "导入课堂",
     "parsing": "正在解析 ZIP...",
@@ -473,6 +464,9 @@
     "presetEnableAria": "启用此预设角色",
     "presetRoleNameAria": "预设角色显示名称",
     "presetEditNameAria": "编辑显示名称",
+    "replaceAvatarAria": "上传或替换头像",
+    "replaceAvatarTooltip": "点击上传或替换头像",
+    "avatarUploadFailed": "头像上传失败，请重试",
     "presetPersonaAria": "预设角色人设",
     "presetCount": "已勾选 {{count}} / {{total}} 个预设角色",
     "viewPersona": "查看人设",
@@ -1180,6 +1174,10 @@
     "buttonTooltip": "发布课堂并前往书链生成二维码",
     "buttonAriaLabel": "发布课堂",
     "disabledReason": "课堂未生成完毕，暂无法发布",
+    "blockedNoScenes": "暂无幻灯片，暂无法发布",
+    "blockedOutlinesGenerating": "大纲仍在生成中，请稍后再发布",
+    "blockedOutlinesFailed": "存在生成失败的大纲，请先重试后再发布",
+    "blockedMediaGenerating": "媒体资源正在生成中，请稍后再发布",
     "eyebrow": "发布到书链",
     "title": "发布课堂到书链",
     "description": "复制下方 AI 课堂链接，前往书链 B 端平台关联图书并生成二维码。",
@@ -1935,5 +1933,27 @@
     "title": "请输入访问码",
     "placeholder": "访问码",
     "error": "访问码错误，请重试。"
+  },
+  "wechatLogin": {
+    "brand": "云梯 AI 课堂",
+    "title": "微信登录后继续学习",
+    "subtitle": "扫码进入课堂需先完成微信登录，并授权手机号用于学习身份识别。",
+    "wechatButton": "微信一键登录",
+    "demoHint": "演示环境：点击后模拟微信授权流程",
+    "phoneTitle": "授权手机号",
+    "phoneSubtitle": "为保障学习记录与课堂访问安全，需授权微信绑定手机号。",
+    "phoneLabel": "获取微信绑定手机号",
+    "phonePurpose": "用于学习身份识别、进度关联与访问校验",
+    "authorizePhone": "授权手机号并进入课堂",
+    "authorizing": "授权中…",
+    "denyPhone": "暂不授权",
+    "deniedTitle": "需要授权后才能学习",
+    "deniedSubtitle": "未授权手机号将无法进入课堂。你可以重新发起微信登录并完成授权。",
+    "retry": "重新登录",
+    "privacy": "授权即表示同意我们按隐私政策使用手机号，仅用于本课堂学习服务。",
+    "close": "关闭",
+    "loading": "正在加载…",
+    "blockedHint": "请先完成微信登录",
+    "blockedSubhint": "登录并授权手机号后即可开始学习"
   }
 }

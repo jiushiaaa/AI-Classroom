@@ -57,9 +57,10 @@ function getTeacherMeta(): {
 } {
   const settings = useSettingsStore.getState();
   const teacher = useAgentRegistry.getState().getAgent(MOCK_AGENT_ID);
+  const customAvatar = settings.teacherCustomAvatar?.trim();
   return {
     name: settings.teacherCustomDisplayName?.trim() || teacher?.name || 'AI teacher',
-    avatar: teacher?.avatar ?? '/avatars/teacher.png',
+    avatar: customAvatar || teacher?.avatar || '/avatars/teacher.png',
     color: teacher?.color ?? '#3b82f6',
   };
 }

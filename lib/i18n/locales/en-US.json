@@ -165,7 +165,12 @@
       "savedToLibrary": "Saved to library and selected for this run",
       "libraryFull": "Library is full (max {{max}}). Delete an old template first.",
       "tooLarge": "Image must be under 2MB. Please compress and try again.",
-      "badType": "Only JPG, PNG, WebP, or GIF are supported."
+      "badType": "Only JPG, PNG, WebP, or GIF are supported.",
+      "crop": {
+        "title": "Crop image",
+        "confirm": "Confirm",
+        "exportFailed": "Cropped image is still over 2MB. Use a smaller crop area or another image."
+      }
     },
     "resourceLib": {
       "title": "Resource library",
@@ -336,20 +341,6 @@
       }
     }
   },
-  "export": {
-    "pptx": "Export PPTX",
-    "resourcePack": "Export Resource Pack",
-    "resourcePackDesc": "PPTX + interactive pages",
-    "exporting": "Exporting...",
-    "exportSuccess": "Export successful",
-    "exportFailed": "Export failed",
-    "classroomZip": "Export Classroom ZIP",
-    "classroomZipDesc": "Course structure + media files",
-    "blockedNoScenes": "No slides to export yet",
-    "blockedOutlinesGenerating": "Outlines are still generating — try again shortly",
-    "blockedOutlinesFailed": "Some outlines failed to generate — retry before exporting",
-    "blockedMediaGenerating": "Media is still generating — try again shortly"
-  },
   "import": {
     "classroom": "Import Classroom",
     "parsing": "Parsing ZIP...",
@@ -461,6 +452,9 @@
     "presetEnableAria": "Enable this preset role",
     "presetRoleNameAria": "Preset role display name",
     "presetEditNameAria": "Edit display name",
+    "replaceAvatarAria": "Upload or replace avatar",
+    "replaceAvatarTooltip": "Click to upload or replace avatar",
+    "avatarUploadFailed": "Avatar upload failed — please try again",
     "presetPersonaAria": "Preset role persona",
     "presetCount": "{{count}} / {{total}} preset roles selected",
     "viewPersona": "View persona",
@@ -1168,6 +1162,10 @@
     "buttonTooltip": "Publish the classroom and hand off to bookln to mint the QR code.",
     "buttonAriaLabel": "Publish classroom",
     "disabledReason": "Classroom is still generating — please wait.",
+    "blockedNoScenes": "No slides yet — cannot publish",
+    "blockedOutlinesGenerating": "Outlines are still generating — try publishing again shortly",
+    "blockedOutlinesFailed": "Some outlines failed to generate — retry before publishing",
+    "blockedMediaGenerating": "Media is still generating — try publishing again shortly",
     "eyebrow": "Publish to bookln",
     "title": "Publish classroom to bookln",
     "description": "Copy the AI classroom link below, then open bookln to bind the book and mint the QR code.",
@@ -1917,5 +1915,27 @@
     "title": "Enter Access Code",
     "placeholder": "Access code",
     "error": "Invalid access code. Please try again."
+  },
+  "wechatLogin": {
+    "brand": "OpenMAIC Classroom",
+    "title": "Sign in with WeChat to continue",
+    "subtitle": "Scan-to-enter requires WeChat sign-in and phone authorization for learner identity.",
+    "wechatButton": "Continue with WeChat",
+    "demoHint": "Demo: simulates the WeChat OAuth flow",
+    "phoneTitle": "Authorize phone number",
+    "phoneSubtitle": "We need your WeChat-bound phone number for progress and access security.",
+    "phoneLabel": "Get WeChat-bound phone",
+    "phonePurpose": "Used for identity, progress sync, and access checks",
+    "authorizePhone": "Authorize and enter classroom",
+    "authorizing": "Authorizing…",
+    "denyPhone": "Not now",
+    "deniedTitle": "Authorization required",
+    "deniedSubtitle": "You must authorize your phone number to enter the classroom.",
+    "retry": "Sign in again",
+    "privacy": "By authorizing you agree we use your phone only for this learning service per our privacy policy.",
+    "close": "Close",
+    "loading": "Loading…",
+    "blockedHint": "WeChat sign-in required",
+    "blockedSubhint": "Authorize your phone number to start learning"
   }
 }

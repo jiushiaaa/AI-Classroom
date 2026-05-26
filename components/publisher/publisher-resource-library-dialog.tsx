@@ -11,7 +11,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useI18n } from '@/lib/hooks/use-i18n';
 import { cn } from '@/lib/utils';
-import { readFileAsReferenceBackgroundDataUrl } from '@/lib/utils/reference-background-image';
+import {
+  isAllowedReferenceBackgroundMime,
+  validateReferenceBackgroundDataUrl,
+} from '@/lib/utils/reference-background-image';
+import { ReferenceBackgroundCropDialog } from '@/components/shared/reference-background-crop-dialog';
 import {
   addReferenceBackgroundTemplate,
   deleteReferenceBackgroundTemplate,
@@ -66,8 +70,22 @@ export function PublisherResourceLibraryDialog({
   const [fonts, setFonts] = useState<PublisherFontTemplate[]>([]);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [fontUploadBusy, setFontUploadBusy] = useState(false);
+  const [cropDraft, setCropDraft] = useState<{ file: File; objectUrl: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const fontFileRef = useRef<HTMLInputElement>(null);
+
+  const clearCropDraft = useCallback(() => {
+    setCropDraft((prev) => {
+      if (prev?.objectUrl) URL.revokeObjectURL(prev.objectUrl);
+      return null;
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (cropDraft?.objectUrl) URL.revokeObjectURL(cropDraft.objectUrl);
+    };
+  }, [cropDraft?.objectUrl]);
 
   const reloadBackgrounds = useCallback(() => {
     setTemplates(loadReferenceBackgroundTemplates());
@@ -88,18 +106,33 @@ export function PublisherResourceLibraryDialog({
     reloadAll();
   }, [open, reloadAll]);
 
-  const handleBgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBgFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
+    if (!isAllowedReferenceBackgroundMime(file.type)) {
+      toast.error(t('home.referenceBg.badType'));
+      return;
+    }
+    clearCropDraft();
+    setCropDraft({ file, objectUrl: URL.createObjectURL(file) });
+  };
+
+  const persistCroppedBackground = async (dataUrl: string) => {
+    const file = cropDraft?.file;
+    const validated = validateReferenceBackgroundDataUrl(dataUrl);
+    if (!validated.ok) {
+      toast.error(
+        validated.error === 'size' ? t('home.referenceBg.tooLarge') : t('home.referenceBg.badType'),
+      );
+      return;
+    }
     setUploadBusy(true);
     try {
-      const res = await readFileAsReferenceBackgroundDataUrl(file);
-      if (!res.ok) {
-        toast.error(res.error === 'size' ? t('home.referenceBg.tooLarge') : t('home.referenceBg.badType'));
-        return;
-      }
-      const added = addReferenceBackgroundTemplate(res.dataUrl, file.name.replace(/\.[^.]+$/, ''));
+      const added = addReferenceBackgroundTemplate(
+        dataUrl,
+        file?.name.replace(/\.[^.]+$/, '') ?? undefined,
+      );
       if (!added) {
         toast.error(t('home.referenceBg.libraryFull', { max: MAX_REFERENCE_BG_TEMPLATES }));
         return;
@@ -108,6 +141,7 @@ export function PublisherResourceLibraryDialog({
       onLibraryMutation?.();
       onSessionTemplateChange(added.id, added.dataUrl);
       toast.success(t('home.referenceBg.savedToLibrary'));
+      clearCropDraft();
     } finally {
       setUploadBusy(false);
     }
@@ -193,6 +227,7 @@ export function PublisherResourceLibraryDialog({
   };
 
   return (
+    <>
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
       <PopoverContent
@@ -250,7 +285,7 @@ export function PublisherResourceLibraryDialog({
                   type="file"
                   accept="image/jpeg,image/png,image/webp,image/gif"
                   className="hidden"
-                  onChange={(ev) => void handleBgUpload(ev)}
+                  onChange={handleBgFilePick}
                 />
                 <button
                   type="button"
@@ -294,7 +329,7 @@ export function PublisherResourceLibraryDialog({
                         <img
                           src={tpl.dataUrl}
                           alt=""
-                          className="aspect-[16/10] w-full object-cover"
+                          className="aspect-video w-full object-cover"
                         />
                         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/65 to-transparent pt-6 pb-1.5 px-2">
                           <p className="text-[10px] text-white/95 truncate font-medium">{tpl.name}</p>
@@ -439,5 +474,16 @@ export function PublisherResourceLibraryDialog({
         </div>
       </PopoverContent>
     </Popover>
+
+    <ReferenceBackgroundCropDialog
+      open={!!cropDraft}
+      imageSrc={cropDraft?.objectUrl ?? null}
+      confirmBusy={uploadBusy}
+      onOpenChange={(next) => {
+        if (!next) clearCropDraft();
+      }}
+      onConfirm={persistCroppedBackground}
+    />
+    </>
   );
 }

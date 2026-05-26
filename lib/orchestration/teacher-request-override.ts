@@ -9,10 +9,12 @@ export function mergeTeacherAgentConfigForChatRequest(
   base: AgentConfig,
   teacherCustomDisplayName: string,
   teacherPersonaSupplement: string,
+  teacherCustomAvatar?: string,
 ): AgentConfig | null {
   const nameTrim = teacherCustomDisplayName.trim();
   const personaTrim = teacherPersonaSupplement.trim();
-  if (nameTrim === '' && personaTrim === '') {
+  const avatarTrim = (teacherCustomAvatar ?? '').trim();
+  if (nameTrim === '' && personaTrim === '' && avatarTrim === '') {
     return null;
   }
   const name = nameTrim === '' ? base.name : nameTrim;
@@ -20,10 +22,12 @@ export function mergeTeacherAgentConfigForChatRequest(
     personaTrim === ''
       ? base.persona
       : `${base.persona}\n\n# User-defined instructor persona\n${personaTrim}`;
+  const avatar = avatarTrim === '' ? base.avatar : avatarTrim;
   return {
     ...base,
     name,
     persona,
+    avatar,
   };
 }
 
@@ -35,18 +39,22 @@ export function mergeBuiltinPresetAgentForChatRequest(
   base: AgentConfig,
   nameOverride?: string,
   personaOverride?: string,
+  avatarOverride?: string,
 ): AgentConfig | null {
   const nameTrim = (nameOverride ?? '').trim();
   const personaDefined = personaOverride !== undefined;
   const personaTrim = personaDefined ? personaOverride.trim() : '';
+  const avatarTrim = (avatarOverride ?? '').trim();
   const hasName = nameTrim !== '';
   const hasPersona = personaDefined && personaTrim !== '';
-  if (!hasName && !hasPersona) {
+  const hasAvatar = avatarTrim !== '';
+  if (!hasName && !hasPersona && !hasAvatar) {
     return null;
   }
   return {
     ...base,
     name: hasName ? nameTrim : base.name,
     persona: hasPersona ? personaTrim : base.persona,
+    avatar: hasAvatar ? avatarTrim : base.avatar,
   };
 }

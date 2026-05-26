@@ -190,13 +190,15 @@ export interface SettingsState {
   autoAgentCount: number;
   /** Optional display name for the built-in AI teacher (default-1); empty = use i18n default */
   teacherCustomDisplayName: string;
+  /** Custom avatar for built-in AI teacher (data-URL); empty = registry default */
+  teacherCustomAvatar: string;
   /** Appended to the teacher system persona when non-empty */
   teacherPersonaSupplement: string;
   /**
    * Optional display name / full persona overrides for built-in preset agents
    * (default-2..default-6) in 预设模式. Empty trimmed fields are not stored.
    */
-  presetAgentOverrides: Record<string, { name?: string; persona?: string }>;
+  presetAgentOverrides: Record<string, { name?: string; persona?: string; avatar?: string }>;
 
   // Layout preferences (persisted via localStorage)
   sidebarCollapsed: boolean;
@@ -233,10 +235,11 @@ export interface SettingsState {
   setAgentMode: (mode: 'auto' | 'custom') => void;
   setAutoAgentCount: (count: number) => void;
   setTeacherCustomDisplayName: (name: string) => void;
+  setTeacherCustomAvatar: (avatar: string) => void;
   setTeacherPersonaSupplement: (text: string) => void;
   patchPresetAgentOverride: (
     agentId: string,
-    patch: Partial<{ name: string | undefined; persona: string | undefined }>,
+    patch: Partial<{ name: string | undefined; persona: string | undefined; avatar: string | undefined }>,
   ) => void;
 
   // Layout actions
@@ -712,6 +715,7 @@ export const useSettingsStore = create<SettingsState>()(
         agentMode: 'auto' as const,
         autoAgentCount: 3,
         teacherCustomDisplayName: '',
+        teacherCustomAvatar: '',
         teacherPersonaSupplement: '',
         presetAgentOverrides: {},
 
@@ -810,12 +814,13 @@ export const useSettingsStore = create<SettingsState>()(
         setAgentMode: (mode) => set({ agentMode: mode }),
         setAutoAgentCount: (count) => set({ autoAgentCount: count }),
         setTeacherCustomDisplayName: (name) => set({ teacherCustomDisplayName: name }),
+        setTeacherCustomAvatar: (avatar) => set({ teacherCustomAvatar: avatar }),
         setTeacherPersonaSupplement: (text) => set({ teacherPersonaSupplement: text }),
 
         patchPresetAgentOverride: (agentId, patch) =>
           set((state) => {
             const prev = state.presetAgentOverrides[agentId] || {};
-            const nextEntry: { name?: string; persona?: string } = { ...prev };
+            const nextEntry: { name?: string; persona?: string; avatar?: string } = { ...prev };
             if ('name' in patch) {
               if (patch.name === undefined || String(patch.name).trim() === '') {
                 delete nextEntry.name;
@@ -828,6 +833,13 @@ export const useSettingsStore = create<SettingsState>()(
                 delete nextEntry.persona;
               } else {
                 nextEntry.persona = patch.persona;
+              }
+            }
+            if ('avatar' in patch) {
+              if (patch.avatar === undefined || String(patch.avatar).trim() === '') {
+                delete nextEntry.avatar;
+              } else {
+                nextEntry.avatar = String(patch.avatar).trim();
               }
             }
             const next = { ...state.presetAgentOverrides };
@@ -1633,6 +1645,9 @@ export const useSettingsStore = create<SettingsState>()(
 
         if ((state as Record<string, unknown>).teacherCustomDisplayName === undefined) {
           (state as Record<string, unknown>).teacherCustomDisplayName = '';
+        }
+        if ((state as Record<string, unknown>).teacherCustomAvatar === undefined) {
+          (state as Record<string, unknown>).teacherCustomAvatar = '';
         }
         if ((state as Record<string, unknown>).teacherPersonaSupplement === undefined) {
           (state as Record<string, unknown>).teacherPersonaSupplement = '';

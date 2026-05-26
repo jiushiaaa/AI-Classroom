@@ -76,16 +76,6 @@
     "interactiveModeHint": "インタラクティブ優先モードを有効にして、より実践的なコンテンツを生成",
     "interactiveModeLabel": "インタラクティブモード"
   },
-  "export": {
-    "pptx": "PPTXエクスポート",
-    "resourcePack": "リソースパックをエクスポート",
-    "resourcePackDesc": "PPTX＋インタラクティブページ",
-    "exporting": "エクスポート中...",
-    "exportSuccess": "エクスポートが完了しました",
-    "exportFailed": "エクスポートに失敗しました",
-    "classroomZip": "教室ZIPをエクスポート",
-    "classroomZipDesc": "コース構造 + メディアファイル"
-  },
   "import": {
     "classroom": "教室をインポート",
     "parsing": "ZIP を解析中...",

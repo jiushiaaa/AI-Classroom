@@ -127,7 +127,11 @@ function normalizeRow(raw: unknown): PublisherCustomRoleRow | null {
   const displayName = typeof r.displayName === 'string' ? r.displayName : '';
   const prompt = typeof r.prompt === 'string' ? r.prompt : '';
   const voiceId = typeof r.voiceId === 'string' ? r.voiceId : firstVoiceId();
-  let avatar = typeof r.avatar === 'string' && r.avatar.startsWith('/avatars/') ? r.avatar : '';
+  let avatar =
+    typeof r.avatar === 'string' &&
+    (r.avatar.startsWith('/avatars/') || r.avatar.startsWith('data:image/'))
+      ? r.avatar
+      : '';
   if (!avatar) {
     avatar = pickPublisherAvatar(identity, id);
   }

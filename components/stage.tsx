@@ -279,19 +279,25 @@ export function Stage({
   const teacherSubtitlesVisible = useSettingsStore((s) => s.teacherSubtitlesVisible);
   const realtimeQAEnabled = useSettingsStore((s) => s.realtimeQAEnabled);
   const teacherCustomDisplayName = useSettingsStore((s) => s.teacherCustomDisplayName);
+  const teacherCustomAvatar = useSettingsStore((s) => s.teacherCustomAvatar);
   const presetAgentOverrides = useSettingsStore((s) => s.presetAgentOverrides);
 
   // Generate participants from selected agents
   const participants = useMemo(() => {
     const displayNameById: Record<string, string> = {};
+    const avatarById: Record<string, string> = {};
     const tn = teacherCustomDisplayName.trim();
     if (tn) displayNameById['default-1'] = tn;
+    const ta = teacherCustomAvatar.trim();
+    if (ta) avatarById['default-1'] = ta;
     for (const [id, row] of Object.entries(presetAgentOverrides ?? {})) {
       const n = row?.name?.trim();
       if (n) displayNameById[id] = n;
+      const av = row?.avatar?.trim();
+      if (av) avatarById[id] = av;
     }
-    return agentsToParticipants(selectedAgentIds, t, { displayNameById });
-  }, [selectedAgentIds, t, presetAgentOverrides, teacherCustomDisplayName]);
+    return agentsToParticipants(selectedAgentIds, t, { displayNameById, avatarById });
+  }, [selectedAgentIds, t, presetAgentOverrides, teacherCustomDisplayName, teacherCustomAvatar]);
 
   // Resolved AgentConfig array for hooks that need full agent objects
   // Subscribe to the agents record so voiceConfig changes trigger re-resolution

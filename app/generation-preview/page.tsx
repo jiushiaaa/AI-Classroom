@@ -718,6 +718,7 @@ function GenerationPreviewContent() {
             teacherBase,
             settings.teacherCustomDisplayName,
             settings.teacherPersonaSupplement,
+            settings.teacherCustomAvatar,
           );
         agents = presetAgentIds
           .map((id) => {
@@ -727,7 +728,10 @@ function GenerationPreviewContent() {
               return teacherResolved ?? base;
             }
             const row = presetOv[id];
-            return mergeBuiltinPresetAgentForChatRequest(base, row?.name, row?.persona) ?? base;
+            return (
+              mergeBuiltinPresetAgentForChatRequest(base, row?.name, row?.persona, row?.avatar) ??
+              base
+            );
           })
           .filter(Boolean)
           .map((a) => ({

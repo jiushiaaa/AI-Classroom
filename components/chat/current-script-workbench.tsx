@@ -122,6 +122,7 @@ export function CurrentScriptWorkbench({
   const agentsRecord = useAgentRegistry((state) => state.agents);
   const selectedAgentIds = useSettingsStore((state) => state.selectedAgentIds);
   const teacherCustomDisplayName = useSettingsStore((state) => state.teacherCustomDisplayName);
+  const teacherCustomAvatar = useSettingsStore((state) => state.teacherCustomAvatar);
   const presetAgentOverrides = useSettingsStore((state) => state.presetAgentOverrides);
   const ttsSpeed = useSettingsStore((state) => state.ttsSpeed);
   const setTTSSpeed = useSettingsStore((state) => state.setTTSSpeed);
@@ -182,7 +183,10 @@ export function CurrentScriptWorkbench({
     teacherCustomDisplayName,
     presetAgentOverrides,
   );
-  const selectedTeacherAvatar = selectedTeacher?.avatar || DEFAULT_TEACHER_AVATAR;
+  const selectedTeacherAvatar =
+    (selectedTeacher?.id === 'default-1' && teacherCustomAvatar.trim()) ||
+    selectedTeacher?.avatar ||
+    DEFAULT_TEACHER_AVATAR;
 
   const engineStateForSeek: 'idle' | 'playing' | 'paused' =
     engineMode === 'playing' || engineMode === 'live'

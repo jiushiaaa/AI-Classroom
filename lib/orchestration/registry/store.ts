@@ -270,12 +270,13 @@ export const useAgentRegistry = create<AgentRegistryState>()(
 export function agentsToParticipants(
   agentIds: string[],
   t?: (key: string) => string,
-  options?: { displayNameById?: Record<string, string> },
+  options?: { displayNameById?: Record<string, string>; avatarById?: Record<string, string> },
 ): Participant[] {
   const registry = useAgentRegistry.getState();
   const participants: Participant[] = [];
   let hasTeacher = false;
   const displayNameById = options?.displayNameById;
+  const avatarById = options?.avatarById;
 
   // Resolve agents and sort: teacher first (by role then priority desc)
   const resolved = agentIds
@@ -307,11 +308,12 @@ export function agentsToParticipants(
           ? i18nName
           : agent.name;
 
+    const customAvatar = avatarById?.[agent.id]?.trim();
     participants.push({
       id: agent.id,
       name: displayName,
       role,
-      avatar: agent.avatar,
+      avatar: customAvatar && customAvatar.length > 0 ? customAvatar : agent.avatar,
       isOnline: true,
       isSpeaking: false,
     });

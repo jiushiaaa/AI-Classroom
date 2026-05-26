@@ -6,15 +6,14 @@
  * Editor-toolbar entry to the PublishDialog (book-link handoff).
  *
  * Two visual variants:
- *  - `icon` (default): minimalist square icon button matching the Download
- *    icon next to it — keeps the editor chrome calm so the eye lands on the
- *    canvas, with the verb "发布" surfaced via tooltip on hover.
+ *  - `icon` (default): minimalist square icon button in the editor header —
+ *    keeps the chrome calm so the eye lands on the canvas, with the verb
+ *    "发布" surfaced via tooltip on hover.
  *  - `pill`: legacy purple-gradient CTA. Kept for fallback / future reuse so
  *    we can roll back the simplification by flipping a single prop.
  *
- * Disabled state mirrors the existing `canExport` heuristic from Header so
- * publish parity is enforced — if the classroom isn't ready to export it
- * shouldn't be ready to publish either.
+ * Disabled state mirrors the readiness heuristic from Header — if the
+ * classroom isn't fully generated it shouldn't be ready to publish.
  */
 
 import { useState } from 'react';
@@ -29,8 +28,7 @@ interface PublishButtonProps {
   readonly disabled?: boolean;
   readonly disabledReason?: string;
   /**
-   * Visual treatment. Defaults to the compact icon button so it sits flush
-   * with the Download icon in the editor header.
+   * Visual treatment. Defaults to the compact icon button in the editor header.
    */
   readonly variant?: PublishButtonVariant;
 }

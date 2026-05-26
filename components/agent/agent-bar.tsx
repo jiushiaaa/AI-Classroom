@@ -50,6 +50,7 @@ import {
   PUBLISHER_VOICE_GROUPS,
   PUBLISHER_CUSTOM_ROLES_MAX,
   loadPublisherCustomRoles,
+  pickPublisherAvatar,
   savePublisherCustomRoles,
   type PublisherCustomRoleRow,
   type PublisherIdentityRole,
@@ -57,6 +58,7 @@ import {
 import { generateAutoRolesDemo } from '@/lib/publisher/publisher-roles-demo';
 import { toast } from 'sonner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { PresetAgentAvatar } from '@/components/agent/preset-agent-avatar';
 import type { AgentConfig } from '@/lib/orchestration/registry/types';
 import type { TTSProviderId } from '@/lib/audio/types';
 import type { ProviderWithVoices } from '@/lib/audio/voice-resolver';
@@ -887,25 +889,13 @@ function AutoGenerateRolesPanel({
                     aria-label={t('agentBar.publisherEnableRole')}
                     className="shrink-0"
                   />
-                  <div className="size-8 rounded-full overflow-hidden ring-1 ring-border/40 shrink-0 bg-muted">
-                    {row.avatar ? (
-                      <img src={row.avatar} alt="" className="size-full object-cover" />
-                    ) : (
-                      <div
-                        className={cn(
-                          'size-full flex items-center justify-center text-[10px] font-bold text-white',
-                          row.identity === 'teacher' &&
-                            'bg-gradient-to-br from-blue-500 to-indigo-600',
-                          row.identity === 'assistant' &&
-                            'bg-gradient-to-br from-violet-500 to-fuchsia-600',
-                          row.identity === 'student' &&
-                            'bg-gradient-to-br from-emerald-500 to-teal-600',
-                        )}
-                      >
-                        {publisherRoleInitial(row, t)}
-                      </div>
-                    )}
-                  </div>
+                  <PresetAgentAvatar
+                    src={
+                      row.avatar ||
+                      pickPublisherAvatar(row.identity, row.id)
+                    }
+                    onAvatarChange={(dataUrl) => patchRow(row.id, { avatar: dataUrl })}
+                  />
                   <div className="min-w-0 flex-1 flex items-center gap-1.5">
                     <input
                       type="text"
@@ -1045,16 +1035,18 @@ interface PresetRolesPanelProps {
   getAgentName: (agent: { id: string; name: string }) => string;
   teacherCustomDisplayName: string;
   setTeacherCustomDisplayName: (value: string) => void;
+  teacherCustomAvatar: string;
+  setTeacherCustomAvatar: (value: string) => void;
   teacherPersonaSupplement: string;
   setTeacherPersonaSupplement: (value: string) => void;
   teacherNameEdit: boolean;
   setTeacherNameEdit: (value: boolean) => void;
   teacherPersonaExpanded: boolean;
   setTeacherPersonaExpanded: (value: boolean | ((prev: boolean) => boolean)) => void;
-  presetAgentOverrides: Record<string, { name?: string; persona?: string }>;
+  presetAgentOverrides: Record<string, { name?: string; persona?: string; avatar?: string }>;
   patchPresetAgentOverride: (
     agentId: string,
-    patch: Partial<{ name: string | undefined; persona: string | undefined }>,
+    patch: Partial<{ name: string | undefined; persona: string | undefined; avatar: string | undefined }>,
   ) => void;
   /** When false, inline name editors close (popover dismissed). */
   popoverOpen: boolean;
@@ -1077,6 +1069,8 @@ function PresetRolesPanel({
   getAgentName,
   teacherCustomDisplayName,
   setTeacherCustomDisplayName,
+  teacherCustomAvatar,
+  setTeacherCustomAvatar,
   teacherPersonaSupplement,
   setTeacherPersonaSupplement,
   teacherNameEdit,
@@ -1165,17 +1159,15 @@ function PresetRolesPanel({
                 aria-label={t('agentBar.presetEnableAria')}
                 className="shrink-0 opacity-60"
               />
-              <div
-                className="size-8 rounded-full overflow-hidden ring-1 ring-border/40 shrink-0"
-                style={{ boxShadow: `0 0 0 2px ${teacherAgent.color}30` }}
-              >
-                <img
-                  src={teacherAgent.avatar}
-                  alt=""
-                  className="size-full object-cover"
-                  aria-hidden
-                />
-              </div>
+              <PresetAgentAvatar
+                src={
+                  teacherCustomAvatar.trim() !== ''
+                    ? teacherCustomAvatar.trim()
+                    : teacherAgent.avatar
+                }
+                ringColor={teacherAgent.color}
+                onAvatarChange={setTeacherCustomAvatar}
+              />
               <div className="min-w-0 flex-1">
                 {teacherNameEdit ? (
                   <Input
@@ -1310,17 +1302,17 @@ function PresetRolesPanel({
                   aria-label={t('agentBar.presetEnableAria')}
                   className="shrink-0"
                 />
-                <div
-                  className="size-8 rounded-full overflow-hidden ring-1 ring-border/40 shrink-0"
-                  style={{ boxShadow: `0 0 0 2px ${agent.color}30` }}
-                >
-                  <img
-                    src={agent.avatar}
-                    alt=""
-                    className="size-full object-cover"
-                    aria-hidden
-                  />
-                </div>
+                <PresetAgentAvatar
+                  src={
+                    ovr?.avatar?.trim()
+                      ? ovr.avatar.trim()
+                      : agent.avatar
+                  }
+                  ringColor={agent.color}
+                  onAvatarChange={(dataUrl) =>
+                    patchPresetAgentOverride(agent.id, { avatar: dataUrl })
+                  }
+                />
                 <div className="min-w-0 flex-1">
                   {isNameEdit ? (
                     <div className="flex items-center gap-1.5 min-w-0">
@@ -1485,8 +1477,10 @@ export function AgentBar() {
   const ttsProvidersConfig = useSettingsStore((s) => s.ttsProvidersConfig);
   const ttsEnabled = useSettingsStore((s) => s.ttsEnabled);
   const teacherCustomDisplayName = useSettingsStore((s) => s.teacherCustomDisplayName);
+  const teacherCustomAvatar = useSettingsStore((s) => s.teacherCustomAvatar);
   const teacherPersonaSupplement = useSettingsStore((s) => s.teacherPersonaSupplement);
   const setTeacherCustomDisplayName = useSettingsStore((s) => s.setTeacherCustomDisplayName);
+  const setTeacherCustomAvatar = useSettingsStore((s) => s.setTeacherCustomAvatar);
   const setTeacherPersonaSupplement = useSettingsStore((s) => s.setTeacherPersonaSupplement);
   const presetAgentOverrides = useSettingsStore((s) => s.presetAgentOverrides);
   const patchPresetAgentOverride = useSettingsStore((s) => s.patchPresetAgentOverride);
@@ -1695,6 +1689,8 @@ export function AgentBar() {
               getAgentName={getAgentName}
               teacherCustomDisplayName={teacherCustomDisplayName}
               setTeacherCustomDisplayName={setTeacherCustomDisplayName}
+              teacherCustomAvatar={teacherCustomAvatar}
+              setTeacherCustomAvatar={setTeacherCustomAvatar}
               teacherPersonaSupplement={teacherPersonaSupplement}
               setTeacherPersonaSupplement={setTeacherPersonaSupplement}
               teacherNameEdit={teacherNameEdit}

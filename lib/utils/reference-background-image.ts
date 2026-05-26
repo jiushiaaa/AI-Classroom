@@ -9,6 +9,19 @@ export function isAllowedReferenceBackgroundMime(type: string): boolean {
   return ALLOWED_PREFIXES.some((p) => type.startsWith(p));
 }
 
+export function validateReferenceBackgroundDataUrl(
+  dataUrl: string,
+): { ok: true } | { ok: false; error: 'type' | 'size' } {
+  if (!dataUrl.startsWith('data:image/')) {
+    return { ok: false, error: 'type' };
+  }
+  const approxBytes = Math.ceil((dataUrl.length * 3) / 4);
+  if (approxBytes > MAX_REFERENCE_BACKGROUND_BYTES) {
+    return { ok: false, error: 'size' };
+  }
+  return { ok: true };
+}
+
 export function readFileAsReferenceBackgroundDataUrl(
   file: File,
 ): Promise<{ ok: true; dataUrl: string } | { ok: false; error: 'type' | 'size' }> {
@@ -22,13 +35,9 @@ export function readFileAsReferenceBackgroundDataUrl(
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = typeof reader.result === 'string' ? reader.result : '';
-      if (!dataUrl.startsWith('data:image/')) {
-        resolve({ ok: false, error: 'type' });
-        return;
-      }
-      const approxBytes = Math.ceil((dataUrl.length * 3) / 4);
-      if (approxBytes > MAX_REFERENCE_BACKGROUND_BYTES) {
-        resolve({ ok: false, error: 'size' });
+      const validated = validateReferenceBackgroundDataUrl(dataUrl);
+      if (!validated.ok) {
+        resolve(validated);
         return;
       }
       resolve({ ok: true, dataUrl });

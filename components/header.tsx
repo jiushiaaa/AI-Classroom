@@ -2,11 +2,6 @@
 
 import {
   ArrowLeft,
-  Loader2,
-  Download,
-  FileDown,
-  Package,
-  Archive,
   Captions,
   CaptionsOff,
   Pencil,
@@ -17,23 +12,14 @@ import {
   SlideEditInsertToolbar,
 } from '@/components/slide-renderer/Editor/slide-edit-insert-toolbar';
 import { Separator } from '@/components/ui/separator';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { SceneProvider } from '@/lib/contexts/scene-context';
 import { useI18n } from '@/lib/hooks/use-i18n';
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { toast } from 'sonner';
+import { useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useStageStore } from '@/lib/store/stage';
 import { useSettingsStore } from '@/lib/store/settings';
 import { useMediaGenerationStore } from '@/lib/store/media-generation';
-import { useExportPPTX } from '@/lib/export/use-export-pptx';
-import { useExportClassroom } from '@/lib/export/use-export-classroom';
 import {
   DevicePreviewTabs,
   type DevicePreviewTabsVariant,
@@ -55,9 +41,9 @@ interface HeaderProps {
   /** Hide the preview / return-to-edit toggle (mobile & iPad device frames). */
   readonly hideEditToggle?: boolean;
   /**
-   * When true, hide all publisher-only actions (publish, export). Used by the
-   * mobile / iPad preview frames so the in-frame chrome shows ONLY what an end
-   * student would see — the publisher edits exclusively from the web view.
+   * When true, hide publisher-only actions (publish). Used by the mobile / iPad
+   * preview frames so the in-frame chrome shows ONLY what an end student would
+   * see — the publisher edits exclusively from the web view.
    */
   readonly readOnly?: boolean;
   /**
@@ -166,10 +152,6 @@ export function Header({
     selection.addRange(range);
   }, []);
 
-  // Export
-  const { exporting: isExporting, exportPPTX, exportResourcePack } = useExportPPTX();
-  const { exporting: isExportingZip, exportClassroomZip } = useExportClassroom();
-  const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const scenes = useStageStore((s) => s.scenes);
   const generatingOutlines = useStageStore((s) => s.generatingOutlines);
   const failedOutlines = useStageStore((s) => s.failedOutlines);
@@ -177,28 +159,16 @@ export function Header({
   const teacherSubtitlesVisible = useSettingsStore((s) => s.teacherSubtitlesVisible);
   const setTeacherSubtitlesVisible = useSettingsStore((s) => s.setTeacherSubtitlesVisible);
 
-  const exportBlockedReason = useMemo(() => {
-    if (scenes.length === 0) return t('export.blockedNoScenes');
-    if (generatingOutlines.length > 0) return t('export.blockedOutlinesGenerating');
-    if (failedOutlines.length > 0) return t('export.blockedOutlinesFailed');
+  const publishBlockedReason = useMemo(() => {
+    if (scenes.length === 0) return t('publish.blockedNoScenes');
+    if (generatingOutlines.length > 0) return t('publish.blockedOutlinesGenerating');
+    if (failedOutlines.length > 0) return t('publish.blockedOutlinesFailed');
     const hasGeneratingMedia = Object.values(mediaTasks).some((task) => task.status === 'generating');
-    if (hasGeneratingMedia) return t('export.blockedMediaGenerating');
+    if (hasGeneratingMedia) return t('publish.blockedMediaGenerating');
     return null;
   }, [scenes.length, generatingOutlines.length, failedOutlines.length, mediaTasks, t]);
 
-  const canExport = exportBlockedReason === null;
-
-  const handleExportOpenChange = useCallback(
-    (open: boolean) => {
-      if (isExporting || isExportingZip) return;
-      if (open && exportBlockedReason) {
-        toast.error(exportBlockedReason);
-        return;
-      }
-      setExportMenuOpen(open);
-    },
-    [exportBlockedReason, isExporting, isExportingZip],
-  );
+  const canPublish = publishBlockedReason === null;
 
   // Build the publisher edit-view toggle button outside the JSX tree to
   // keep the render template free of nested ternaries (sonarqube rule).
@@ -241,10 +211,10 @@ export function Header({
     );
   }
 
-  // Publisher ToB: edit view 字幕开关在讲稿工作台工具栏；网页预览 = 设备 preview（无发布/导出）
+  // Publisher ToB: edit view 字幕开关在讲稿工作台工具栏；网页预览 = 设备 preview（无发布）
   const showSubtitlesToggle = !readOnly && !showPublisherChrome;
   const showDevicePreviewTabs = !readOnly && (!showPublisherChrome || !publisherEditView);
-  const showPublishExport = !readOnly && (!showPublisherChrome || publisherEditView);
+  const showPublish = !readOnly && (!showPublisherChrome || publisherEditView);
 
   return (
     <header
@@ -365,77 +335,11 @@ export function Header({
             {showDevicePreviewTabs && (
               <DevicePreviewTabs variant={deviceTabsVariant} showOrientationToggle />
             )}
-            {showPublishExport && (
-              <>
-            {/* Publish — compact icon button (hover to reveal "发布"); flush
-                left of the Download icon so the two share a single visual rail. */}
-            <PublishButton
-              disabled={!canExport}
-              disabledReason={exportBlockedReason ?? undefined}
-            />
-
-            {/* Export — portal menu so dropdown is not clipped by stage overflow-hidden */}
-            <DropdownMenu open={exportMenuOpen} onOpenChange={handleExportOpenChange}>
-              <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                disabled={isExporting || isExportingZip}
-                title={
-                  exportBlockedReason ??
-                  (isExporting || isExportingZip ? t('export.exporting') : t('export.pptx'))
-                }
-                className={cn(
-                  'shrink-0 p-2 rounded-full transition-all',
-                  isExporting || isExportingZip
-                    ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed opacity-50'
-                    : exportBlockedReason
-                      ? 'text-gray-400 dark:text-gray-500 opacity-70 hover:bg-white dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200'
-                      : 'text-gray-400 dark:text-gray-500 hover:bg-white dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200 hover:shadow-sm',
-                )}
-              >
-                {isExporting || isExportingZip ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Download className="w-4 h-4" />
-                )}
-              </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-[200px] p-1">
-                <DropdownMenuItem
-                  className="gap-2.5 px-3 py-2.5 cursor-pointer"
-                  onClick={() => exportPPTX()}
-                >
-                  <FileDown className="w-4 h-4 text-gray-400 shrink-0" />
-                  <span>{t('export.pptx')}</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="items-start gap-2.5 px-3 py-2.5 cursor-pointer"
-                  onClick={() => exportResourcePack()}
-                >
-                  <Package className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
-                  <div>
-                    <div>{t('export.resourcePack')}</div>
-                    <div className="text-[11px] text-gray-400 dark:text-gray-500">
-                      {t('export.resourcePackDesc')}
-                    </div>
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="items-start gap-2.5 px-3 py-2.5 cursor-pointer"
-                  disabled={isExportingZip}
-                  onClick={() => exportClassroomZip()}
-                >
-                  <Archive className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
-                  <div>
-                    <div>{t('export.classroomZip')}</div>
-                    <div className="text-[11px] text-gray-400 dark:text-gray-500">
-                      {t('export.classroomZipDesc')}
-                    </div>
-                  </div>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-              </>
+            {showPublish && (
+              <PublishButton
+                disabled={!canPublish}
+                disabledReason={publishBlockedReason ?? undefined}
+              />
             )}
           </>
         )}

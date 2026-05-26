@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Heading1,
   Heading2,
@@ -33,7 +33,11 @@ import {
   createSlideTextElement,
   createSlideVideoElement,
 } from '@/lib/utils/slide-element-factories';
-import { readFileAsReferenceBackgroundDataUrl } from '@/lib/utils/reference-background-image';
+import {
+  isAllowedReferenceBackgroundMime,
+  validateReferenceBackgroundDataUrl,
+} from '@/lib/utils/reference-background-image';
+import { ReferenceBackgroundCropDialog } from '@/components/shared/reference-background-crop-dialog';
 import { Separator } from '@/components/ui/separator';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
@@ -304,6 +308,20 @@ export function SlideEditInsertToolbar({ variant = 'strip' }: { readonly variant
   const [textMenuOpen, setTextMenuOpen] = useState(false);
   const [tableMenuOpen, setTableMenuOpen] = useState(false);
   const [tableHover, setTableHover] = useState<{ rows: number; cols: number } | null>(null);
+  const [bgCropDraft, setBgCropDraft] = useState<{ objectUrl: string } | null>(null);
+
+  const clearBgCropDraft = useCallback(() => {
+    setBgCropDraft((prev) => {
+      if (prev?.objectUrl) URL.revokeObjectURL(prev.objectUrl);
+      return null;
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (bgCropDraft?.objectUrl) URL.revokeObjectURL(bgCropDraft.objectUrl);
+    };
+  }, [bgCropDraft?.objectUrl]);
 
   const vw = viewportSize || 1000;
   const vh = vw * (viewportRatio || 0.5625);
@@ -397,22 +415,37 @@ export function SlideEditInsertToolbar({ variant = 'strip' }: { readonly variant
   }, []);
 
   const onBackgroundFile = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
+    (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       e.target.value = '';
       if (!file) return;
-      const res = await readFileAsReferenceBackgroundDataUrl(file);
-      if (!res.ok) {
-        toast.error(res.error === 'size' ? t('home.referenceBg.tooLarge') : t('home.referenceBg.badType'));
+      if (!isAllowedReferenceBackgroundMime(file.type)) {
+        toast.error(t('home.referenceBg.badType'));
+        return;
+      }
+      clearBgCropDraft();
+      setBgCropDraft({ objectUrl: URL.createObjectURL(file) });
+    },
+    [clearBgCropDraft, t],
+  );
+
+  const applyCroppedPageBackground = useCallback(
+    (dataUrl: string) => {
+      const validated = validateReferenceBackgroundDataUrl(dataUrl);
+      if (!validated.ok) {
+        toast.error(
+          validated.error === 'size' ? t('home.referenceBg.tooLarge') : t('home.referenceBg.badType'),
+        );
         return;
       }
       updateBackground({
         type: 'image',
-        image: { src: res.dataUrl, size: 'cover' },
+        image: { src: dataUrl, size: 'cover' },
       });
       addHistorySnapshot();
+      clearBgCropDraft();
     },
-    [addHistorySnapshot, t, updateBackground],
+    [addHistorySnapshot, clearBgCropDraft, t, updateBackground],
   );
 
   const tableGridCells = useMemo(() => {
@@ -435,6 +468,7 @@ export function SlideEditInsertToolbar({ variant = 'strip' }: { readonly variant
   if (!isEditing) return null;
 
   return (
+    <>
     <TooltipProvider delayDuration={300}>
       <div
         data-testid="slide-edit-insert-toolbar"
@@ -454,7 +488,7 @@ export function SlideEditInsertToolbar({ variant = 'strip' }: { readonly variant
           type="file"
           accept="image/jpeg,image/png,image/webp,image/gif"
           className="hidden"
-          onChange={(ev) => void onBackgroundFile(ev)}
+          onChange={onBackgroundFile}
         />
         <input
           ref={imageFileRef}
@@ -676,5 +710,15 @@ export function SlideEditInsertToolbar({ variant = 'strip' }: { readonly variant
         </div>
       </div>
     </TooltipProvider>
+
+    <ReferenceBackgroundCropDialog
+      open={!!bgCropDraft}
+      imageSrc={bgCropDraft?.objectUrl ?? null}
+      onOpenChange={(next) => {
+        if (!next) clearBgCropDraft();
+      }}
+      onConfirm={applyCroppedPageBackground}
+    />
+    </>
   );
 }

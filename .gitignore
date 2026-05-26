@@ -72,6 +72,9 @@ next-env.d.ts
 
 # docs
 /docs
+
+# local demo assets (videos/audio renders — not for remote)
+/demo/
 # Eval results
 eval/whiteboard-layout/results/
 eval/outline-language/results/

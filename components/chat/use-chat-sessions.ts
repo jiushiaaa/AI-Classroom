@@ -487,6 +487,7 @@ export function useChatSessions(options: UseChatSessionsOptions = {}) {
           teacherBase,
           settingsState.teacherCustomDisplayName,
           settingsState.teacherPersonaSupplement,
+          settingsState.teacherCustomAvatar,
         );
 
       const mergedAgentConfigs = [...generatedConfigs];
@@ -509,6 +510,7 @@ export function useChatSessions(options: UseChatSessionsOptions = {}) {
           base,
           row?.name,
           row?.persona,
+          row?.avatar,
         );
         if (!presetMerged) continue;
         const { createdAt: _ct, updatedAt: _ut, isDefault: _idf, ...presetRest } = presetMerged;

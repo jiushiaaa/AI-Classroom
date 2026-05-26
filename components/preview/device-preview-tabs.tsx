@@ -24,8 +24,8 @@ const OPTIONS: ReadonlyArray<DeviceOption> = [
 interface DevicePreviewTabsProps {
   /**
    * `pill` — capsule tablist with icon-only tabs; labels on hover tooltip.
-   * `iconRail` — three standalone circular icon buttons matching Publish /
-   * Download chrome in the classroom Header (labels only in `title` tooltip).
+   * `iconRail` — three standalone circular icon buttons matching the classroom
+   * Header chrome (labels only in `title` tooltip).
    */
   readonly variant?: DevicePreviewTabsVariant;
   /** When true, append the landscape / portrait toggle inside the pill group. */

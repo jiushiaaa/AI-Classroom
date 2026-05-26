@@ -19,6 +19,7 @@ import {
   buildOpenmaicDemoClassroom,
 } from '@/lib/mock/openmaic-demo-classroom';
 import { isClassroomPreviewMode } from '@/lib/utils/classroom-preview-url';
+import { WechatLoginGuard } from '@/components/student/wechat-login-guard';
 
 const log = createLogger('Classroom');
 
@@ -226,10 +227,12 @@ export default function ClassroomDetailPage() {
               </div>
             </div>
           ) : (
-            <Stage
-              onRetryOutline={retrySingleOutline}
-              initialPublisherEditView={!previewMode}
-            />
+            <WechatLoginGuard classroomId={classroomId} enabled={previewMode}>
+              <Stage
+                onRetryOutline={retrySingleOutline}
+                initialPublisherEditView={!previewMode}
+              />
+            </WechatLoginGuard>
           )}
         </div>
       </MediaStageProvider>
