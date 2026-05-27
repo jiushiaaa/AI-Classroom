@@ -24,7 +24,6 @@ import {
   Copy,
   Scissors,
   ClipboardPaste,
-  Crop,
   Layers,
   ArrowUp,
   ArrowDown,
@@ -152,7 +151,6 @@ export function StylePanel() {
   const isEditing = useEditModeStore.use.isEditing();
   const handleElementId = useCanvasStore.use.handleElementId();
   const setSelectedElementId = useEditModeStore.use.setSelectedElementId();
-  const setClipingImageElementId = useCanvasStore.use.setClipingImageElementId();
   const currentSceneId = useStageStore.use.currentSceneId();
   const scenes = useStageStore.use.scenes();
   const updateScene = useStageStore.use.updateScene();
@@ -485,17 +483,6 @@ export function StylePanel() {
               />
             </div>
           </Section>
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="w-full h-9 text-xs gap-1.5 rounded-lg border-violet-200/80 text-violet-700 hover:bg-violet-50 dark:border-violet-800/60 dark:text-violet-300 dark:hover:bg-violet-950/40"
-            onClick={() => setClipingImageElementId(selectedElement.id)}
-          >
-            <Crop className="w-3.5 h-3.5" />
-            {t('editMode.style.enterCrop')}
-          </Button>
         </>
       )}
 

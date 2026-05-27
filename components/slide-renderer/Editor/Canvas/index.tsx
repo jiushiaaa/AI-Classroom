@@ -22,8 +22,6 @@ import { Operate } from './Operate';
 import { MultiSelectOperate } from './Operate/MultiSelectOperate';
 import { ElementCreateSelection } from './ElementCreateSelection';
 import { ShapeCreateCanvas } from './ShapeCreateCanvas';
-import { Ruler } from './Ruler';
-import { GridLines } from './GridLines';
 import { TextSelectionMiniToolbar } from './TextSelectionMiniToolbar';
 import { ImageMiniToolbar } from './ImageMiniToolbar';
 import { TableMiniToolbar } from './TableMiniToolbar';
@@ -80,11 +78,7 @@ export function Canvas(_props: CanvasProps) {
   const hiddenElementIdList = useCanvasStore.use.hiddenElementIdList();
   const creatingElement = useCanvasStore.use.creatingElement();
   const creatingCustomShape = useCanvasStore.use.creatingCustomShape();
-  const showRuler = useCanvasStore.use.showRuler();
-  const gridLineSize = useCanvasStore.use.gridLineSize();
   const setActiveElementIdList = useCanvasStore.use.setActiveElementIdList();
-  const setGridLineSize = useCanvasStore.use.setGridLineSize();
-  const setRulerState = useCanvasStore.use.setRulerState();
 
   // Keyboard state
   const spaceKeyState = useKeyboardStore((state) => state.spaceKeyState);
@@ -235,37 +229,6 @@ export function Canvas(_props: CanvasProps) {
         handler: selectAllElements,
       },
       {
-        text: '标尺',
-        subText: showRuler ? '√' : '',
-        handler: () => setRulerState(!showRuler),
-      },
-      {
-        text: '网格线',
-        handler: () => setGridLineSize(gridLineSize ? 0 : 50),
-        children: [
-          {
-            text: '无',
-            subText: gridLineSize === 0 ? '√' : '',
-            handler: () => setGridLineSize(0),
-          },
-          {
-            text: '小',
-            subText: gridLineSize === 25 ? '√' : '',
-            handler: () => setGridLineSize(25),
-          },
-          {
-            text: '中',
-            subText: gridLineSize === 50 ? '√' : '',
-            handler: () => setGridLineSize(50),
-          },
-          {
-            text: '大',
-            subText: gridLineSize === 100 ? '√' : '',
-            handler: () => setGridLineSize(100),
-          },
-        ],
-      },
-      {
         text: '重置当前页',
         handler: deleteAllElements,
       },
@@ -359,9 +322,6 @@ export function Canvas(_props: CanvasProps) {
                 transform: `scale(${canvasScale})`,
               }}
             >
-              {/* Grid lines */}
-              {gridLineSize > 0 && <GridLines />}
-
               {/* Mouse selection rectangle */}
               {mouseSelectionVisible && (
                 <MouseSelection
@@ -389,9 +349,6 @@ export function Canvas(_props: CanvasProps) {
               )}
             </div>
           </div>
-
-          {/* Ruler */}
-          {showRuler && <Ruler viewportStyles={viewportStyles} elementList={elementList} />}
 
           {/* Drag mask when space key is pressed */}
           {spaceKeyState && <div className="drag-mask absolute inset-0 cursor-grab" />}

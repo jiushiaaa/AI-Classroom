@@ -13,14 +13,14 @@ export type StageMode = 'autonomous' | 'playback';
  * Whether a scene type supports the in-canvas "manual edit" mode (the
  * Pencil / 进入编辑 button in the header & canvas toolbar).
  *
- * Only the PPTist slide canvas is editable by hand — `quiz` (测试题),
- * `interactive` (模拟实验 / 在线编程 / 思维导图 / 3D / game widgets) and
- * `pbl` (项目挑战) all have generated structures that are impractical for
- * the publisher to tweak manually, so they rely on the per-scene
- * "AI 单页助手" / "AI 调优" flow instead of inline editing.
+ * The PPTist slide canvas supports full inline editing. Quiz scenes support
+ * a constrained manual editor: question text, option text/order, and correct
+ * answers are editable, while the generated question type stays locked.
+ * Interactive widgets and PBL keep using the per-scene AI modify flow because
+ * their generated structures are impractical to tweak by hand.
  */
 export function isManuallyEditableSceneType(type: SceneType | undefined): boolean {
-  return type === 'slide';
+  return type === 'slide' || type === 'quiz';
 }
 
 export type Whiteboard = Omit<Slide, 'theme' | 'turningMode' | 'sectionTag' | 'type'>;

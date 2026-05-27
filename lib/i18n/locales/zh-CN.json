@@ -682,10 +682,16 @@
       "questionAriaLabel": "题干（可编辑）",
       "optionAriaLabel": "选项（可编辑）",
       "toggleCorrect": "切换为正确答案",
+      "dragOption": "拖拽调整选项顺序",
       "removeOption": "删除选项",
       "addOption": "新增一项",
       "newOptionLabel": "新选项",
-      "editHint": "提示：单选题点击圆圈切换正确项；多选题可勾选多个。"
+      "editHint": "提示：题型由 AI 生成后锁定；题干和选项可编辑，选项可拖拽排序，正确答案可点击选择。",
+      "questionType": {
+        "single": "单选",
+        "multiple": "多选",
+        "short_answer": "简答"
+      }
     },
     "style": {
       "elementHeader": "选中元素",

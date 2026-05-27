@@ -8,7 +8,6 @@ import {
   ArrowUp,
   ArrowUpToLine,
   ChevronDown,
-  Crop,
   ImagePlus,
   Layers,
 } from 'lucide-react';
@@ -77,13 +76,12 @@ function parseOpacityFilter(v: string | undefined): number {
 /**
  * Floating mini toolbar for the currently selected image element.
  * Visible only when exactly one image is selected, the image is not being
- * cropped, and not locked. Shares replace/crop/layer/opacity actions
+ * cropped, and not locked. Shares replace/layer/opacity actions
  * with the right-click context menu via useImageElementActions.
  */
 export function ImageMiniToolbar() {
   const { t } = useI18n();
   const activeElementIdList = useCanvasStore.use.activeElementIdList();
-  const clipingImageElementId = useCanvasStore.use.clipingImageElementId();
   const canvasScale = useCanvasStore.use.canvasScale();
   const isScaling = useCanvasStore.use.isScaling();
 
@@ -98,7 +96,7 @@ export function ImageMiniToolbar() {
     return el as PPTImageElement;
   }, [activeElementIdList, elements]);
 
-  const visible = !!targetImage && clipingImageElementId !== targetImage.id && !targetImage.lock;
+  const visible = !!targetImage && !targetImage.lock;
 
   // Position state
   const [coords, setCoords] = useState<{ top: number; left: number }>({ top: -9999, left: -9999 });
@@ -204,7 +202,6 @@ export function ImageMiniToolbar() {
     replaceImageInputRef,
     triggerImageReplace,
     handleReplaceImageFile,
-    cropImage,
     orderTop,
     orderUp,
     orderDown,
@@ -248,9 +245,6 @@ export function ImageMiniToolbar() {
         onChange={handleReplaceImageFile}
       />
 
-      <MiniIconBtn tooltip={t('editMode.miniToolbar.crop')} onClick={cropImage}>
-        <Crop />
-      </MiniIconBtn>
       <MiniIconBtn
         tooltip={t('editMode.miniToolbar.replace')}
         onClick={triggerImageReplace}

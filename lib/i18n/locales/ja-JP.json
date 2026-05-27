@@ -287,10 +287,16 @@
       "questionAriaLabel": "問題文（編集可能）",
       "optionAriaLabel": "選択肢（編集可能）",
       "toggleCorrect": "正解として設定",
+      "dragOption": "ドラッグして選択肢を並べ替え",
       "removeOption": "選択肢を削除",
       "addOption": "選択肢を追加",
       "newOptionLabel": "新しい選択肢",
-      "editHint": "ヒント：単一選択は円をクリックして正解を設定。複数選択は複数を切り替え可能。"
+      "editHint": "ヒント：AI が生成した問題タイプは固定です。問題文と選択肢は編集でき、選択肢はドラッグで並べ替え、正解はクリックで選択できます。",
+      "questionType": {
+        "single": "単一選択",
+        "multiple": "複数選択",
+        "short_answer": "短答"
+      }
     },
     "style": {
       "elementHeader": "選択中の要素",

@@ -670,10 +670,16 @@
       "questionAriaLabel": "Question (editable)",
       "optionAriaLabel": "Option (editable)",
       "toggleCorrect": "Mark as correct answer",
+      "dragOption": "Drag to reorder option",
       "removeOption": "Remove option",
       "addOption": "Add option",
       "newOptionLabel": "New option",
-      "editHint": "Tip: single-choice — click the circle to set the correct one. Multi-choice — toggle several."
+      "editHint": "Tip: the AI-generated question type is locked; edit the prompt and options, drag options to reorder, and click to choose the correct answer.",
+      "questionType": {
+        "single": "Single choice",
+        "multiple": "Multiple choice",
+        "short_answer": "Short answer"
+      }
     },
     "style": {
       "elementHeader": "Selected element",

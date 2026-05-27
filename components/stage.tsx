@@ -613,13 +613,13 @@ export function Stage({
       currentScene?.type === 'interactive' ||
       currentScene?.type === 'pbl';
 
-    // Publisher edit view auto-enters slide edit mode so editing is the
+    // Publisher edit view auto-enters manual edit mode so editing is the
     // default experience after AI generation — there's no longer a manual
-    // "进入编辑" button to click. Only `slide` scenes support inline editing
-    // (others go through the per-scene AI-tuner flow), so we gate on the
-    // slide type. Switching back to preview view exits edit mode so the
-    // playback engine can resume cleanly without leftover edit chrome.
-    if (publisherEditView && currentScene?.type === 'slide') {
+    // "进入编辑" button to click. Slides get full PPTist editing; quizzes get
+    // a constrained editor for question text, option text/order, and correct
+    // answers. Switching back to preview view exits edit mode so the playback
+    // engine can resume cleanly without leftover edit chrome.
+    if (publisherEditView && (currentScene?.type === 'slide' || currentScene?.type === 'quiz')) {
       setEditing(true);
     } else if (!editableScene || !publisherEditView) {
       setEditing(false);

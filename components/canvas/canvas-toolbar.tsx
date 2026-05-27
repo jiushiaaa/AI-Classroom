@@ -148,11 +148,9 @@ export function CanvasToolbar({
     (s) => s.stage?.whiteboard?.[0]?.elements?.length || 0,
   );
 
-  // P3 / P6: edit-mode toggle. Only enabled for editable scene types —
-  // currently just the PPTist slide canvas. Quiz / interactive widgets
-  // (模拟实验 · 在线编程 · 思维导图 · 3D · game) / PBL (项目挑战) all rely on
-  // the per-scene AI-modify flow instead because their structures are
-  // impractical to tweak by hand.
+  // P3 / P6: edit-mode toggle. Slides support full PPTist editing; quizzes
+  // support constrained question/option editing. Interactive widgets and PBL
+  // use the per-scene AI-modify flow.
   const isEditing = useEditModeStore.use.isEditing();
   const setEditing = useEditModeStore.use.setEditing();
   const cancelEditingWithRevert = useEditModeStore.use.cancelEditingWithRevert();

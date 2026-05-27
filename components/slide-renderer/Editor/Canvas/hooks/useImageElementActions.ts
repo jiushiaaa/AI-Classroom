@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useRef } from 'react';
-import { useCanvasStore } from '@/lib/store/canvas';
 import { useCanvasOperations } from '@/lib/hooks/use-canvas-operations';
 import { useHistorySnapshot } from '@/lib/hooks/use-history-snapshot';
 import { ElementOrderCommands } from '@/lib/types/edit';
@@ -26,7 +25,6 @@ import {
  *   adds a snapshot.
  */
 export function useImageElementActions(elementInfo: PPTElement) {
-  const setClipingImageElementId = useCanvasStore.use.setClipingImageElementId();
   const { updateElement, orderElement, lockElement, copyElement, deleteElement } =
     useCanvasOperations();
   const { addHistorySnapshot } = useHistorySnapshot();
@@ -53,10 +51,6 @@ export function useImageElementActions(elementInfo: PPTElement) {
     },
     [elementInfo.id, updateElement, addHistorySnapshot],
   );
-
-  const cropImage = useCallback(() => {
-    setClipingImageElementId(elementInfo.id);
-  }, [setClipingImageElementId, elementInfo.id]);
 
   const orderTop = useCallback(() => {
     orderElement(elementInfo, ElementOrderCommands.TOP);
@@ -109,7 +103,6 @@ export function useImageElementActions(elementInfo: PPTElement) {
     replaceImageInputRef,
     triggerImageReplace,
     handleReplaceImageFile,
-    cropImage,
     orderTop,
     orderUp,
     orderDown,

@@ -29,9 +29,8 @@ export function EditModeToggleButton({
     const id = s.currentSceneId;
     return id ? s.scenes.find((sc) => sc.id === id)?.type : undefined;
   });
-  // Only the PPTist slide canvas supports inline manual editing; quiz /
-  // interactive widgets (simulation, code, mindmap, …) / PBL go through
-  // the AI-modify flow instead.
+  // Slides support full inline editing; quizzes support a constrained editor.
+  // Interactive widgets and PBL go through the AI-modify flow instead.
   const canEnterEdit = isManuallyEditableSceneType(currentSceneType);
 
   const onConfirm = useCallback(() => {

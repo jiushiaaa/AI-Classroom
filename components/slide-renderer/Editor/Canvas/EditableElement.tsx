@@ -87,8 +87,7 @@ export function EditableElement({
   } = useCanvasOperations();
 
   const imageActions = useImageElementActions(elementInfo);
-  const { replaceImageInputRef, triggerImageReplace, handleReplaceImageFile, cropImage } =
-    imageActions;
+  const { replaceImageInputRef, triggerImageReplace, handleReplaceImageFile } = imageActions;
 
   const contextmenus = (): ContextmenuItem[] => {
     if (elementInfo.lock) {
@@ -107,10 +106,6 @@ export function EditableElement({
           {
             text: t('editMode.contextMenu.replaceImage'),
             handler: triggerImageReplace,
-          },
-          {
-            text: t('editMode.contextMenu.cropImage'),
-            handler: cropImage,
           },
           { divider: true },
         ]

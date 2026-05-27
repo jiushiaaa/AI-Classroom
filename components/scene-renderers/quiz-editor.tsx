@@ -5,8 +5,10 @@
  * ----------
  * Inline editor for quiz scenes used while the publisher is in edit mode.
  * Renders each question with:
+ *   - read-only question type badge
  *   - contentEditable question text
  *   - per-option contentEditable label
+ *   - drag handles for option ordering
  *   - a radio per option that toggles the correct answer
  *   - delete-option / add-option buttons
  *
@@ -17,11 +19,12 @@
  * Mock-only: no AI / scoring side-effects.
  */
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState, type DragEvent } from 'react';
 import { Plus, Trash2, GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useStageStore } from '@/lib/store';
 import { useI18n } from '@/lib/hooks/use-i18n';
+import { QUIZ_OPTION_LETTERS, reorderQuizOptions } from '@/lib/quiz/editor';
 import type { QuizQuestion, QuizOption, QuizContent } from '@/lib/types/stage';
 
 interface QuizEditorProps {
@@ -29,12 +32,14 @@ interface QuizEditorProps {
   readonly questions: QuizQuestion[];
 }
 
-const OPTION_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-
 export function QuizEditor({ sceneId, questions }: QuizEditorProps) {
   const { t } = useI18n();
   const updateScene = useStageStore.use.updateScene();
   const scenes = useStageStore.use.scenes();
+  const [draggingOption, setDraggingOption] = useState<{
+    questionId: string;
+    index: number;
+  } | null>(null);
 
   const scene = useMemo(() => scenes.find((s) => s.id === sceneId), [scenes, sceneId]);
 
@@ -87,8 +92,8 @@ export function QuizEditor({ sceneId, questions }: QuizEditorProps) {
       const target = questions.find((q) => q.id === qid);
       if (!target) return;
       const existing = target.options ?? [];
-      if (existing.length >= OPTION_LETTERS.length) return;
-      const nextLetter = OPTION_LETTERS[existing.length];
+      if (existing.length >= QUIZ_OPTION_LETTERS.length) return;
+      const nextLetter = QUIZ_OPTION_LETTERS[existing.length];
       const nextOption: QuizOption = {
         label: t('editMode.quiz.newOptionLabel'),
         value: nextLetter,
@@ -96,6 +101,41 @@ export function QuizEditor({ sceneId, questions }: QuizEditorProps) {
       updateQuestion(qid, { options: [...existing, nextOption] });
     },
     [questions, updateQuestion, t],
+  );
+
+  const moveOption = useCallback(
+    (qid: string, fromIndex: number, toIndex: number) => {
+      const target = questions.find((q) => q.id === qid);
+      if (!target?.options) return;
+      const { options: nextOptions, answer: nextAnswer } = reorderQuizOptions(
+        target.options,
+        target.answer,
+        fromIndex,
+        toIndex,
+      );
+      updateQuestion(qid, { options: nextOptions, answer: nextAnswer });
+    },
+    [questions, updateQuestion],
+  );
+
+  const handleOptionDragStart = useCallback(
+    (event: DragEvent<HTMLButtonElement>, questionId: string, index: number) => {
+      setDraggingOption({ questionId, index });
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', `${questionId}:${index}`);
+    },
+    [],
+  );
+
+  const handleOptionDrop = useCallback(
+    (event: DragEvent<HTMLDivElement>, questionId: string, index: number) => {
+      event.preventDefault();
+      const source = draggingOption;
+      setDraggingOption(null);
+      if (!source || source.questionId !== questionId) return;
+      moveOption(questionId, source.index, index);
+    },
+    [draggingOption, moveOption],
   );
 
   const removeOption = useCallback(
@@ -143,6 +183,9 @@ export function QuizEditor({ sceneId, questions }: QuizEditorProps) {
               >
                 {q.question}
               </span>
+              <span className="shrink-0 rounded-full bg-gray-100 px-2 py-1 text-[11px] font-semibold text-gray-500 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700">
+                {t(`editMode.quiz.questionType.${q.type}`)}
+              </span>
             </div>
 
             {q.options && q.options.length > 0 && (
@@ -152,14 +195,32 @@ export function QuizEditor({ sceneId, questions }: QuizEditorProps) {
                   return (
                     <div
                       key={`${q.id}-${idx}`}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                      }}
+                      onDrop={(e) => handleOptionDrop(e, q.id, idx)}
                       className={cn(
                         'group flex items-center gap-2 rounded-lg p-2 ring-1 transition-colors',
+                        draggingOption?.questionId === q.id &&
+                          draggingOption.index === idx &&
+                          'opacity-50',
                         isCorrect
                           ? 'bg-emerald-50 dark:bg-emerald-900/20 ring-emerald-200 dark:ring-emerald-700/40'
                           : 'bg-gray-50/60 dark:bg-gray-800/40 ring-gray-200/60 dark:ring-gray-700/40',
                       )}
                     >
-                      <GripVertical className="w-3.5 h-3.5 text-gray-300 dark:text-gray-600 shrink-0" />
+                      <button
+                        type="button"
+                        draggable
+                        onDragStart={(e) => handleOptionDragStart(e, q.id, idx)}
+                        onDragEnd={() => setDraggingOption(null)}
+                        title={t('editMode.quiz.dragOption')}
+                        aria-label={t('editMode.quiz.dragOption')}
+                        className="shrink-0 cursor-grab rounded p-0.5 text-gray-300 transition-colors active:cursor-grabbing hover:bg-gray-100 hover:text-gray-500 dark:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-400"
+                      >
+                        <GripVertical className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         type="button"
                         onClick={() => toggleCorrect(q.id, opt.value)}
@@ -209,7 +270,7 @@ export function QuizEditor({ sceneId, questions }: QuizEditorProps) {
                 <button
                   type="button"
                   onClick={() => addOption(q.id)}
-                  disabled={(q.options?.length ?? 0) >= OPTION_LETTERS.length}
+                  disabled={(q.options?.length ?? 0) >= QUIZ_OPTION_LETTERS.length}
                   className="w-full flex items-center justify-center gap-1.5 h-9 rounded-lg text-xs font-medium border border-dashed border-orange-200 dark:border-orange-700/50 text-orange-600 dark:text-orange-300 hover:border-orange-400 dark:hover:border-orange-500 hover:bg-orange-50/60 dark:hover:bg-orange-900/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                 >
                   <Plus className="w-3.5 h-3.5" />
